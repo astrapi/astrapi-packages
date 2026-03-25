@@ -1,0 +1,126 @@
+{#
+  core/modules/scheduler/templates/partials/list.html
+  Nur der Listen-Container (ohne page-header).
+  Wird per hx-swap="outerHTML" auf #{{ container_id }} gesetzt.
+  Variablen:
+    jobs         – list[dict]
+    actions      – dict[key, label]
+    key          – "scheduler"
+    container_id – z.B. "tab-scheduler"
+    loading_id   – z.B. "scheduler-loading"
+#}
+{% import 'partials/components/card.html' as card %}
+
+<div id="{{ container_id }}" class="ds-list-grid">
+{% if jobs %}
+  {% for job in jobs %}
+
+    {% set title_html %}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      {{ job.label }}
+    {% endset %}
+
+    {% set toggle_html %}
+      <button
+        hx-get="/ui/{{ key }}/job/{{ job.id }}/toggle?container_id={{ container_id }}&loading_id={{ loading_id }}&enabled={{ job.enabled }}"
+        hx-target="body" hx-swap="beforeend"
+        class="toggle-switch {{ 'toggle-on' if job.enabled else 'toggle-off' }}"
+        title="{{ 'Deaktivieren' if job.enabled else 'Aktivieren' }}">
+        <span class="toggle-knob"></span>
+      </button>
+    {% endset %}
+
+    {% set footer_left %}
+      <form hx-post="/ui/{{ key }}/job/{{ job.id }}/trigger"
+            hx-target="#{{ container_id }}" hx-swap="outerHTML"
+            style="display:contents;">
+        <button type="submit" class="btn-icon btn-icon-run" title="Jetzt ausführen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </button>
+      </form>
+    {% endset %}
+
+    {% set footer_right %}
+      <button
+        hx-get="/ui/{{ key }}/job/{{ job.id }}/edit?container_id={{ container_id }}&loading_id={{ loading_id }}"
+        hx-target="body" hx-swap="beforeend"
+        class="btn-icon" title="Bearbeiten">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>
+      <button
+        hx-get="/ui/{{ key }}/job/{{ job.id }}/delete?container_id={{ container_id }}&loading_id={{ loading_id }}&description={{ job.label }}"
+        hx-target="body" hx-swap="beforeend"
+        class="btn-icon btn-icon-danger" title="Löschen">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6m4-6v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+    {% endset %}
+
+    {% call card.render(title_html, enabled=job.enabled, toggle_html=toggle_html, footer_left=footer_left, footer_right=footer_right) %}
+      <div class="meta-grid">
+        <span class="meta-label">Cron</span>
+        <span class="meta-value" style="font-family:monospace; font-size:12px;">{{ job.cron }}</span>
+
+        <span class="meta-label">Nächster Lauf</span>
+        <span class="meta-value">{{ job.next_run or '—' }}</span>
+
+        <span class="meta-label">Letzter Lauf</span>
+        <span class="meta-value">
+          {{ job.last_run or '—' }}
+          {% if job.last_duration %}<span style="color:var(--text-3);"> ({{ job.last_duration }})</span>{% endif %}
+        </span>
+
+        {% if job.last_status %}
+        <span class="meta-label">Status</span>
+        <span class="meta-value">
+          <span style="padding:1px 8px; border-radius:99px; font-size:11px;
+                       {% if job.last_status == 'OK' %}background:rgba(74,222,128,0.12); color:#4ade80;
+                       {% else %}background:rgba(239,68,68,0.12); color:#f87171;{% endif %}"
+                title="{{ job.last_status }}">
+            {{ job.last_status[:30] }}{% if job.last_status|length > 30 %}…{% endif %}
+          </span>
+        </span>
+        {% endif %}
+      </div>
+
+      {% if job.steps %}
+      <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:4px;">
+        {% for step in job.steps %}
+        <span style="padding:2px 8px; border-radius:6px; font-size:11px;
+                     background:rgba(99,102,241,0.10); color:#818cf8;">
+          {{ loop.index }}. {{ actions.get(step, step) }}
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="margin-top:8px; font-size:11px; color:var(--text-3);">Keine Schritte konfiguriert.</div>
+      {% endif %}
+    {% endcall %}
+
+  {% endfor %}
+
+{% else %}
+  <div class="empty-state">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    <div class="empty-state-title">Keine Jobs konfiguriert</div>
+    <div class="empty-state-sub">
+      Erstelle einen Scheduler-Job über „Neu".
+      {% if not actions %}
+      <br><span style="color:var(--text-3);">Hinweis: Noch keine Aktionen registriert.</span>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+</div>

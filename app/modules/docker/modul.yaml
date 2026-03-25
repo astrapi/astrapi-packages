@@ -1,0 +1,28 @@
+# app/modules/docker/modul.yaml
+
+label:     Docker Images
+icon:      box
+nav_group: Pakete
+
+card_actions:
+  - title:           "Image bauen"
+    icon:            play
+    style:           run
+    hx_post:         "/ui/docker/{item}/build"
+    hx_target:       "#{container_id}"
+    hx_swap:         innerHTML
+    disabled_if_off: true
+
+  - title:     "Image aktualisieren"
+    icon:      refresh
+    style:     run
+    hx_post:   "/ui/docker/{item}/update"
+    hx_target: "#{container_id}"
+    hx_swap:   innerHTML
+
+  - title:     "Build-Log"
+    icon:      file-text
+    style:     log
+    hx_get:    "/ui/docker/{item}/log"
+    hx_target: body
+    hx_swap:   beforeend

@@ -1,0 +1,168 @@
+{#
+  core/ui/templates/partials/lists/settings.html
+  Globale Einstellungen: Darstellung · Lokalisierung · Erkannte Module
+  Variablen: settings (dict), modules (list[Module]), flash_message (str)
+#}
+
+<div id="settings-container">
+
+  <div class="page-header">
+    <div class="page-title">Einstellungen</div>
+  </div>
+
+  <div class="section-stack">
+
+  {% if flash_message %}
+  <div class="alert alert-info" style="margin-bottom:14px;">
+    {{ flash_message }}
+  </div>
+  {% endif %}
+
+  <form hx-post="/ui/settings/save/global"
+        hx-target="#settings-container"
+        hx-swap="outerHTML">
+
+    {# ── Zwei-Spalten-Layout: Darstellung | Lokalisierung ──────────────────── #}
+    <div class="settings-form-grid settings-form-grid--2col" style="align-items:start;">
+
+      {# ── Darstellung ─────────────────────────────────────────────────────── #}
+      <div>
+        <div class="ds-card on">
+          <div class="card-body" style="padding:16px;">
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div class="form-group">
+                <label class="form-label">Erscheinungsbild</label>
+                <select class="form-select" name="LIGHT_MODE">
+                  <option value="0" {{ 'selected' if settings.get('LIGHT_MODE', '0') != '1' }}>Dunkel</option>
+                  <option value="1" {{ 'selected' if settings.get('LIGHT_MODE', '0') == '1' }}>Hell</option>
+                </select>
+                <div class="form-hint">Wird sofort und dauerhaft übernommen.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Icon-Theme</label>
+                <select class="form-select" name="APP_ICON_THEME">
+                  {% for val, label in [('lucide','Lucide'), ('heroicons','Heroicons'), ('tabler','Tabler')] %}
+                  <option value="{{ val }}" {{ 'selected' if settings.get('APP_ICON_THEME', 'lucide') == val }}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-hint">Steuert Strichstärke und Kantenrundung aller Icons. Wird nach dem Speichern neu geladen.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── Lokalisierung ───────────────────────────────────────────────────── #}
+      <div>
+        <div class="ds-card on">
+          <div class="card-body" style="padding:16px;">
+            <div style="display:flex; flex-direction:column; gap:14px;">
+
+              <div class="form-group">
+                <label class="form-label">Sprache</label>
+                <select class="form-select" name="APP_LANG">
+                  {% for code, label in [('de','Deutsch'),('en','English'),('fr','Français'),('es','Español')] %}
+                  <option value="{{ code }}"
+                    {{ 'selected' if settings.get('APP_LANG', 'de') == code }}>
+                    {{ label }}
+                  </option>
+                  {% endfor %}
+                </select>
+                <div class="form-hint">Sprachkürzel für UI-Texte und HTML-lang-Attribut.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Zeitzone</label>
+                <input class="form-input" type="text" name="TIMEZONE"
+                       value="{{ settings.get('TIMEZONE', 'Europe/Berlin') }}"
+                       placeholder="Europe/Berlin">
+                <div class="form-hint">IANA-Zeitzone, z. B. <code>Europe/Vienna</code></div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Datumsformat</label>
+                <select class="form-select" name="DATE_FORMAT">
+                  {% for fmt in ['DD.MM.YYYY', 'YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY'] %}
+                  <option value="{{ fmt }}"
+                    {{ 'selected' if settings.get('DATE_FORMAT', 'DD.MM.YYYY') == fmt }}>
+                    {{ fmt }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>{# ── Ende Zwei-Spalten ──────────────────────────────────────────────────── #}
+
+    {# ── Speichern ─────────────────────────────────────────────────────────── #}
+    <div class="form-actions" style="padding-bottom:4px;">
+      <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+    </div>
+
+  </form>
+
+{# Erscheinungsbild + Icon-Theme sofort anwenden nach HTMX-Swap #}
+  <script>
+    (function() {
+      var lm = '{{ settings.get("LIGHT_MODE", "0") }}';
+      document.documentElement.classList.toggle('light-mode', lm === '1');
+      localStorage.setItem('lightMode', lm);
+
+      var newTheme = '{{ icon_theme }}';
+      var curTheme = document.documentElement.dataset.iconTheme || 'lucide';
+      if (newTheme !== curTheme) {
+        window.location.reload();
+      }
+    })();
+  </script>
+
+  {# ── Core-Module ─────────────────────────────────────────────────────────── #}
+  {% set toggleable_core_mods = core_module_list | selectattr('key', '!=', 'settings') | list %}
+  {% if toggleable_core_mods %}
+  <div>
+    <div class="ds-card on">
+      <div class="card-body" style="padding:16px;">
+        <div style="font-weight:600; margin-bottom:4px;">Core-Module</div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+          Änderungen werden nach einem Neustart wirksam.
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          {% for mod in toggleable_core_mods %}
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-color);">
+            <span style="font-size:14px;">{{ mod.label }}</span>
+            <button
+              class="toggle-switch {{ 'toggle-on' if mod.enabled else 'toggle-off' }}"
+              title="{{ 'Deaktivieren' if mod.enabled else 'Aktivieren' }}"
+              hx-post="/ui/settings/core-module/{{ mod.key }}/toggle"
+              hx-target="#settings-container"
+              hx-swap="outerHTML">
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── SSH-Key ──────────────────────────────────────────────────────────────── #}
+  <div>
+    <div class="ds-card on">
+      <div class="card-body" style="padding:16px;">
+        <div style="font-weight:600; margin-bottom:12px;">SSH-Key</div>
+        <div hx-get="/ui/settings/ssh-key"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div>{# ── Ende section-stack ── #}
+
+</div>

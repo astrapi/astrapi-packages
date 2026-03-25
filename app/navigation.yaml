@@ -1,0 +1,8 @@
+# app/navigation.yaml – App-spezifische Navigation
+#
+# Definiert die Reihenfolge und Gruppierung der App-Module im Menü.
+# label und icon sind optional – Defaults kommen aus der modul.yaml des Moduls.
+# Core-Module (notify, scheduler, sysinfo, settings) stehen in core/navigation.yaml.
+
+- key:   docker
+  group: Pakete

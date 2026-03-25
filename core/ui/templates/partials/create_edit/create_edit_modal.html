@@ -1,0 +1,195 @@
+{#
+  core/templates/partials/create_edit/create_edit_modal.html
+
+  Variablen:
+    schema       – Liste der Felder aus schema.yaml (kann type:section-Einträge enthalten)
+    item         – bestehende Werte (Edit) oder None (Create)
+    item_id      – ID des Items (Edit) oder None (Create)
+    id_field     – Schema-Definition des ID-Feldes (nur Create, optional)
+    submit_url   – Ziel-URL (POST für Create, PUT für Edit)
+    method       – "post" oder "put"
+    title        – Titel des Dialogs
+    modal_width  – Breite des Modals in px (default: 620)
+    container_id – Fallback (wird nicht mehr für hx-target genutzt)
+    loading_id   – HTMX-Indikator
+
+  Schema-Felder können enthalten:
+    type: section  – Gruppenüberschrift (label, cols)
+    span: N        – Feld belegt N Spalten im Section-Grid
+#}
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+<div
+  id="create-edit-modal"
+  class="ds-modal-backdrop"
+  x-data
+  x-on:keydown.escape.window="$el.remove()"
+>
+  <div class="ds-modal" style="max-width:{{ modal_width | default(620) }}px; padding:20px 24px;">
+
+    {{ modal_title(is_edit=item is not none, title=title) }}
+
+    <form id="create-edit-form"
+      hx-{{ method }}="{{ submit_url }}"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      hx-indicator="#{{ loading_id }}"
+      class="form-stack" style="gap:14px;"
+    >
+
+      {# ── ID-Feld (nur beim Anlegen) ─────────────────────────────────────── #}
+      {% if id_field and not item %}
+        <div class="form-group">
+          <label class="form-label">
+            {{ id_field.label }}
+            <span class="required-mark">*</span>
+          </label>
+          <input
+            type="text"
+            name="{{ id_field.name }}"
+            class="form-input"
+            data-required="true"
+            {% if id_field.placeholder %}placeholder="{{ id_field.placeholder }}"{% endif %}
+            {% if id_field.max %}maxlength="{{ id_field.max }}"{% endif %}
+          >
+          <span class="form-error"></span>
+        </div>
+      {% endif %}
+
+      {# ── Felder vorbereiten ─────────────────────────────────────────────── #}
+      {% set values = values if values is mapping else (item if item is mapping else {}) %}
+      {% set enabled_field = schema | selectattr('name', 'equalto', 'enabled') | list | first %}
+      {% set enabled_val = values.get('enabled', True) if values is mapping else True %}
+      {% set render_fields = schema | rejectattr('name', 'equalto', 'enabled') | list %}
+
+      {# ── Entscheide: neues Section-Rendering vs. altes row-Rendering ────── #}
+      {% set has_sections = render_fields | selectattr('type', 'equalto', 'section') | list | length > 0 %}
+
+      {% if has_sections %}
+
+        {# ── Neues Section-basiertes Rendering ──────────────────────────── #}
+        {% set ns = namespace(grid_open=False, first_section=True) %}
+
+        {% for field in render_fields %}
+
+          {% if field.get('type') == 'section' %}
+
+            {# Vorheriges Grid schließen #}
+            {% if ns.grid_open %}</div>{% endif %}
+
+            {# Section-Header (wie nav-group-label / settings-section-label) #}
+            <div class="settings-section-label" style="margin-top:{% if ns.first_section %}4px{% else %}12px{% endif %};">
+              {{ field.label }}
+            </div>
+            {% set ns.first_section = False %}
+
+            {# Neues Grid öffnen #}
+            <div style="display:grid;
+                        grid-template-columns:repeat({{ field.get('cols', 2) }}, 1fr);
+                        gap:12px;">
+            {% set ns.grid_open = True %}
+
+          {% else %}
+
+            {# Erstes Feld vor einer Section → 1-spaltiges Stacking #}
+            {% if not ns.grid_open %}
+              <div style="display:grid; grid-template-columns:1fr; gap:14px;">
+              {% set ns.grid_open = True %}
+            {% endif %}
+
+            {# Feld mit optionalem span #}
+            {% set field_span = field.get('span', 1) %}
+            {% if field_span > 1 %}
+              <div style="grid-column: span {{ field_span }};">
+                {% include "partials/create_edit/field_renderer.html" %}
+              </div>
+            {% else %}
+              {% include "partials/create_edit/field_renderer.html" %}
+            {% endif %}
+
+          {% endif %}
+        {% endfor %}
+
+        {% if ns.grid_open %}</div>{% endif %}
+
+      {% else %}
+
+        {# ── Altes row-basiertes Rendering (Rückwärtskompatibilität) ──────── #}
+        {% set rows = render_fields | groupby("row") %}
+        {% for row, fields in rows %}
+          <div style="display:grid;
+                      grid-template-columns:{% if fields | length == 2 and fields[1].type == 'boolean' %}1fr auto{% else %}repeat({{ fields | length }}, 1fr){% endif %};
+                      gap:12px;
+                      align-items:{% if fields | length == 2 and fields[1].type == 'boolean' %}end{% else %}start{% endif %};">
+            {% for field in fields %}
+              {% include "partials/create_edit/field_renderer.html" %}
+            {% endfor %}
+          </div>
+        {% endfor %}
+
+      {% endif %}
+
+      {{ modal_footer(enabled=enabled_val, enabled_id='modal-enabled',
+                      save_label='Speichern' if item else 'Erstellen',
+                      has_toggle=enabled_field, save_id='create-edit-submit',
+                      save_type='button') }}
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const form      = document.getElementById('create-edit-form');
+  const submitBtn = document.getElementById('create-edit-submit');
+
+  function validateField(input) {
+    const errorEl  = input.parentElement.querySelector('.form-error');
+    let   message  = '';
+    const isRequired = input.dataset.required === 'true';
+    const value      = input.value.trim();
+
+    if (isRequired && value === '') {
+      message = 'Dieses Feld ist erforderlich.';
+    } else if (input.type === 'number' && value !== '') {
+      const num = Number(value);
+      if (isNaN(num))                                    message = 'Bitte eine gültige Zahl eingeben.';
+      else if (input.min !== '' && num < Number(input.min)) message = `Mindestwert ist ${input.min}.`;
+      else if (input.max !== '' && num > Number(input.max)) message = `Maximalwert ist ${input.max}.`;
+    } else if (input.minLength > 0 && value.length < input.minLength) {
+      message = `Mindestens ${input.minLength} Zeichen erforderlich.`;
+    }
+
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.classList.toggle('visible', message !== '');
+    }
+    input.classList.toggle('is-invalid', message !== '');
+    return message === '';
+  }
+
+  form.querySelectorAll('input[data-required], input[type="number"], select[data-required]')
+    .forEach(input => {
+      input.addEventListener('blur',  () => validateField(input));
+      input.addEventListener('input', () => { if (input.classList.contains('is-invalid')) validateField(input); });
+    });
+
+  submitBtn.addEventListener('click', function () {
+    const inputs = form.querySelectorAll('input[data-required], input[type="number"], select[data-required]');
+    let valid = true;
+    inputs.forEach(input => { if (!validateField(input)) valid = false; });
+
+    if (!valid) {
+      const firstError = form.querySelector('.form-error.visible');
+      if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    htmx.trigger(form, 'submit');
+    form.addEventListener('htmx:afterRequest', function handler(e) {
+      if (e.detail.successful) {
+        document.getElementById('create-edit-modal')?.remove();
+      }
+      form.removeEventListener('htmx:afterRequest', handler);
+    });
+  });
+})();
+</script>

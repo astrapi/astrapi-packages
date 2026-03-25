@@ -1,0 +1,22 @@
+{#
+  core/modules/scheduler/templates/partials/tab.html
+  Variablen:
+    jobs         – list[dict]
+    actions      – dict[key, label]
+    key          – "scheduler"
+    container_id – z.B. "tab-scheduler"
+    loading_id   – z.B. "scheduler-loading"
+#}
+<div class="page-header">
+  <span class="page-title">Scheduler-Jobs</span>
+  <button class="btn btn-primary btn-sm"
+          hx-get="/ui/{{ key }}/job/new?container_id={{ container_id }}&loading_id={{ loading_id }}"
+          hx-target="body" hx-swap="beforeend">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Neu
+  </button>
+</div>
+
+{% include 'scheduler/partials/list.html' %}

@@ -1,0 +1,80 @@
+{# activity_log/partials/list.html #}
+
+{# Filter-Makro um Duplikation zu vermeiden #}
+{% macro filters() %}
+  <select class="form-select" style="font-size:12px; padding:4px 8px; width:auto;" name="log_type"
+          hx-get="/api/activity_log/rows" hx-target="#activity-log-rows" hx-swap="innerHTML" hx-trigger="change"
+          hx-include="[name='module'],[name='status'],[name='date_range']">
+    <option value="">Alle Typen</option>
+    <option value="job">Jobs</option>
+    <option value="scheduler">Scheduler</option>
+    <option value="error">Errors</option>
+    <option value="warning">Warnings</option>
+    <option value="system">System</option>
+  </select>
+  <select class="form-select" style="font-size:12px; padding:4px 8px; width:auto;" name="module"
+          hx-get="/api/activity_log/rows" hx-target="#activity-log-rows" hx-swap="innerHTML" hx-trigger="change"
+          hx-include="[name='log_type'],[name='status'],[name='date_range']">
+    <option value="">Alle Module</option>
+    {% for m in modules %}
+    <option value="{{ m }}">{{ m.replace('_',' ').title() }}</option>
+    {% endfor %}
+  </select>
+  <select class="form-select" style="font-size:12px; padding:4px 8px; width:auto;" name="status"
+          hx-get="/api/activity_log/rows" hx-target="#activity-log-rows" hx-swap="innerHTML" hx-trigger="change"
+          hx-include="[name='log_type'],[name='module'],[name='date_range']">
+    <option value="">Alle Status</option>
+    <option value="ok">OK</option>
+    <option value="error">Fehler</option>
+    <option value="warning">Warnung</option>
+    <option value="running">Läuft</option>
+    <option value="skipped">Übersprungen</option>
+  </select>
+  <select class="form-select" style="font-size:12px; padding:4px 8px; width:auto;" name="date_range"
+          hx-get="/api/activity_log/rows" hx-target="#activity-log-rows" hx-swap="innerHTML" hx-trigger="change"
+          hx-include="[name='log_type'],[name='module'],[name='status']">
+    <option value="24h">Letzte 24h</option>
+    <option value="7d">7 Tage</option>
+    <option value="30d" selected>30 Tage</option>
+    <option value="">Alle</option>
+  </select>
+{% endmacro %}
+
+<div id="tab-activity_log" class="tab-content">
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-title">Activity Log</div>
+    </div>
+    <div class="page-header-actions">
+      <div class="al-filters-desktop">{{ filters() }}</div>
+      <button class="btn btn-danger btn-sm"
+              hx-get="/api/activity_log/clear-confirm"
+              hx-target="body" hx-swap="beforeend">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        Log leeren
+      </button>
+    </div>
+  </div>
+
+  <div class="al-filters-mobile">{{ filters() }}</div>
+
+  <div class="ds-card on" style="overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead>
+          <tr>
+            {% for col, cls in [('Zeitpunkt',''),('Typ','al-col-hide'),('Modul','al-col-hide'),('Beschreibung',''),('Status',''),('Dauer','al-col-hide'),('Bytes','al-col-hide'),('','')] %}
+            <th class="{{ cls }}" style="padding:9px 14px; text-align:left; font-size:11px;
+                       text-transform:uppercase; letter-spacing:0.05em;
+                       color:var(--text-3); font-weight:600; white-space:nowrap;
+                       border-bottom:1px solid var(--border-s);">{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="activity-log-rows">
+          {% include "activity_log/partials/rows.html" %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

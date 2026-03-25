@@ -1,0 +1,271 @@
+{% import 'partials/components/ui_macros.html' as ui %}
+{% import 'partials/components/card.html' as card %}
+
+{% set event_colors = {
+  "error":   "#f87171",
+  "warning": "#fbbf24",
+  "success": "#4ade80",
+  "info":    "#60a5fa"
+} %}
+{% set event_labels = {
+  "error":   "Fehler",
+  "warning": "Warnung",
+  "success": "Erfolg",
+  "info":    "Info"
+} %}
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# SEKTION 1 – KANÄLE                                                         #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+
+<div class="page-header">
+  <div class="page-header-main">
+    <span class="page-title">Benachrichtigungen</span>
+  </div>
+</div>
+
+<div class="page-header page-header--inline page-header--section">
+  <div class="page-header-main">
+    <span class="page-title">Kanäle</span>
+    <span class="page-subtitle">Backend-Konfiguration (Server, Zugangsdaten)</span>
+  </div>
+  <div class="page-header-actions">
+    <button class="btn btn-primary btn-sm"
+      hx-get="/ui/{{ key }}/backend-select"
+      hx-target="body" hx-swap="beforeend">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Neuer Kanal
+    </button>
+  </div>
+</div>
+
+<div id="tab-notify-channels" class="ds-list-grid">
+{% if channels %}
+  {% for ch_id, ch in channels.items() %}
+    {% set ch_enabled = ch.get('enabled', True) %}
+
+    {% set title_html %}
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      {{ ch.label or ch_id }}
+      <span style="font-size:11px; font-weight:500; padding:1px 7px;
+                   border-radius:99px; margin-left:6px;
+                   background:rgba(100,116,139,.18); color:var(--text-3);">
+        {{ ch.backend or 'ntfy' }}
+      </span>
+    {% endset %}
+
+    {% set toggle_html %}
+      {{ ui.toggle_switch(
+            module=key,
+            item=ch_id,
+            container_id="tab-notify-channels",
+            loading_id=loading_id,
+            enabled=ch_enabled,
+            description=ch.label or ch_id) }}
+    {% endset %}
+
+    {% set footer_left %}
+      <button class="btn-icon" title="Testbenachrichtigung senden"
+        hx-post="/ui/{{ key }}/{{ ch_id }}/test"
+        hx-target="#test-result-ch-{{ ch_id }}"
+        hx-swap="innerHTML"
+        hx-on::after-request="setTimeout(() => { document.getElementById('test-result-ch-{{ ch_id }}').innerHTML = ''; }, 4000)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+      <span id="test-result-ch-{{ ch_id }}"></span>
+    {% endset %}
+
+    {% set footer_right %}
+      {{ ui.edit_button(module=key, item=ch_id,
+                        container_id="tab-notify-channels", loading_id=loading_id) }}
+      {{ ui.delete_button(module=key, item=ch_id,
+                          container_id="tab-notify-channels", loading_id=loading_id,
+                          description=ch.label or ch_id) }}
+    {% endset %}
+
+    {% call card.render(title_html,
+                        enabled=ch_enabled,
+                        toggle_html=toggle_html,
+                        footer_left=footer_left,
+                        footer_right=footer_right) %}
+      <div class="meta-grid">
+        {% if ch.backend == 'ntfy' or not ch.backend %}
+          <span class="meta-label">Server</span>
+          <span class="meta-value">{{ ch.ntfy_url or 'https://ntfy.sh' }}</span>
+          <span class="meta-label">Thema</span>
+          <span class="meta-value">{{ ch.ntfy_topic or '—' }}</span>
+          {% if ch.ntfy_token %}
+          <span class="meta-label">Token</span>
+          <span class="meta-value" style="color:var(--text-3); font-family:monospace; font-size:11px;">
+            ••••••{{ ch.ntfy_token[-4:] if ch.ntfy_token|length > 4 else '••••' }}
+          </span>
+          {% endif %}
+        {% elif ch.backend == 'email' %}
+          <span class="meta-label">Von</span>
+          <span class="meta-value">{{ ch.mail_from or '—' }}</span>
+          <span class="meta-label">An</span>
+          <span class="meta-value">{{ ch.mail_to or '—' }}</span>
+        {% endif %}
+      </div>
+    {% endcall %}
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+    </svg>
+    <div class="empty-state-title">Keine Kanäle konfiguriert</div>
+    <div class="empty-state-sub">Lege mit „Neuer Kanal" einen ntfy-Server oder E-Mail-Account an.</div>
+  </div>
+{% endif %}
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# SEKTION 2 – NOTIFY-JOBS                                                    #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+
+<div class="page-header page-header--inline page-header--section" style="margin-top:36px;">
+  <div class="page-header-main">
+    <span class="page-title">Notify-Jobs</span>
+    <span class="page-subtitle">Kanal + Ereignisse + Quellen</span>
+  </div>
+  <div class="page-header-actions">
+  <button class="btn btn-primary btn-sm"
+    hx-get="/ui/{{ key }}/jobs/create"
+    hx-target="body" hx-swap="beforeend">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Neuer Job
+  </button>
+  </div>
+</div>
+
+<div id="tab-notify-jobs" class="ds-list-grid">
+{% if jobs %}
+  {% for job_id, job in jobs.items() %}
+    {% set job_enabled = job.get('enabled', True) %}
+
+    {# Kanal nachschlagen #}
+    {% set ch = channels.get(job.get('channel_id', '')) %}
+
+    {% set title_html %}
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+      {{ job.label or job_id }}
+      {% if ch %}
+      <span style="font-size:11px; font-weight:500; padding:1px 7px;
+                   border-radius:99px; margin-left:6px;
+                   background:rgba(100,116,139,.18); color:var(--text-3);">
+        {{ ch.label or job.get('channel_id') }}
+      </span>
+      {% else %}
+      <span style="font-size:11px; font-weight:500; padding:1px 7px;
+                   border-radius:99px; margin-left:6px;
+                   background:rgba(248,113,113,.18); color:var(--text-3);">
+        Kein Kanal
+      </span>
+      {% endif %}
+    {% endset %}
+
+    {% set toggle_html %}
+      {{ ui.toggle_switch(
+            module=key + "/jobs",
+            item=job_id,
+            container_id="tab-notify-jobs",
+            loading_id=loading_id,
+            enabled=job_enabled,
+            description=job.label or job_id) }}
+    {% endset %}
+
+    {% set footer_left %}
+      <button class="btn-icon" title="Testbenachrichtigung senden"
+        hx-post="/ui/{{ key }}/jobs/{{ job_id }}/test"
+        hx-target="#test-result-job-{{ job_id }}"
+        hx-swap="innerHTML"
+        hx-on::after-request="setTimeout(() => { document.getElementById('test-result-job-{{ job_id }}').innerHTML = ''; }, 4000)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+      <span id="test-result-job-{{ job_id }}"></span>
+    {% endset %}
+
+    {% set footer_right %}
+      <button class="btn-icon" title="Job bearbeiten"
+        hx-get="/ui/{{ key }}/jobs/{{ job_id }}/edit"
+        hx-target="body" hx-swap="beforeend">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>
+      <button class="btn-icon btn-icon-danger" title="Job löschen"
+        hx-get="/ui/{{ key }}/jobs/{{ job_id }}/delete"
+        hx-target="body" hx-swap="beforeend">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6m4-6v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+    {% endset %}
+
+    {% call card.render(title_html,
+                        enabled=job_enabled,
+                        toggle_html=toggle_html,
+                        footer_left=footer_left,
+                        footer_right=footer_right) %}
+      <div class="meta-grid">
+
+        {# Ereignisse #}
+        {% set evts = job.get('events') or [] %}
+        <span class="meta-label">Ereignisse</span>
+        <span class="meta-value">
+          {% if evts %}
+            {{ evts | map(attribute=0) | list | join(', ') if false }}
+            {% set ns = namespace(labels=[]) %}
+            {% for ev in evts %}{% set ns.labels = ns.labels + [event_labels.get(ev, ev)] %}{% endfor %}
+            {{ ns.labels | join(', ') }}
+          {% else %}
+            <span style="color:var(--text-3)">keine</span>
+          {% endif %}
+        </span>
+
+        {# Quellen #}
+        {% set srcs = job.get('sources') or [] %}
+        {% if srcs %}
+          <span class="meta-label">Quellen</span>
+          <span class="meta-value">{{ srcs | join(', ') }}</span>
+        {% endif %}
+
+      </div>
+    {% endcall %}
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 01-3.46 0"/>
+    </svg>
+    <div class="empty-state-title">Keine Notify-Jobs</div>
+    <div class="empty-state-sub">Erstelle mit „Neuer Job" eine Benachrichtigungsregel für einen Kanal.</div>
+  </div>
+{% endif %}
+</div>

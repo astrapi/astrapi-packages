@@ -1,0 +1,59 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer_simple %}
+{#
+  core/ui/templates/partials/preview_modal.html
+  Zeigt die Befehle an, die bei "Ausführen" ausgeführt würden.
+
+  Variablen:
+    description – Anzeigename des Jobs
+    commands    – list[dict(label, cmd)]  – Befehle mit Abschnitts-Label
+#}
+<div id="preview-modal" class="ds-modal-backdrop"
+     x-data
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal" style="max-width:800px;">
+
+    {{ modal_title(title="Befehlsvorschau – " + description) }}
+
+    {% if commands %}
+      {% for entry in commands %}
+      <div style="margin-bottom:14px;" x-data="{copied: false}">
+        <div style="font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+                    color:var(--text-3); margin-bottom:5px;">{{ entry.label }}</div>
+        <div style="position:relative;">
+          <pre x-ref="cmd"
+               style="background:#0d0d0d; color:#e8e8e8; border:1px solid var(--border-s); border-radius:var(--rad-lg);
+                      font-family:var(--mono); font-size:12px; line-height:1.7;
+                      padding:12px 40px 12px 16px; white-space:pre-wrap; word-break:break-all; margin:0;">{{ entry.cmd }}</pre>
+          <button type="button"
+                  style="position:absolute; top:6px; right:8px; background:none; border:none;
+                         cursor:pointer; padding:4px; border-radius:4px; opacity:.5;
+                         color:var(--text-2); transition:opacity .15s;"
+                  title="Kopieren"
+                  x-on:mouseenter="$el.style.opacity=1"
+                  x-on:mouseleave="$el.style.opacity=copied?1:.5"
+                  x-on:click="navigator.clipboard.writeText($refs.cmd.textContent.trim()); copied=true; setTimeout(()=>copied=false,1500)">
+            <template x-if="!copied">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+            </template>
+            <template x-if="copied">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </template>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center; color:var(--text-3); font-size:13px; padding:20px 0;">
+        Keine Befehle ermittelbar.
+      </div>
+    {% endif %}
+
+    {{ modal_footer_simple(close_label="Schließen") }}
+
+  </div>
+</div>

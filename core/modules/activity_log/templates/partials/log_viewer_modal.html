@@ -1,0 +1,27 @@
+{# activity_log/partials/log_viewer_modal.html #}
+{% from "partials/components/ui_macros.html" import modal_title %}
+<div class="ds-modal-backdrop"
+     x-data
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal" style="max-width:1000px; width:90%;">
+
+    {{ modal_title(title="Log: " + entry.description) }}
+
+    <pre style="margin:0; padding:12px; background:var(--bg); color:var(--text-2);
+                font-family:var(--mono); font-size:11px; line-height:1.5;
+                overflow-x:auto; white-space:pre-wrap; word-break:break-word;
+                max-height:65vh; overflow-y:auto; border-radius:4px;">{{ full_log }}</pre>
+
+    <div class="ds-modal-footer-simple" style="justify-content:flex-end; gap:8px;">
+      <button class="btn btn-secondary"
+              x-on:click="navigator.clipboard.writeText($el.closest('.ds-modal').querySelector('pre').innerText)">
+        Kopieren
+      </button>
+      <button class="btn btn-secondary"
+              x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+        Schließen
+      </button>
+    </div>
+
+  </div>
+</div>

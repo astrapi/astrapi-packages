@@ -1,0 +1,87 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<!-- Mobile: Hamburger + Overlay -->
+<button id="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menü öffnen">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-hamburger"></use></svg>
+</button>
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<div class="app-layout">
+  {% include "navigation/index.html" %}
+  <div class="main-content">
+    <div id="main-content"
+         hx-get="{{ initial_content_url }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:13px;">
+        Laden…
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}{% endblock %}
+
+<script>
+/* ── Generisches Run-Polling + Log-Modal ──────────────────────────────────────
+   Funktioniert mit allen Modulen die /api/{module}/status und
+   /api/{module}/{item}/logs?live=1 bereitstellen.
+
+   Unterstützte List-Container-IDs:
+     id="tab-{module}"       (Framework-Standard)
+     id="tab-{module}-list"  (backupctl-Konvention)
+─────────────────────────────────────────────────────────────────────────────*/
+(function() {
+  var _timers = {};
+
+  function _moduleFromEl(el) {
+    var id = el && el.id || '';
+    if (!id.startsWith('tab-')) return null;
+    var mod = id.slice(4);
+    if (mod.endsWith('-list')) mod = mod.slice(0, -5);
+    return mod || null;
+  }
+
+  function _poll(mod, el) {
+    htmx.ajax('GET', '/api/' + mod + '/status', {target: '#' + el.id, swap: 'innerHTML'});
+  }
+
+  function startPolling(mod, el) {
+    if (_timers[mod]) return;
+    _timers[mod] = setInterval(function() { _poll(mod, el); }, 2500);
+  }
+
+  function stopPolling(mod) {
+    clearInterval(_timers[mod]);
+    delete _timers[mod];
+  }
+
+  document.body.addEventListener('htmx:afterSettle', function(e) {
+    var el  = e.target;
+    var mod = _moduleFromEl(el);
+    if (!mod) return;
+    if (el.querySelector('.run-badge')) {
+      startPolling(mod, el);
+    } else {
+      stopPolling(mod);
+    }
+  });
+
+  document.body.addEventListener('openLogModal', function(e) {
+    var mod    = e.detail.module;
+    var itemId = e.detail.itemId;
+    var listEl = document.getElementById('tab-' + mod + '-list')
+              || document.getElementById('tab-' + mod);
+    if (listEl) startPolling(mod, listEl);
+    fetch('/api/' + mod + '/' + itemId + '/logs?live=1')
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var old = document.getElementById('log-modal');
+        if (old) old.remove();
+        document.body.insertAdjacentHTML('beforeend', html);
+      });
+  });
+})();
+</script>

@@ -1,0 +1,220 @@
+{#
+  core/modules/notify/templates/notify/partials/job_modal.html
+
+  Variablen:
+    job          – bestehender Job-Dict (Edit) oder None (Create)
+    job_id       – ID des Jobs (Edit) oder None (Create)
+    title        – Dialog-Titel
+    submit_url   – POST-Ziel
+    all_events   – Liste von (key, label, color) aus schema.py
+    all_sources  – Dict {key: label} der registrierten Quellen
+    all_channels – Dict {ch_id: ch_dict} der verfügbaren Kanäle
+#}
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+{% set is_edit = job is not none %}
+{% set v = job or {} %}
+{% set sel_events  = v.get('events')  or ['error', 'warning'] %}
+{% set sel_sources = v.get('sources') or [] %}
+{% set cur_channel = v.get('channel_id', '') %}
+
+<div
+  id="job-modal"
+  class="ds-modal-backdrop"
+  x-data
+  x-on:keydown.escape.window="$el.remove()"
+>
+  <div class="ds-modal" style="max-width:540px; padding:22px 26px;">
+
+    {{ modal_title(is_edit=is_edit, title=title) }}
+
+    <form
+      id="job-modal-form"
+      hx-post="{{ submit_url }}"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      style="display:flex; flex-direction:column; gap:16px; margin-top:18px;"
+    >
+
+      {# ── Name ─────────────────────────────────────────────────────────────── #}
+      <div class="form-group">
+        <label class="form-label">Name <span class="required-mark">*</span></label>
+        <input type="text" name="label" id="job-name" class="form-input"
+               value="{{ v.get('label', '') }}"
+               placeholder="z. B. Server-Fehler → ntfy"
+               oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+        <span id="job-name-error" class="form-error" style="display:none;">Bitte einen Namen eingeben.</span>
+      </div>
+
+      {# ── Kanal wählen ─────────────────────────────────────────────────────── #}
+      <div class="form-group">
+        <label class="form-label">Kanal <span class="required-mark">*</span></label>
+        {% if all_channels %}
+          <select name="channel_id" id="job-channel" class="form-input"
+                  onchange="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <option value="" {{ 'selected' if not cur_channel else '' }}>– Kanal wählen –</option>
+            {% for ch_id, ch in all_channels.items() %}
+              <option value="{{ ch_id }}" {{ 'selected' if ch_id == cur_channel else '' }}>
+                {{ ch.get('label') or ch_id }}
+              </option>
+            {% endfor %}
+          </select>
+          <span id="job-channel-error" class="form-error" style="display:none;">Bitte einen Kanal auswählen.</span>
+        {% else %}
+          <div style="padding:10px 14px; border-radius:var(--rad);
+                      background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.35);
+                      font-size:13px; color:#fbbf24;">
+            Noch kein Kanal angelegt – bitte zuerst einen Kanal erstellen.
+          </div>
+        {% endif %}
+      </div>
+
+      {# ── Ereignisse ──────────────────────────────────────────────────────── #}
+      <div class="form-group">
+        <label class="form-label">Ereignisse <span class="required-mark">*</span></label>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+          {% for ev_key, ev_label, ev_color in all_events %}
+          {% set active = ev_key in sel_events %}
+          <label style="cursor:pointer; display:flex; align-items:center;">
+            <input type="checkbox" name="events" value="{{ ev_key }}"
+                   style="display:none;"
+                   {{ 'checked' if active else '' }}
+                   onchange="var s=this.nextElementSibling;
+                     s.style.background=this.checked?'{{ ev_color }}22':'var(--bg-2)';
+                     s.style.color=this.checked?'{{ ev_color }}':'var(--text-3)';
+                     s.style.borderColor=this.checked?'{{ ev_color }}88':'var(--border)';
+                     document.getElementById('job-ev-error').style.display='none';">
+            <span style="font-size:12px; font-weight:600; padding:4px 13px;
+                         border-radius:99px; border:1px solid; user-select:none; transition:all .15s ease;
+                         background:{{ ev_color + '22' if active else 'var(--bg-2)' }};
+                         color:{{ ev_color if active else 'var(--text-3)' }};
+                         border-color:{{ ev_color + '88' if active else 'var(--border)' }};">
+              {{ ev_label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <span id="job-ev-error" class="form-error" style="display:none;">Bitte mindestens ein Ereignis auswählen.</span>
+      </div>
+
+      {# ── Quellen-Filter (optional) ───────────────────────────────────────── #}
+      {% set has_sources = all_sources or scheduler_sources %}
+      {% if has_sources %}
+      <div class="form-group">
+        <label class="form-label">Quellen <span class="required-mark">*</span></label>
+
+        {# Modul-Quellen #}
+        {% if all_sources %}
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+          {% for src_key, src_label in all_sources.items() %}
+          {% set src_active = src_key in sel_sources %}
+          <label style="cursor:pointer; display:flex; align-items:center;">
+            <input type="checkbox" name="sources" value="{{ src_key }}"
+                   style="display:none;"
+                   {{ 'checked' if src_active else '' }}
+                   onchange="var s=this.nextElementSibling;
+                     s.style.background=this.checked?'#60a5fa22':'var(--bg-2)';
+                     s.style.color=this.checked?'#60a5fa':'var(--text-3)';
+                     s.style.borderColor=this.checked?'#60a5fa88':'var(--border)';
+                     document.getElementById('job-src-error').style.display='none';">
+            <span style="font-size:12px; font-weight:600; padding:4px 13px;
+                         border-radius:99px; border:1px solid; user-select:none; transition:all .15s ease;
+                         background:{{ '#60a5fa22' if src_active else 'var(--bg-2)' }};
+                         color:{{ '#60a5fa' if src_active else 'var(--text-3)' }};
+                         border-color:{{ '#60a5fa88' if src_active else 'var(--border)' }};">
+              {{ src_label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {# Scheduler-Jobs #}
+        {% if scheduler_sources %}
+        <div style="margin-top:{{ '10px' if all_sources else '4px' }};">
+          <div style="display:flex; align-items:center; gap:5px; margin-bottom:6px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" style="color:var(--text-3); flex-shrink:0;">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span style="font-size:11px; color:var(--text-3); font-weight:500; letter-spacing:.02em;">
+              Scheduler-Jobs
+            </span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            {% for src_key, src_label in scheduler_sources.items() %}
+            {% set src_active = src_key in sel_sources %}
+            <label style="cursor:pointer; display:flex; align-items:center;">
+              <input type="checkbox" name="sources" value="{{ src_key }}"
+                     style="display:none;"
+                     {{ 'checked' if src_active else '' }}
+                     onchange="var s=this.nextElementSibling;
+                       s.style.background=this.checked?'#a78bfa22':'var(--bg-2)';
+                       s.style.color=this.checked?'#a78bfa':'var(--text-3)';
+                       s.style.borderColor=this.checked?'#a78bfa88':'var(--border)';
+                       document.getElementById('job-src-error').style.display='none';">
+              <span style="font-size:12px; font-weight:600; padding:4px 13px;
+                           border-radius:6px; border:1px solid; user-select:none; transition:all .15s ease;
+                           background:{{ '#a78bfa22' if src_active else 'var(--bg-2)' }};
+                           color:{{ '#a78bfa' if src_active else 'var(--text-3)' }};
+                           border-color:{{ '#a78bfa88' if src_active else 'var(--border)' }};">
+                {{ src_label }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <span id="job-src-error" class="form-error" style="display:none;">Bitte mindestens eine Quelle auswählen.</span>
+      </div>
+      {% endif %}
+
+      {{ modal_footer(enabled=v.get('enabled', True), enabled_id='job-enabled',
+                      save_label='Speichern' if is_edit else 'Erstellen',
+                      save_disabled=not all_channels,
+                      save_type='button', save_id='job-modal-save') }}
+
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form    = document.getElementById('job-modal-form');
+  var saveBtn = document.getElementById('job-modal-save');
+  saveBtn.addEventListener('click', function () {
+    if (!jobModalValidate(form)) return;
+    htmx.trigger(form, 'submit');
+    form.addEventListener('htmx:afterRequest', function handler(e) {
+      if (e.detail.successful) {
+        document.getElementById('job-modal').remove();
+      }
+      form.removeEventListener('htmx:afterRequest', handler);
+    });
+  });
+})();
+
+function jobModalValidate(form) {
+  var nameEl    = document.getElementById('job-name');
+  var channelEl = document.getElementById('job-channel');
+  var nameOk    = !nameEl    || nameEl.value.trim() !== '';
+  var channelOk = !channelEl || channelEl.value !== '';
+  var evOk      = form.querySelectorAll('input[name="events"]:checked').length > 0;
+  var srcInputs = form.querySelectorAll('input[name="sources"]');
+  var srcOk     = srcInputs.length === 0 || form.querySelectorAll('input[name="sources"]:checked').length > 0;
+
+  if (nameEl)    nameEl.classList.toggle('is-invalid', !nameOk);
+  if (channelEl) channelEl.classList.toggle('is-invalid', !channelOk);
+  var nameErr    = document.getElementById('job-name-error');
+  var channelErr = document.getElementById('job-channel-error');
+  var evErr      = document.getElementById('job-ev-error');
+  var srcErr     = document.getElementById('job-src-error');
+  if (nameErr)    nameErr.style.display    = nameOk    ? 'none' : 'block';
+  if (channelErr) channelErr.style.display = channelOk ? 'none' : 'block';
+  if (evErr)      evErr.style.display      = evOk      ? 'none' : 'block';
+  if (srcErr)     srcErr.style.display     = srcOk     ? 'none' : 'block';
+
+  return nameOk && channelOk && evOk && srcOk;
+}
+</script>

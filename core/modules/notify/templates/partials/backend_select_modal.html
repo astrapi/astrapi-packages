@@ -1,0 +1,217 @@
+{#
+  Backend-Auswahl – erster Schritt beim Anlegen eines Benachrichtigungskanals.
+  Variablen:
+    builtin_backends  – Liste von (key, label, description) der eingebauten Backends
+    custom_backends   – Liste zusätzlich registrierter Backend-Keys
+#}
+{% from "partials/components/ui_macros.html" import modal_title %}
+{% set total_backends = builtin_backends|length + custom_backends|length %}
+
+<style>
+  .bk-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 22px 16px 18px;
+    border-radius: var(--rad);
+    cursor: pointer;
+    text-align: center;
+    background: var(--card);
+    border: 2px solid var(--border-s);
+    transition: border-color .18s, background .18s, transform .12s;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .bk-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: var(--rad) var(--rad) 0 0;
+    opacity: 0;
+    transition: opacity .18s;
+  }
+  .bk-card:hover { background: var(--card-hi); transform: translateY(-1px); }
+  .bk-card:hover::before { opacity: 1; }
+  .bk-card:active { transform: translateY(0); }
+
+  .bk-card.bk-ntfy   { --bk-color: var(--b); --bk-dim: var(--b-dim); }
+  .bk-card.bk-ntfy   { border-color: transparent; }
+  .bk-card.bk-ntfy:hover { border-color: var(--b); }
+  .bk-card.bk-ntfy::before { background: var(--b); }
+
+  .bk-card.bk-email  { --bk-color: var(--g); --bk-dim: rgba(38,162,105,0.18); }
+  .bk-card.bk-email  { border-color: transparent; }
+  .bk-card.bk-email:hover { border-color: var(--g); }
+  .bk-card.bk-email::before { background: var(--g); }
+
+  .bk-card.bk-custom { --bk-color: var(--text-2); --bk-dim: rgba(255,255,255,0.08); }
+  .bk-card.bk-custom { border-color: transparent; }
+  .bk-card.bk-custom:hover { border-color: var(--border-s); }
+  .bk-card.bk-custom::before { background: var(--text-2); }
+
+  .bk-icon-wrap {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bk-dim);
+    color: var(--bk-color);
+    flex-shrink: 0;
+    transition: background .18s;
+  }
+  .bk-card:hover .bk-icon-wrap { background: var(--bk-dim); filter: brightness(1.2); }
+
+  .bk-label {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .bk-desc {
+    font-size: 11.5px; color: var(--text-3);
+    line-height: 1.5;
+  }
+
+  .bk-or-divider {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--text-3); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .bk-or-divider::before,
+  .bk-or-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border-s);
+  }
+</style>
+
+<div
+  id="backend-select-modal"
+  class="ds-modal-backdrop"
+  x-data
+  x-on:keydown.escape.window="$el.remove()"
+>
+  <div class="confirm-dialog" style="max-width:{{ '500px' if total_backends == 2 else '420px' }};">
+
+    {{ modal_title(title="Neuer Kanal", icon="bell") }}
+    <p style="text-align:center; font-size:12.5px; color:var(--text-3); margin-bottom:22px;">
+      Wähle den Kanal-Typ
+    </p>
+
+    {# ── 2-Spalten-Auswahl für genau 2 Builtin-Backends ──────────────── #}
+    {% if total_backends == 2 and custom_backends|length == 0 %}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      {% for bk_key, bk_label, bk_desc in builtin_backends %}
+      <button
+        class="bk-card bk-{{ bk_key }}"
+        hx-get="/ui/notify/create/{{ bk_key }}"
+        hx-target="body"
+        hx-swap="beforeend"
+        hx-on::after-request="this.closest('.ds-modal-backdrop').remove()"
+      >
+        <div class="bk-icon-wrap">
+          {% if bk_key == 'ntfy' %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          {% elif bk_key == 'email' %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M2 7l10 7 10-7"/>
+          </svg>
+          {% else %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+          </svg>
+          {% endif %}
+        </div>
+        <span class="bk-label">{{ bk_label }}</span>
+        <span class="bk-desc">{{ bk_desc }}</span>
+      </button>
+      {% endfor %}
+    </div>
+
+    {# ── Listen-Layout mit "oder"-Trenner für mehr als 2 Optionen ────── #}
+    {% else %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+
+      {% for bk_key, bk_label, bk_desc in builtin_backends %}
+      {% if not loop.first %}
+      <div class="bk-or-divider">oder</div>
+      {% endif %}
+      <button
+        class="bk-card bk-{{ bk_key }}"
+        style="flex-direction:row; text-align:left; padding:14px 16px; gap:14px;"
+        hx-get="/ui/notify/create/{{ bk_key }}"
+        hx-target="body"
+        hx-swap="beforeend"
+        hx-on::after-request="this.closest('.ds-modal-backdrop').remove()"
+      >
+        <div class="bk-icon-wrap" style="flex-shrink:0;">
+          {% if bk_key == 'ntfy' %}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          {% elif bk_key == 'email' %}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M2 7l10 7 10-7"/>
+          </svg>
+          {% else %}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+          </svg>
+          {% endif %}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+          <span class="bk-label" style="text-align:left;">{{ bk_label }}</span>
+          <span class="bk-desc" style="text-align:left;">{{ bk_desc }}</span>
+        </div>
+        <svg style="flex-shrink:0; margin-left:auto; color:var(--text-3);"
+             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9,18 15,12 9,6"/>
+        </svg>
+      </button>
+      {% endfor %}
+
+      {% for bk_key in custom_backends %}
+      <div class="bk-or-divider">oder</div>
+      <button
+        class="bk-card bk-custom"
+        style="flex-direction:row; text-align:left; padding:14px 16px; gap:14px;"
+        hx-get="/ui/notify/create/{{ bk_key }}"
+        hx-target="body"
+        hx-swap="beforeend"
+        hx-on::after-request="this.closest('.ds-modal-backdrop').remove()"
+      >
+        <div class="bk-icon-wrap" style="flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+          </svg>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+          <span class="bk-label" style="text-align:left;">{{ bk_key }}</span>
+          <span class="bk-desc" style="text-align:left;">Benutzerdefiniertes Backend</span>
+        </div>
+        <svg style="flex-shrink:0; margin-left:auto; color:var(--text-3);"
+             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9,18 15,12 9,6"/>
+        </svg>
+      </button>
+      {% endfor %}
+
+    </div>
+    {% endif %}
+
+    <div style="display:flex; justify-content:center; margin-top:20px;">
+      <button class="btn btn-ghost btn-sm"
+              x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+        Abbrechen
+      </button>
+    </div>
+
+  </div>
+</div>

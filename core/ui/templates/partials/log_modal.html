@@ -1,0 +1,129 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer_simple %}
+{#
+  core/ui/templates/partials/log_modal.html
+  Log-Modal mit Live-Streaming (SSE) und statischem Datum-Wähler.
+
+  Standard-URL-Konventionen:
+    Statisch:  GET /api/{module}/{item_id}/logs
+    Nach Datum: GET /api/{module}/{item_id}/logs/{date}
+    SSE-Stream: GET /api/{module}/{item_id}/logs/stream
+
+  Variablen:
+    module   – Modulname
+    item_id  – Item-ID
+    description – Anzeigename (für Titel)
+    live     – bool: SSE-Live-Modus
+    lines    – list[str]: Log-Zeilen (statischer Modus)
+    dates    – list[str]: verfügbare Datum-Dateien
+    selected – str: aktuell gewähltes Datum
+#}
+<div id="log-modal" class="ds-modal-backdrop"
+     x-data
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal log-modal-inner">
+
+    {{ modal_title(title="Log – " + description, icon="log") }}
+
+    {% if live %}
+    <!-- ── LIVE-MODUS ─────────────────────────────────────── -->
+    <div class="inline-cluster" style="margin-bottom:10px;">
+      <span id="log-live-badge" class="badge-pill badge-live">
+        <span style="animation:pulse 1.2s infinite;">●</span> Live
+      </span>
+      <span style="font-size:12px; color:var(--text-3);">Wird aktualisiert…</span>
+    </div>
+
+    <div id="log-content" class="surface-code log-panel">
+      {% include "partials/log_content.html" %}
+    </div>
+
+    <script>
+    (function() {
+      const container = document.getElementById('log-content');
+      const badge     = document.getElementById('log-live-badge');
+      const es        = new EventSource('/api/{{ module }}/{{ item_id }}/logs/stream');
+      let autoScroll  = true;
+
+      container.addEventListener('scroll', function() {
+        autoScroll = (container.scrollHeight - container.scrollTop - container.clientHeight) < 40;
+      });
+
+      es.onmessage = function(e) {
+        container.insertAdjacentHTML('beforeend', e.data);
+        if (autoScroll) container.scrollTop = container.scrollHeight;
+      };
+
+      es.addEventListener('done', function() {
+        es.close();
+        badge.innerHTML = '<span style="color:#4ade80">✔</span> Abgeschlossen';
+        badge.style.background = 'rgba(74,222,128,0.12)';
+        badge.style.color = '#4ade80';
+        document.getElementById('log-modal').dispatchEvent(new Event('runDone'));
+      });
+
+      es.onerror = function() {
+        es.close();
+        badge.innerHTML = '— Verbindung getrennt';
+        badge.style.color = 'var(--text-3)';
+      };
+
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          m.removedNodes.forEach(function(n) {
+            if (n.id === 'log-modal') { es.close(); observer.disconnect(); }
+          });
+        });
+      });
+      observer.observe(document.body, { childList: true });
+    })();
+    </script>
+
+    {% else %}
+    <!-- ── STATISCHER MODUS ───────────────────────────────── -->
+    {% if dates %}
+      <div class="inline-cluster" style="margin-bottom:10px; gap:10px;">
+        <label style="font-size:13px; color:var(--text-2); font-weight:500;">Run:</label>
+        <select class="form-select" style="width:auto; min-width:200px;"
+                id="log-date-select">
+          {% for run in dates %}
+            {% set val = run.id if run is mapping else run %}
+            {% set lbl = run.label if run is mapping else run %}
+            <option value="{{ val }}" {{ 'selected' if val == selected else '' }}>
+              {{ lbl }}{% if loop.first %} (aktuell){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <span class="mono-inline">
+          {{ dates|length }} Run{{ 'S' if dates|length != 1 else '' }}
+        </span>
+      </div>
+    {% endif %}
+
+    <div id="log-content" class="surface-code log-panel">
+      {% include "partials/log_content.html" %}
+    </div>
+
+    {% if dates %}
+    <script>
+    (function() {
+      document.getElementById('log-date-select').addEventListener('change', function() {
+        htmx.ajax('GET',
+          '/api/{{ module }}/{{ item_id }}/logs/' + this.value,
+          { target: '#log-content', swap: 'innerHTML' }
+        );
+      });
+    })();
+    </script>
+    {% endif %}
+
+    {% if not dates %}
+      <div class="text-center" style="color:var(--text-3); font-size:13px; padding:20px 0;">
+        Noch keine Logs vorhanden – erscheinen nach dem ersten Ausführen.
+      </div>
+    {% endif %}
+    {% endif %}
+
+    {{ modal_footer_simple(close_label="Schließen") }}
+
+  </div>
+</div>

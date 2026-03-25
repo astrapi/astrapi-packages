@@ -1,0 +1,10 @@
+{#
+  core/ui/templates/partials/list_wrapper.html
+
+  Äußerer Container-Wrapper – wird von Flask /ui/{module}/content gerendert.
+  Erzeugt <div id="{{ container_id }}"> damit CRUD/Run-Responses per HTMX
+  innerHTML-Swap den richtigen Anker finden (list_wrapper_inner.html).
+#}
+<div id="{{ container_id }}">
+  {% include "partials/list_wrapper_inner.html" %}
+</div>

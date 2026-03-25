@@ -1,0 +1,180 @@
+{#
+  core/modules/notify/templates/notify/partials/channel_modal.html
+
+  Variablen:
+    channel          – bestehender Kanal-Dict (Edit) oder None (Create)
+    channel_id       – ID des Kanals (Edit) oder None (Create)
+    title            – Dialog-Titel
+    submit_url       – POST-Ziel
+    selected_backend – Backend-Key (ntfy, …)
+#}
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+{% set is_edit = channel is not none %}
+{% set v = channel or {} %}
+{% set cur_backend = selected_backend or 'ntfy' %}
+
+<div
+  id="channel-modal"
+  class="ds-modal-backdrop"
+  x-data
+  x-on:keydown.escape.window="$el.remove()"
+>
+  <div class="ds-modal" style="max-width:520px; padding:22px 26px;">
+
+    {{ modal_title(is_edit=is_edit, title=title) }}
+
+    <form
+      id="ch-modal-form"
+      hx-post="{{ submit_url }}"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      hx-on::before-request="if(!channelModalValidate(this)) event.preventDefault();"
+      hx-on::after-request="if(event.detail.successful){this.closest('.ds-modal-backdrop').remove()}"
+      style="display:flex; flex-direction:column; gap:16px; margin-top:18px;"
+    >
+
+      {# ── Backend (fest, nicht änderbar) ────────────────────────────────── #}
+      <input type="hidden" name="backend" value="{{ cur_backend }}">
+
+      {# ── Name ─────────────────────────────────────────────────────────────── #}
+      <div class="form-group">
+        <label class="form-label">Name <span class="required-mark">*</span></label>
+        <input type="text" name="label" id="ch-label" class="form-input"
+               value="{{ v.get('label', '') }}"
+               placeholder="z. B. Mein ntfy-Server"
+               oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+        <span id="ch-label-error" class="form-error" style="display:none;">Bitte einen Namen eingeben.</span>
+      </div>
+
+      {# ── ntfy-spezifische Felder ──────────────────────────────────────────── #}
+      {% if cur_backend == 'ntfy' %}
+      <div style="display:flex; flex-direction:column; gap:12px; margin-top:4px;">
+        <div class="form-group">
+          <label class="form-label">Server-URL <span class="required-mark">*</span></label>
+          <input type="url" name="ntfy_url" id="ch-ntfy-url" class="form-input"
+                 value="{{ v.get('ntfy_url') or 'https://ntfy.sh' }}"
+                 placeholder="https://ntfy.sh"
+                 oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+          <span id="ch-ntfy-url-error" class="form-error" style="display:none;">Bitte eine gültige URL eingeben.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Thema <span class="required-mark">*</span></label>
+          <input type="text" name="ntfy_topic" id="ch-ntfy-topic" class="form-input"
+                 value="{{ v.get('ntfy_topic', '') }}"
+                 placeholder="mein-thema"
+                 oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+          <span id="ch-ntfy-topic-error" class="form-error" style="display:none;">Bitte ein Thema eingeben.</span>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="ntfy_verify_ssl"
+                 style="width:14px; height:14px; accent-color:var(--accent);"
+                 {{ 'checked' if v.get('ntfy_verify_ssl', True) else '' }}>
+          <span style="font-size:13px; color:var(--text-2);">SSL-Zertifikat prüfen</span>
+          <span style="font-size:11px; color:var(--text-3);">(deaktivieren bei selbst-signierten Zertifikaten)</span>
+        </label>
+      </div>
+      {% endif %}
+
+      {# ── E-Mail-spezifische Felder ─────────────────────────────────────── #}
+      {% if cur_backend == 'email' %}
+      <div style="display:flex; flex-direction:column; gap:12px; margin-top:4px;">
+        <div style="display:grid; grid-template-columns:2fr 1fr; gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">SMTP-Server <span class="required-mark">*</span></label>
+            <input type="text" name="mail_smtp_host" id="ch-smtp-host" class="form-input"
+                   value="{{ v.get('mail_smtp_host', '') }}"
+                   placeholder="smtp.gmail.com"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-smtp-host-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Port <span class="required-mark">*</span></label>
+            <input type="number" name="mail_smtp_port" id="ch-smtp-port" class="form-input"
+                   value="{{ v.get('mail_smtp_port') or 587 }}"
+                   min="1" max="65535" placeholder="587"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-smtp-port-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Benutzername <span class="required-mark">*</span></label>
+            <input type="text" name="mail_smtp_user" id="ch-smtp-user" class="form-input"
+                   value="{{ v.get('mail_smtp_user', '') }}"
+                   placeholder="user@example.com"
+                   autocomplete="username"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-smtp-user-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Passwort <span class="required-mark">*</span></label>
+            <input type="password" name="mail_smtp_password" id="ch-smtp-pass" class="form-input"
+                   value="{{ v.get('mail_smtp_password', '') }}"
+                   placeholder="••••••••"
+                   autocomplete="new-password"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-smtp-pass-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Von <span class="required-mark">*</span></label>
+            <input type="email" name="mail_from" id="ch-mail-from" class="form-input"
+                   value="{{ v.get('mail_from', '') }}"
+                   placeholder="app@example.com"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-mail-from-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">An <span class="required-mark">*</span></label>
+            <input type="email" name="mail_to" id="ch-mail-to" class="form-input"
+                   value="{{ v.get('mail_to', '') }}"
+                   placeholder="admin@example.com"
+                   oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+            <span id="ch-mail-to-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Betreff-Präfix <span class="required-mark">*</span></label>
+          <input type="text" name="mail_subject_prefix" id="ch-subject-prefix" class="form-input"
+                 value="{{ v.get('mail_subject_prefix') or '[Notify]' }}"
+                 placeholder="[Notify]"
+                 oninput="this.classList.remove('is-invalid'); var _e=document.getElementById(this.id+'-error'); if(_e)_e.style.display='none';">
+          <span id="ch-subject-prefix-error" class="form-error" style="display:none;">Pflichtfeld.</span>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" name="mail_smtp_tls"
+                 style="width:14px; height:14px; accent-color:var(--accent);"
+                 {{ 'checked' if v.get('mail_smtp_tls', True) else '' }}>
+          <span style="font-size:13px; color:var(--text-2);">STARTTLS verwenden</span>
+          <span style="font-size:11px; color:var(--text-3);">(empfohlen für Port 587)</span>
+        </label>
+      </div>
+      {% endif %}
+
+      {{ modal_footer(enabled=v.get('enabled', True), enabled_id='channel-enabled',
+                      save_label='Speichern' if is_edit else 'Erstellen') }}
+
+    </form>
+  </div>
+</div>
+
+<script>
+function channelModalValidate(form) {
+  var ids = ['ch-label'
+    {% if cur_backend == 'ntfy' %}, 'ch-ntfy-url', 'ch-ntfy-topic'{% endif %}
+    {% if cur_backend == 'email' %}, 'ch-smtp-host', 'ch-smtp-port', 'ch-smtp-user', 'ch-smtp-pass', 'ch-mail-from', 'ch-mail-to', 'ch-subject-prefix'{% endif %}
+  ];
+  var ok = true;
+  ids.forEach(function(id) {
+    var el  = document.getElementById(id);
+    var err = document.getElementById(id + '-error');
+    if (!el) return;
+    var valid = el.value.trim() !== '';
+    el.classList.toggle('is-invalid', !valid);
+    if (err) err.style.display = valid ? 'none' : 'block';
+    if (!valid) ok = false;
+  });
+  return ok;
+}
+</script>

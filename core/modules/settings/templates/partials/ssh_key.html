@@ -1,0 +1,35 @@
+<div id="ssh-key-section">
+
+  {% if flash %}
+  <div class="alert {{ 'alert-success' if flash_ok else 'alert-danger' }}" style="margin-bottom:12px;">
+    {{ flash }}
+  </div>
+  {% endif %}
+
+  {% if pubkey %}
+  <div class="form-group" style="margin-bottom:12px;">
+    <label class="form-label">Öffentlicher SSH-Key</label>
+    <textarea class="form-input" rows="3" readonly
+              style="font-family:var(--mono); font-size:12px; resize:none; cursor:text;"
+              onclick="this.select()"
+    >{{ pubkey }}</textarea>
+    <div class="form-hint">Diesen Key in <code>~/.ssh/authorized_keys</code> auf den Remote-Servern eintragen.</div>
+  </div>
+  {% else %}
+  <div style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">
+    Kein SSH-Key gefunden. Jetzt einen erzeugen:
+  </div>
+  {% endif %}
+
+  <button
+    type="button"
+    class="btn btn-sm {{ 'btn-secondary' if pubkey else 'btn-primary' }}"
+    hx-post="/ui/settings/ssh-key/generate"
+    hx-target="#ssh-key-section"
+    hx-swap="outerHTML"
+    hx-confirm="{{ 'Bestehendes Schlüsselpaar ersetzen? Der alte Key wird als .bak gesichert.' if pubkey else '' }}"
+  >
+    {{ 'Schlüsselpaar neu generieren' if pubkey else 'SSH-Key erzeugen' }}
+  </button>
+
+</div>

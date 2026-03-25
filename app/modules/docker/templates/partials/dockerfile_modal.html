@@ -1,0 +1,46 @@
+{% import 'partials/components/ui_macros.html' as ui %}
+{% call ui.modal_wrapper("dockerfile-modal", max_width="860px", padding="24px 28px") %}
+  {{ ui.modal_title(title="Dockerfile – " ~ item_id, icon="edit") }}
+
+  <form
+    hx-post="/ui/docker/{{ item_id }}/dockerfile"
+    hx-target="#main-content"
+    hx-swap="innerHTML"
+  >
+    <textarea
+      name="content"
+      spellcheck="false"
+      style="
+        width: 100%;
+        min-height: 420px;
+        font-family: monospace;
+        font-size: 13px;
+        line-height: 1.55;
+        background: var(--bg-2, #1e1e1e);
+        color: var(--text-1, #d4d4d4);
+        border: 1px solid var(--border, #333);
+        border-radius: 6px;
+        padding: 14px 16px;
+        resize: vertical;
+        tab-size: 4;
+        box-sizing: border-box;
+        margin: 12px 0 0;
+      "
+    >{{ content }}</textarea>
+
+    <div class="ds-modal-footer">
+      <div></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost btn-sm"
+                x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+          Abbrechen
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm"
+                x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+          Speichern
+        </button>
+      </div>
+    </div>
+  </form>
+
+{% endcall %}

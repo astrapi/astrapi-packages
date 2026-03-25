@@ -1,0 +1,39 @@
+# backupctl – Python-Abhängigkeiten
+# Installation: pip install -r requirements.txt
+#
+# Systemabhängigkeiten (nicht via pip):
+#   borgbackup    – borg-Befehl muss im PATH sein (/var/lib/backupadm/.venv/bin/borg)
+#   wakeonlan     – für Wake-on-LAN (apt install wakeonlan)
+#   openssh       – ssh/scp für Remote-Backups
+
+# ── Web-Framework ─────────────────────────────────────────────────
+fastapi>=0.115
+uvicorn[standard]>=0.30
+a2wsgi>=1.10            # WSGIMiddleware: Flask in FastAPI einbetten
+
+# ── UI / Templates ────────────────────────────────────────────────
+flask>=3.0
+jinja2>=3.1             # direkt verwendet (ChoiceLoader)
+
+# ── Scheduler ─────────────────────────────────────────────────────
+APScheduler>=3.10
+
+# ── Daten & Konfiguration ─────────────────────────────────────────
+pyyaml>=6.0             # Nav-YAMLs, Schema-Dateien, YAML-Migration
+python-multipart>=0.0.9 # FastAPI request.form()
+cryptography>=42.0      # Fernet-Verschlüsselung für DB-Secrets
+
+# ── HTTP ──────────────────────────────────────────────────────────
+requests>=2.32
+urllib3>=2.2            # direkt verwendet für disable_warnings (notify.py)
+
+# ── System-Monitoring ─────────────────────────────────────────────
+psutil>=6.0             # CPU/RAM/Disk-Metriken in sysinfo
+
+# ── OpenAPI / Swagger ─────────────────────────────────────────────
+apispec>=6.0            # OpenAPI-Spec-Generierung (swagger_utils.py)
+
+# ── Tests ─────────────────────────────────────────────────────────
+pytest>=8.0
+httpx>=0.27
+playwright>=1.51

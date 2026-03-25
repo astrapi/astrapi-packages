@@ -1,0 +1,59 @@
+{#
+  app/templates/partials/confirm_modal.html
+  Wird per HTMX in <body> eingefügt (hx-swap="beforeend").
+  Variablen: description, verb, confirm_url, method, container_id, loading_id
+  reload_url: optional – wenn gesetzt, wird nach Erfolg /reload_url in #main-content geladen
+#}
+<div class="ds-modal-backdrop"
+     x-data
+     x-init="$nextTick(() => $el.querySelector('.confirm-dialog').focus())"
+     x-on:keydown.escape.window="$el.remove()">
+
+  <div class="confirm-dialog" tabindex="-1">
+
+    <button type="button" class="ds-modal-close" x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+
+    <!-- <div class="confirm-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <circle cx="12" cy="17" r="0.5" fill="currentColor" stroke="none"/>
+      </svg>
+    </div> -->
+
+    <p class="modal-lead">
+      {{ description }}
+    </p>
+    <p class="modal-copy">
+      Möchtest du diesen Eintrag wirklich <strong>{{ verb }}</strong>?
+    </p>
+
+    <div class="ds-modal-footer-simple">
+      <button class="btn btn-ghost btn-sm"
+              x-on:click="$el.closest('.ds-modal-backdrop').remove()">
+        Abbrechen
+      </button>
+      {% if reload_url %}
+      <button class="btn btn-danger btn-sm"
+              hx-{{ method }}="{{ confirm_url }}"
+              hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','{{ reload_url }}',{target:'#main-content',swap:'innerHTML'});this.closest('.ds-modal-backdrop').remove()}">
+        {{ verb | capitalize }}
+      </button>
+      {% else %}
+      <button class="btn btn-danger btn-sm"
+              hx-{{ method }}="{{ confirm_url }}"
+              hx-target="#{{ container_id }}"
+              hx-swap="innerHTML"
+              hx-on::after-request="this.closest('.ds-modal-backdrop').remove()">
+        {{ verb | capitalize }}
+      </button>
+      {% endif %}
+    </div>
+
+  </div>
+</div>

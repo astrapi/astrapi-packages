@@ -1,0 +1,5 @@
+# core/modules/activity_log/modul.yaml
+label:       Activity Log
+icon:        clock
+nav_group:   System
+nav_default: false

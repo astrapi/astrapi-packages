@@ -1,0 +1,79 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+<div id="create-edit-modal"
+     class="ds-modal-backdrop"
+     x-data
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal" style="max-width:1060px; padding:20px 24px; width:92vw;">
+
+    {{ modal_title(title="Docker Image bearbeiten – " ~ item_id, icon="edit") }}
+
+    <form id="create-edit-form"
+      hx-post="/ui/docker/{{ item_id }}/update"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="form-stack" style="gap:0;">
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:4px;">
+
+        {# ── Links: Konfigurationsfelder ───────────────────────────────────── #}
+        <div class="form-stack" style="gap:12px;">
+          {% set values = item %}
+          {% for field in schema %}
+            {% if field.type != 'section' %}
+              {% include "partials/create_edit/field_renderer.html" %}
+            {% else %}
+              <div class="settings-section-label" style="margin-top:8px;">{{ field.label }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        {# ── Rechts: Dockerfile-Editor ─────────────────────────────────────── #}
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label class="form-label">Dockerfile</label>
+          <textarea
+            name="dockerfile_content"
+            spellcheck="false"
+            placeholder="FROM ubuntu:22.04&#10;RUN apt-get update &amp;&amp; apt-get install -y ...&#10;..."
+            style="
+              flex: 1;
+              min-height: 320px;
+              font-family: var(--mono, monospace);
+              font-size: 12px;
+              line-height: 1.6;
+              background: var(--bg-2, #1a1a1a);
+              color: var(--text-1, #d4d4d4);
+              border: 1px solid var(--border, #333);
+              border-radius: 6px;
+              padding: 12px 14px;
+              resize: vertical;
+              tab-size: 4;
+              box-sizing: border-box;
+            "
+          >{{ item.get('dockerfile_content') or '' }}</textarea>
+        </div>
+
+      </div>
+
+      {{ modal_footer(enabled=item.get('enabled', True), enabled_id='modal-enabled',
+                      save_label='Speichern', has_toggle=true, save_id='create-edit-submit',
+                      save_type='button') }}
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const form      = document.getElementById('create-edit-form');
+  const submitBtn = document.getElementById('create-edit-submit');
+
+  submitBtn.addEventListener('click', function () {
+    htmx.trigger(form, 'submit');
+    form.addEventListener('htmx:afterRequest', function handler(e) {
+      if (e.detail.successful) {
+        document.getElementById('create-edit-modal')?.remove();
+      }
+      form.removeEventListener('htmx:afterRequest', handler);
+    });
+  });
+})();
+</script>

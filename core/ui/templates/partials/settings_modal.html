@@ -1,0 +1,158 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+{#
+  core/ui/templates/partials/settings_modal.html
+  Generisches Modul-Settings-Modal.
+
+  Wird per HTMX in <body> eingefügt (hx-swap="beforeend").
+  Variablen:
+    mod    – Module-Instanz (core.ui.Module)
+    schema – list von field-dicts (key, label, type, options, default, description)
+    values – dict {field_key: current_value}
+
+  Field-Typen: text, password, number, select, checkbox, textarea, list
+  Section-Attribute: cols (Anzahl Spalten im Grid)
+  Field-Attribute:   span (belegte Spalten im Section-Grid), width
+#}
+
+{% set modal_w = mod.settings_modal_width | default(480) %}
+
+<div id="settings-modal-backdrop" class="ds-modal-backdrop"
+     x-data
+     x-on:keydown.escape.window="$el.remove()">
+
+  <div class="ds-modal" style="width:{{ modal_w }}px; max-width:95vw; padding:24px 28px;" tabindex="-1"
+       id="settings-modal">
+
+    {{ modal_title(title=mod.label + " – Einstellungen", icon="settings") }}
+
+    <!-- Form -->
+    <form hx-post="/ui/{{ mod.key }}/settings"
+          hx-swap="none"
+          hx-on::after-request="if(event.detail.successful){this.closest('.ds-modal-backdrop').remove()}"
+          class="form-stack" style="gap:14px;">
+
+      {% set ns = namespace(grid_open=False, grid_cols=1, first_section=True) %}
+
+      {% for field in schema %}
+      {% set ftype = field.get('type', 'text') %}
+
+      {% if ftype == 'section' %}
+
+        {# Vorheriges Grid schließen #}
+        {% if ns.grid_open %}</div>{% endif %}
+
+        <div class="settings-section-label" style="margin-top:{% if ns.first_section %}4px{% else %}12px{% endif %};">
+          {{ field.label }}
+        </div>
+        {% set ns.first_section = False %}
+        {% set ns.grid_cols = field.get('cols', 1) %}
+
+        <div style="display:grid;
+                    grid-template-columns:repeat({{ ns.grid_cols }}, 1fr);
+                    gap:12px;">
+        {% set ns.grid_open = True %}
+
+      {% else %}
+
+        {# Felder vor der ersten Section → 1-spaltiges Grid #}
+        {% if not ns.grid_open %}
+          <div style="display:grid; grid-template-columns:1fr; gap:14px;">
+          {% set ns.grid_open = True %}
+        {% endif %}
+
+        {% set fkey  = field.key %}
+        {% set fval  = values.get(fkey, field.get('default', '')) %}
+        {% set field_span = field.get('span', 1) %}
+
+        {% if field_span > 1 %}<div style="grid-column: span {{ field_span }};">{% endif %}
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">{{ field.label }}</label>
+
+          {% if ftype == 'select' %}
+          <select name="{{ fkey }}" class="form-select">
+            {% for opt in field.options %}
+              {% if opt is mapping %}
+                <option value="{{ opt.value }}" {{ 'selected' if fval == opt.value }}>{{ opt.label }}</option>
+              {% else %}
+                <option value="{{ opt }}" {{ 'selected' if fval == opt }}>{{ opt }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+
+          {% elif ftype == 'checkbox' %}
+          <label class="toggle-field" style="padding-top:4px;">
+            <input type="hidden" name="{{ fkey }}" value="0">
+            <input type="checkbox" name="{{ fkey }}" value="1"
+                   style="width:16px; height:16px;"
+                   {{ 'checked' if fval in (True, '1', 'true', 'on') }}
+                   onchange="this.form.querySelector('[name={{ fkey }}][type=hidden]').disabled=this.checked">
+            <span class="toggle-field-label">{{ field.get('checkbox_label', 'Aktiviert') }}</span>
+          </label>
+
+          {% elif ftype == 'list' %}
+          {% set flist = fval if fval is iterable and fval is not string else [] %}
+          <div
+            x-data='{ "lines": {{ flist | tojson }}, add() { this.lines.push("") }, remove(i) { this.lines.splice(i, 1) } }'
+            class="stack-sm"
+          >
+            <template x-for="(line, i) in lines" :key="i">
+              <div class="inline-cluster">
+                <input type="text"
+                       :name="`{{ fkey }}_${i}`"
+                       x-model="lines[i]"
+                       class="form-input"
+                       style="flex:1;{% if field.get('mono') %}font-family:var(--font-mono);{% endif %}font-size:13px;">
+                <button type="button" @click="remove(i)" class="btn-icon btn-icon-danger" title="Entfernen">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#icon-minus"></use></svg>
+                </button>
+              </div>
+            </template>
+            <div>
+              <button type="button" @click="add()" class="btn btn-ghost btn-sm" style="gap:5px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><use href="#icon-plus"></use></svg>
+                Hinzufügen
+              </button>
+            </div>
+          </div>
+
+          {% elif ftype == 'textarea' %}
+          <textarea name="{{ fkey }}" class="form-input"
+                    rows="{{ field.get('rows', 3) }}"
+                    placeholder="{{ field.get('placeholder', '') }}"
+                    style="resize:vertical; font-family:{% if field.get('mono') %}var(--font-mono){% else %}inherit{% endif %};">{{ fval }}</textarea>
+
+          {% elif ftype == 'password' %}
+          <input type="password" name="{{ fkey }}" class="form-input"
+                 placeholder="{{ field.get('placeholder', '••••••••') }}"
+                 autocomplete="new-password">
+
+          {% else %}{# text, number, etc. #}
+          <input type="{{ ftype }}" name="{{ fkey }}" class="form-input"
+                 value="{{ fval }}"
+                 placeholder="{{ field.get('placeholder', '') }}"
+                 style="{% if field.get('mono') %}font-family:var(--font-mono);{% endif %}{% if field.get('width') %}width:{{ field.width }};{% endif %}">
+          {% endif %}
+
+          {% if field.get('description') %}
+          <span class="form-help">{{ field.description }}</span>
+          {% endif %}
+        </div>
+        {% if field_span > 1 %}</div>{% endif %}
+
+      {% endif %}
+      {% endfor %}
+
+      {% if ns.grid_open %}</div>{% endif %}
+
+      {{ modal_footer(has_toggle=False, save_label="Speichern", save_type="submit") }}
+    </form>
+
+  </div>
+</div>
+
+<script>
+(function() {
+  var modal = document.getElementById('settings-modal');
+  if (modal) modal.focus();
+})();
+</script>

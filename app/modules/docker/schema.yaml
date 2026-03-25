@@ -1,0 +1,46 @@
+id_field:
+  name:        name
+  label:       Bezeichnung
+  placeholder: "z.B. nginx-custom"
+  max:         100
+
+fields:
+  - type:  section
+    label: Image
+    cols:  3
+
+  - name:        image
+    label:       Image-Name
+    type:        text
+    placeholder: "myorg/myapp"
+    max:         200
+    span:        2
+
+  - name:        tag
+    label:       Tag
+    type:        text
+    placeholder: "latest"
+    max:         50
+    span:        1
+
+  - type:  section
+    label: Build
+    cols:  2
+
+  - name:        context
+    label:       Build-Context
+    type:        text
+    placeholder: "/opt/myapp"
+    max:         500
+    span:        2
+
+  - name:        build_args
+    label:       Build-Argumente
+    type:        list
+    placeholder: "KEY=value"
+    span:        2
+
+  - name:        enabled
+    label:       Aktiv
+    type:        boolean
+    span:        1

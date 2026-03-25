@@ -1,0 +1,139 @@
+<div data-collected-at="{{ info.collected_at }}">
+
+{# ── Gauges: CPU / RAM / Swap / Disk ──────────────────────────────── #}
+<div class="sysinfo-gauges" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+
+  {# CPU #}
+  <div class="ds-card on" style="padding:16px 18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">CPU</div>
+      <div style="font-size:24px; font-weight:700; color:var(--text);">{{ info.cpu.percent }}<span style="font-size:14px; color:var(--text-3);">%</span></div>
+    </div>
+    <div style="height:8px; background:var(--sel); border-radius:99px; overflow:hidden;">
+      <div style="height:100%; width:{{ info.cpu.percent }}%; border-radius:99px;
+                  background:{{ 'var(--r)' if info.cpu.percent > 85 else ('var(--b)' if info.cpu.percent > 50 else 'var(--g)') }};
+                  transition:width 400ms;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--text-3); margin-top:8px;">
+      {{ info.cpu.cores }} Kerne · {{ info.cpu.freq }}
+      {% if info.cpu.model %}<div style="margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ info.cpu.model }}</div>{% endif %}
+    </div>
+  </div>
+
+  {# RAM #}
+  <div class="ds-card on" style="padding:16px 18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">RAM</div>
+      <div style="font-size:24px; font-weight:700; color:var(--text);">{{ info.mem.percent }}<span style="font-size:14px; color:var(--text-3);">%</span></div>
+    </div>
+    <div style="height:8px; background:var(--sel); border-radius:99px; overflow:hidden;">
+      <div style="height:100%; width:{{ info.mem.percent }}%; border-radius:99px;
+                  background:{{ 'var(--r)' if info.mem.percent > 85 else ('var(--b)' if info.mem.percent > 60 else 'var(--g)') }};
+                  transition:width 400ms;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--text-3); margin-top:8px; display:flex; justify-content:space-between;">
+      <span>{{ info.mem.used }} belegt</span><span>{{ info.mem.free }} frei</span><span>{{ info.mem.total }} gesamt</span>
+    </div>
+  </div>
+
+  {# Swap #}
+  <div class="ds-card on" style="padding:16px 18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">SWAP</div>
+      <div style="font-size:24px; font-weight:700; color:var(--text);">{{ info.swap.percent }}<span style="font-size:14px; color:var(--text-3);">%</span></div>
+    </div>
+    <div style="height:8px; background:var(--sel); border-radius:99px; overflow:hidden;">
+      <div style="height:100%; width:{{ info.swap.percent }}%; border-radius:99px;
+                  background:{{ 'var(--r)' if info.swap.percent > 70 else 'var(--b-dim, var(--b))' }};
+                  transition:width 400ms;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--text-3); margin-top:8px; display:flex; justify-content:space-between;">
+      <span>{{ info.swap.used }} belegt</span><span>{{ info.swap.total }} gesamt</span>
+    </div>
+  </div>
+
+  {# Disk (/) #}
+  {% if info.root_disk %}
+  <div class="ds-card on" style="padding:16px 18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">DISK</div>
+      <div style="font-size:24px; font-weight:700; color:var(--text);">{{ info.root_disk.percent }}<span style="font-size:14px; color:var(--text-3);">%</span></div>
+    </div>
+    <div style="height:8px; background:var(--sel); border-radius:99px; overflow:hidden;">
+      <div style="height:100%; width:{{ info.root_disk.percent }}%; border-radius:99px;
+                  background:{{ 'var(--r)' if info.root_disk.percent > 90 else ('var(--b)' if info.root_disk.percent > 70 else 'var(--g)') }};
+                  transition:width 400ms;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--text-3); margin-top:8px; display:flex; justify-content:space-between;">
+      <span>{{ info.root_disk.used_fmt }} belegt</span><span>{{ info.root_disk.free_fmt }} frei</span><span>{{ info.root_disk.total_fmt }} gesamt</span>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+
+{# ── Anwendung + Backup-Stack ─────────────────────────────────────── #}
+<div class="sysinfo-info" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+
+  {# Anwendung #}
+  <div class="ds-card on" style="overflow:hidden;">
+    <div style="padding:10px 16px; border-bottom:1px solid var(--border-s); font-size:11px;
+                text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">
+      Anwendung
+    </div>
+    <div style="padding:12px 16px;">
+      <div class="meta-grid" style="row-gap:8px;">
+        <span class="meta-label">BackupCtl</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text);">{{ info.software.get("backupctl", "—") }}</span>
+        <span class="meta-label">Core</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text-2);">{{ info.software.get("core", "—") }}</span>
+        <span class="meta-label">Python</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text-2);">{{ info.software.get("python", "—") }}</span>
+        <span class="meta-label">Verzeichnis</span>
+        <span class="meta-value" style="font-family:var(--mono); font-size:11px; color:var(--text-2);
+                                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+              title="{{ info.system.cwd }}">{{ info.system.cwd }}</span>
+        <span class="meta-label">User</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text-2);">{{ info.system.user }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# Backup-Stack #}
+  <div class="ds-card on" style="overflow:hidden;">
+    <div style="padding:10px 16px; border-bottom:1px solid var(--border-s); font-size:11px;
+                text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); font-weight:600;">
+      Backup-Stack
+    </div>
+    <div style="padding:12px 16px;">
+      <div class="meta-grid" style="row-gap:8px;">
+        <span class="meta-label">Borg</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text-2);">{{ info.software.get("Borg", "—") }}</span>
+        <span class="meta-label">Datenbank</span>
+        <span class="meta-value" style="font-family:var(--mono); color:var(--text-2);">{{ info.software.get("DB", "—") }}</span>
+      </div>
+      {% if info.services %}
+      {% set svc = info.services[0] %}
+      <div style="margin-top:14px; display:flex; align-items:center; justify-content:space-between;
+                  padding:8px 10px; background:var(--sel); border-radius:var(--rad);">
+        <div>
+          <div style="font-family:var(--mono); font-size:13px; color:var(--text);">{{ svc.name }}</div>
+          {% if svc.desc %}<div style="font-size:11px; color:var(--text-3); margin-top:1px;">{{ svc.desc }}</div>{% endif %}
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; color:var(--text-3);">{{ svc.enabled }}</span>
+          <span style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:99px;
+                       background:{{ 'rgba(38,162,105,0.2)' if svc.ok else 'var(--err-bg)' }};
+                       color:{{ 'var(--g)' if svc.ok else 'var(--err)' }};">
+            {{ svc.active }}
+          </span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+</div>{# /data-collected-at #}

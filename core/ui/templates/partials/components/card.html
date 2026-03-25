@@ -1,0 +1,21 @@
+{% macro render(title_html, enabled=True, toggle_html="", footer_left="", footer_right="") -%}
+<div class="ds-card {{ 'on' if enabled else 'off' }}">
+  <div class="card-header">
+    <span class="card-title">
+      {{ title_html | safe }}
+    </span>
+    {{ toggle_html | safe }}
+  </div>
+  <div class="card-body">
+    {{ caller() }}
+  </div>
+  <div class="card-footer">
+    <div class="card-footer-actions">
+      {{ footer_left | safe }}
+    </div>
+    <div class="card-footer-actions">
+      {{ footer_right | safe }}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
