@@ -1,6 +1,7 @@
 """app/modules/docker/jobs.py – Build- und Update-Logik für Docker-Images."""
 
 import logging
+import os
 import subprocess
 import tempfile
 import threading
@@ -44,16 +45,10 @@ def build_image(item_id: str) -> None:
         log.warning("docker.build: Eintrag '%s' nicht gefunden", item_id)
         return
 
-    image      = (item.get("image") or "").strip()
-    tag        = (item.get("tag")   or "latest").strip() or "latest"
-    content    = item.get("dockerfile_content") or ""
-    context    = (item.get("context") or ".").strip() or "."
-    build_args = item.get("build_args") or []
+    image   = f"ctl/{item_id}"
+    tag     = (item.get("tag") or "latest").strip() or "latest"
+    content = item.get("dockerfile_content") or ""
 
-    if not image:
-        store.update(item_id, {"last_status": "error", "last_built": _now(),
-                                "last_log": "Kein Image-Name konfiguriert."})
-        return
     if not content.strip():
         store.update(item_id, {"last_status": "error", "last_built": _now(),
                                 "last_log": "Kein Dockerfile-Inhalt vorhanden."})
@@ -66,17 +61,11 @@ def build_image(item_id: str) -> None:
         tf_path = tf.name
 
     try:
-        cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", tf_path]
-        for arg in build_args:
-            arg = arg.strip()
-            if arg:
-                cmd += ["--build-arg", arg]
-        cmd.append(context)
+        cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", tf_path, "."]
 
         log.info("docker.build: %s", " ".join(cmd))
         rc, output = _run(cmd, _TIMEOUT_BUILD)
     finally:
-        import os
         os.unlink(tf_path)
 
     status = "ok" if rc == 0 else "error"

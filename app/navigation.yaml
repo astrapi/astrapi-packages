@@ -4,5 +4,8 @@
 # label und icon sind optional – Defaults kommen aus der modul.yaml des Moduls.
 # Core-Module (notify, scheduler, sysinfo, settings) stehen in core/navigation.yaml.
 
+- key:   pakete
+  group: Pakete
+
 - key:   docker
   group: Pakete

@@ -1,0 +1,22 @@
+id_field:
+  name:        name
+  label:       Paketname
+  placeholder: "z.B. my-package"
+  max:         100
+
+fields:
+  - name:        typ
+    label:       Typ
+    type:        select
+    options:
+      - value: aur
+        label: AUR
+      - value: custom
+        label: Custom
+    required:    true
+
+  - name:        source_url
+    label:       AUR Git-URL
+    type:        text
+    placeholder: "https://aur.archlinux.org/my-package.git"
+    max:         500

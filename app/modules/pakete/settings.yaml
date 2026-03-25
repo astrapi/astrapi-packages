@@ -1,0 +1,31 @@
+modal_width: 520
+
+fields:
+  - type:  section
+    label: Build
+    cols:  1
+
+  - key:         default_image
+    label:       Standard Build-Image
+    type:        text
+    placeholder: "ctl/arch-builder:latest"
+    default:     "ctl/arch-builder:latest"
+    description: "Docker-Image das zum Bauen der Pakete verwendet wird"
+
+  - type:  section
+    label: Pacman-Repository
+    cols:  1
+
+  - key:         repo_path
+    label:       Repository-Pfad (Host)
+    type:        text
+    placeholder: "/srv/pacman-repo"
+    default:     "/srv/pacman-repo"
+    description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden"
+
+  - key:         repo_name
+    label:       Repository-Name
+    type:        text
+    placeholder: "local"
+    default:     "local"
+    description: "Name der Pacman-Datenbank (z.B. local → local.db.tar.gz)"

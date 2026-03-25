@@ -1,4 +1,4 @@
-"""app/modules/docker/ui.py – Flask-Blueprint für das Docker-Modul."""
+"""app/modules/pakete/ui.py – Flask-Blueprint für das Pakete-Modul."""
 
 from pathlib import Path
 
@@ -8,19 +8,17 @@ from core.ui.crud_blueprint import make_crud_blueprint
 from core.ui.schema_loader import load_schema
 from .storage import store, KEY
 
-_DIR = Path(__file__).parent
+_DIR    = Path(__file__).parent
 _SCHEMA = load_schema(str(_DIR / "schema.yaml"))
 
 bp = make_crud_blueprint(
     store, KEY,
     schema_path=str(_DIR / "schema.yaml"),
-    label="Docker Image",
+    label="Paket",
     description_field="name",
     has_run_buttons=False,
 )
 
-
-# ── Kontext-Helper ────────────────────────────────────────────────────────────
 
 def _ctx():
     return dict(
@@ -34,13 +32,11 @@ def _ctx():
     )
 
 
-# ── Kombiniertes Edit-Modal (überschreibt Standard-Edit via before_request) ───
-
 @bp.before_request
 def _intercept():
     endpoint = request.endpoint or ""
 
-    # GET /ui/docker/create → kombiniertes Modal (leer)
+    # GET /ui/pakete/create → kombiniertes Modal (leer)
     if endpoint == f"{KEY}_ui.create_modal":
         return render_template(
             f"{KEY}/partials/combined_edit_modal.html",
@@ -49,15 +45,16 @@ def _intercept():
             schema=_SCHEMA["fields"],
         )
 
-    # POST /ui/docker/ → Anlegen inkl. dockerfile_content
+    # POST /ui/pakete/ → Anlegen inkl. pkgbuild_content
     if endpoint == f"{KEY}_ui.create_apply":
         item_id = request.form.get("name", "").strip()
         if not item_id:
-            return "Bezeichnung fehlt", 400
+            return "Paketname fehlt", 400
         data = {
-            "tag":               request.form.get("tag", "latest").strip() or "latest",
-            "enabled":           "enabled" in request.form,
-            "dockerfile_content": request.form.get("dockerfile_content", ""),
+            "typ":             request.form.get("typ", "aur"),
+            "source_url":      request.form.get("source_url", "").strip(),
+            "pkgbuild_content": request.form.get("pkgbuild_content", ""),
+            "enabled":         "enabled" in request.form,
         }
         try:
             store.create(item_id, data)
@@ -65,7 +62,7 @@ def _intercept():
             return "Bereits vorhanden", 409
         return render_template("partials/list_wrapper.html", **_ctx())
 
-    # GET /ui/docker/{id}/edit → kombiniertes Modal (befüllt)
+    # GET /ui/pakete/{id}/edit → kombiniertes Modal (befüllt)
     if endpoint == f"{KEY}_ui.edit_modal":
         item_id = request.view_args.get("item_id")
         item = store.get(item_id)
@@ -78,13 +75,11 @@ def _intercept():
             schema=_SCHEMA["fields"],
         )
 
-    # POST /ui/docker/{id}/update → dockerfile_content vorab schreiben,
-    # dann Standard-Handler (crud_blueprint) die Schema-Felder speichern lassen.
+    # POST /ui/pakete/{id}/update → pkgbuild_content vorab schreiben
     if endpoint == f"{KEY}_ui.edit_apply":
         item_id = request.view_args.get("item_id")
-        content = request.form.get("dockerfile_content", "").strip()
-        if content and store.get(item_id) is not None:
-            store.update(item_id, {"dockerfile_content": content})
+        if store.get(item_id) is not None:
+            store.update(item_id, {"pkgbuild_content": request.form.get("pkgbuild_content", "")})
         return None  # weiter zum Standard-Handler
 
 
@@ -94,17 +89,8 @@ def _intercept():
 def build_item(item_id: str):
     if store.get(item_id) is None:
         return "Nicht gefunden", 404
-    from .jobs import build_image_async
-    build_image_async(item_id)
-    return render_template("partials/list_wrapper_inner.html", **_ctx())
-
-
-@bp.route(f"/ui/{KEY}/<item_id>/update", methods=["POST"])
-def update_item(item_id: str):
-    if store.get(item_id) is None:
-        return "Nicht gefunden", 404
-    from .jobs import update_image_async
-    update_image_async(item_id)
+    from .jobs import build_package_async
+    build_package_async(item_id)
     return render_template("partials/list_wrapper_inner.html", **_ctx())
 
 

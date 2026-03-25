@@ -1,8 +1,6 @@
 <div class="meta-grid">
   <span class="meta-label">Image</span>
-  <span class="meta-value">{{ item_data.image or '—' }}:{{ item_data.tag or 'latest' }}</span>
-  <span class="meta-label">Dockerfile</span>
-  <span class="meta-value">{{ item_data.dockerfile or '—' }}</span>
+  <span class="meta-value">ctl/{{ item_name }}:{{ item_data.tag or 'latest' }}</span>
   {% if item_data.last_status %}
   <span class="meta-label">Status</span>
   <span class="meta-value">{{ ui.status_inline(item_data.last_status) }}</span>

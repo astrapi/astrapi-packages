@@ -8,7 +8,7 @@ module = load_modul(Path(__file__).parent, _KEY, router, bp)
 
 try:
     from core.modules.scheduler.engine import register_action
-    from .jobs import build_image
-    register_action(f"{_KEY}.build", "Docker: Image bauen", build_image, source=_KEY, source_label="Docker")
+    from .jobs import build_package
+    register_action(f"{_KEY}.build", "Pakete: Paket bauen", build_package, source=_KEY, source_label="Pakete")
 except Exception:
     pass

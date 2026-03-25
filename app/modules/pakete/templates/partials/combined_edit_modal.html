@@ -1,16 +1,16 @@
 {% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
 <div id="create-edit-modal"
      class="ds-modal-backdrop"
-     x-data
+     x-data="{ typ: '{{ (item or {}).get('typ', 'aur') }}' }"
      x-on:keydown.escape.window="$el.remove()">
   <div class="ds-modal" style="max-width:1060px; padding:20px 24px; width:92vw;">
 
     {% if item_id %}
-      {{ modal_title(title="Docker Image bearbeiten – " ~ item_id, icon="edit") }}
-      {% set submit_url = "/ui/docker/" ~ item_id ~ "/update" %}
+      {{ modal_title(title="Paket bearbeiten – " ~ item_id, icon="edit") }}
+      {% set submit_url = "/ui/pakete/" ~ item_id ~ "/update" %}
     {% else %}
-      {{ modal_title(is_edit=false, title="Neuer Docker Image") }}
-      {% set submit_url = "/ui/docker/" %}
+      {{ modal_title(is_edit=false, title="Neues Paket") }}
+      {% set submit_url = "/ui/pakete/" %}
     {% endif %}
 
     <form id="create-edit-form"
@@ -24,39 +24,53 @@
         {# ── Links: Konfigurationsfelder ───────────────────────────────────── #}
         <div class="form-stack" style="gap:12px;">
 
-          {# Bezeichnung nur beim Anlegen #}
+          {# Paketname nur beim Anlegen #}
           {% if not item_id %}
           <div class="form-group">
-            <label class="form-label">Bezeichnung <span class="required-mark">*</span></label>
+            <label class="form-label">Paketname <span class="required-mark">*</span></label>
             <input
               type="text"
               name="name"
               class="form-input"
               data-required="true"
-              placeholder="z.B. arch-builder"
+              placeholder="z.B. my-package"
               maxlength="100"
             >
             <span class="form-error"></span>
           </div>
           {% endif %}
 
-          {% set values = item or {} %}
-          {% for field in schema %}
-            {% if field.type != 'section' %}
-              {% include "partials/create_edit/field_renderer.html" %}
-            {% else %}
-              <div class="settings-section-label" style="margin-top:8px;">{{ field.label }}</div>
-            {% endif %}
-          {% endfor %}
+          {# Typ-Auswahl #}
+          <div class="form-group">
+            <label class="form-label">Typ</label>
+            <select name="typ" class="form-input" x-model="typ">
+              <option value="aur"    {% if (item or {}).get('typ', 'aur') == 'aur'    %}selected{% endif %}>AUR</option>
+              <option value="custom" {% if (item or {}).get('typ') == 'custom' %}selected{% endif %}>Custom</option>
+            </select>
+          </div>
+
+          {# AUR Git-URL (nur bei typ=aur) #}
+          <div class="form-group" x-show="typ === 'aur'">
+            <label class="form-label">AUR Git-URL</label>
+            <input
+              type="text"
+              name="source_url"
+              class="form-input"
+              placeholder="https://aur.archlinux.org/my-package.git"
+              maxlength="500"
+              value="{{ (item or {}).get('source_url') or '' }}"
+            >
+          </div>
+
         </div>
 
-        {# ── Rechts: Dockerfile-Editor ─────────────────────────────────────── #}
-        <div style="display:flex; flex-direction:column; gap:6px;">
-          <label class="form-label">Dockerfile</label>
+        {# ── Rechts: PKGBUILD-Editor (nur bei typ=custom) ──────────────────── #}
+        <div style="display:flex; flex-direction:column; gap:6px;" x-show="typ === 'custom'">
+          <label class="form-label">PKGBUILD</label>
           <textarea
-            name="dockerfile_content"
+            name="pkgbuild_content"
             spellcheck="false"
-            placeholder="# syntax=docker/dockerfile:1&#10;FROM archlinux:${ARCH}&#10;..."
+            placeholder="# Maintainer: ...&#10;pkgname=my-package&#10;pkgver=1.0&#10;..."
             style="
               flex: 1;
               min-height: 320px;
@@ -72,8 +86,11 @@
               tab-size: 4;
               box-sizing: border-box;
             "
-          >{{ (item or {}).get('dockerfile_content') or '' }}</textarea>
+          >{{ (item or {}).get('pkgbuild_content') or '' }}</textarea>
         </div>
+
+        {# Platzhalter rechts bei typ=aur #}
+        <div x-show="typ === 'aur'"></div>
 
       </div>
 
@@ -91,8 +108,8 @@
   const submitBtn = document.getElementById('create-edit-submit');
 
   function validateField(input) {
-    const errorEl  = input.parentElement.querySelector('.form-error');
-    let   message  = '';
+    const errorEl = input.parentElement.querySelector('.form-error');
+    let message = '';
     if (input.dataset.required === 'true' && !input.value.trim()) {
       message = 'Dieses Feld ist erforderlich.';
     }

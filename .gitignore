@@ -6,3 +6,6 @@ __pycache__/
 venv/
 dist/
 *.zip
+app/data/app.db
+app/data/app.db-shm
+app/data/app.db-wal
