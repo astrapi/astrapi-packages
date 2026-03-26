@@ -1,8 +1,0 @@
-# app/config.yaml – App-Konfiguration
-
-app:
-  name:       PackageControl
-  lang:       de
-  light_mode: false
-  logo_svg:   null
-  icon_theme: lucide    # lucide | heroicons | tabler | oder eigenes Theme in templates/partials/components/sprites/
