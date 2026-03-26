@@ -1,11 +1,36 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
-.env
+
+# Virtuelle Umgebungen
 .venv/
 venv/
+env/
+
+# Build & Distribution
+build/
 dist/
 *.zip
-app/data/app.db
-app/data/app.db-shm
-app/data/app.db-wal
+
+# Tests & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Datenbank
+app/data/*.db
+app/data/*.db-shm
+app/data/*.db-wal
+
+# Logs
+*.log
+
+# Secrets
+.env
+.env.*
+*.key
+
+# IDE
+.idea/
+.vscode/
