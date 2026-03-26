@@ -3,7 +3,7 @@
 
 Module registrieren Aktionen einmalig beim Start:
 
-    from core.modules.scheduler.engine import register_action
+    from astrapi.core.modules.scheduler.engine import register_action
     register_action("hosts.check", "Hosts prüfen", check_hosts)
 
 Jobs werden in YamlStorage("scheduler_jobs") gespeichert und können
@@ -26,7 +26,7 @@ TIMEZONE = "Europe/Berlin"  # Fallback; wird zur Laufzeit aus settings_registry 
 def _get_timezone() -> str:
     """Liest die Zeitzone aus der Settings-Registry (mit Fallback)."""
     try:
-        from core.ui.settings_registry import get as _srget
+        from astrapi.core.ui.settings_registry import get as _srget
         return _srget("TIMEZONE", TIMEZONE) or TIMEZONE
     except Exception:
         return TIMEZONE
@@ -35,12 +35,12 @@ def _get_timezone() -> str:
 # ── Storage (lazy) ─────────────────────────────────────────────────────────────
 
 def _jobs_store():
-    from core.ui.storage import YamlStorage
+    from astrapi.core.ui.storage import YamlStorage
     return YamlStorage("scheduler_jobs")
 
 
 def _status_store():
-    from core.ui.storage import YamlStorage
+    from astrapi.core.ui.storage import YamlStorage
     return YamlStorage("scheduler_status")
 
 
@@ -99,7 +99,7 @@ class Scheduler:
         self._actions[key] = {"label": label, "fn": fn}
         if source:
             try:
-                from core.modules.notify.engine import register_source as _rs
+                from astrapi.core.modules.notify.engine import register_source as _rs
                 _rs(source, source_label or source.capitalize())
             except Exception as e:
                 log.debug("register_action: Notify-Quelle '%s' nicht registriert: %s", source, e)
@@ -113,7 +113,7 @@ class Scheduler:
     def _register_job_notify_source(self, job_id: str, label: str) -> None:
         """Registriert einen Scheduler-Job als Notify-Quelle."""
         try:
-            from core.modules.notify.engine import register_source as _rs
+            from astrapi.core.modules.notify.engine import register_source as _rs
             _rs(job_id, label)
         except Exception as e:
             log.debug("scheduler: Notify-Quelle '%s' nicht registriert: %s", job_id, e)
@@ -121,7 +121,7 @@ class Scheduler:
     def _unregister_job_notify_source(self, job_id: str) -> None:
         """Entfernt einen Scheduler-Job als Notify-Quelle."""
         try:
-            from core.modules.notify.engine import unregister_source as _us
+            from astrapi.core.modules.notify.engine import unregister_source as _us
             _us(job_id)
         except Exception as e:
             log.debug("scheduler: Notify-Quelle '%s' nicht abgemeldet: %s", job_id, e)
@@ -190,7 +190,7 @@ class Scheduler:
         # ── Activity-Log: Start ────────────────────────────────────────────────
         activity_id = None
         try:
-            from core.system.activity_log import log_activity
+            from astrapi.core.system.activity_log import log_activity
             activity_id = log_activity(
                 log_type='scheduler',
                 module='scheduler',
@@ -204,7 +204,7 @@ class Scheduler:
 
         # ── Start-Benachrichtigung ─────────────────────────────────────────────
         try:
-            from core.modules.notify import engine as _notify
+            from astrapi.core.modules.notify import engine as _notify
             _notify.send(
                 title   = f"Job gestartet: {label}",
                 message = f"{len(steps)} Schritt(e) werden ausgeführt.",
@@ -217,7 +217,7 @@ class Scheduler:
 
         # ── DB-Logging für Steps aktivieren ───────────────────────────────────
         try:
-            from core.system.logger import set_active_log_id as _set_log_id, log as _hlog
+            from astrapi.core.system.logger import set_active_log_id as _set_log_id, log as _hlog
             if activity_id is not None:
                 _set_log_id(activity_id)
         except Exception:
@@ -238,7 +238,7 @@ class Scheduler:
                 log.error("Job '%s': Schritt '%s' fehlgeschlagen: %s", job_id, step_key, e)
 
         try:
-            from core.system.logger import clear_active_log_id as _clear_log_id
+            from astrapi.core.system.logger import clear_active_log_id as _clear_log_id
             _clear_log_id()
         except Exception:
             pass
@@ -256,7 +256,7 @@ class Scheduler:
         # ── Activity-Log: Ende ─────────────────────────────────────────────────
         if activity_id is not None:
             try:
-                from core.system.activity_log import update_activity_log
+                from astrapi.core.system.activity_log import update_activity_log
                 update_activity_log(
                     log_id=activity_id,
                     status='ok' if not errors else 'error',
@@ -268,7 +268,7 @@ class Scheduler:
 
         # ── Ende-Benachrichtigung ──────────────────────────────────────────────
         try:
-            from core.modules.notify import engine as _notify
+            from astrapi.core.modules.notify import engine as _notify
             if errors:
                 _notify.send(
                     title   = f"Job fehlgeschlagen: {label}",

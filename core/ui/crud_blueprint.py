@@ -11,8 +11,8 @@ Erzeugt einen Standard-CRUD-Blueprint mit folgenden Routen:
   POST /ui/<key>/<item_id>/update     → Bearbeiten durchführen
 
 Verwendung:
-    from core.ui.crud_blueprint import make_crud_blueprint
-    from core.ui.store import SqliteTableStore
+    from astrapi.core.ui.crud_blueprint import make_crud_blueprint
+    from astrapi.core.ui.store import SqliteTableStore
     from pathlib import Path
 
     KEY   = "remotes"
@@ -31,7 +31,7 @@ from typing import Callable
 
 from flask import Blueprint, render_template, request
 
-from core.ui.schema_loader import load_schema
+from astrapi.core.ui.schema_loader import load_schema
 
 
 def make_crud_blueprint(

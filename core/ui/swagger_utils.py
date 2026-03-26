@@ -7,7 +7,7 @@
 # Methoden: exakt aus Flask-Rule, keine Extrapolation
 #
 # Manueller Override per Decorator:
-#   from core.ui.swagger_utils import ui_meta
+#   from astrapi.core.ui.swagger_utils import ui_meta
 #   @ui_meta(tag="hosts", summary="Load Hosts Tab", description="...")
 #   def hosts_tab(): ...
 

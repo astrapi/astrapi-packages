@@ -1,5 +1,5 @@
 from pathlib import Path
-from core.ui.module_loader import load_modul
+from astrapi.core.ui.module_loader import load_modul
 from .api import router
 from .ui import bp
 

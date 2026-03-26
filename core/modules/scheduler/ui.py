@@ -11,7 +11,7 @@ bp = Blueprint(f"{KEY}_ui", __name__)
 
 
 def _list_ctx() -> dict:
-    from core.modules.scheduler.engine import list_jobs, get_registered_actions
+    from astrapi.core.modules.scheduler.engine import list_jobs, get_registered_actions
     return {
         "jobs":         list_jobs(),
         "actions":      get_registered_actions(),
@@ -32,7 +32,7 @@ def scheduler_content():
 
 @bp.route(f"/ui/{KEY}/job/new")
 def scheduler_job_new():
-    from core.modules.scheduler.engine import get_registered_actions
+    from astrapi.core.modules.scheduler.engine import get_registered_actions
     return render_template(
         f"{KEY}/partials/job_modal.html",
         job=None,
@@ -45,7 +45,7 @@ def scheduler_job_new():
 
 @bp.route(f"/ui/{KEY}/job/<job_id>/edit")
 def scheduler_job_edit(job_id: str):
-    from core.modules.scheduler.engine import get_job, get_registered_actions
+    from astrapi.core.modules.scheduler.engine import get_job, get_registered_actions
     job = get_job(job_id)
     if job is None:
         return "", 404
@@ -61,7 +61,7 @@ def scheduler_job_edit(job_id: str):
 
 @bp.route(f"/ui/{KEY}/job/<job_id>/delete")
 def scheduler_job_delete_modal(job_id: str):
-    from core.modules.scheduler.engine import get_job
+    from astrapi.core.modules.scheduler.engine import get_job
     job = get_job(job_id)
     return render_template(
         "partials/confirm_modal.html",
@@ -77,7 +77,7 @@ def scheduler_job_delete_modal(job_id: str):
 
 @bp.route(f"/ui/{KEY}/job/<job_id>/toggle")
 def scheduler_job_toggle_modal(job_id: str):
-    from core.modules.scheduler.engine import get_job
+    from astrapi.core.modules.scheduler.engine import get_job
     job = get_job(job_id) or {}
     enabled = request.args.get("enabled", "True")
     verb = "deaktivieren" if enabled == "True" else "aktivieren"
@@ -97,7 +97,7 @@ def scheduler_job_toggle_modal(job_id: str):
 
 @bp.route(f"/ui/{KEY}/job", methods=["POST"])
 def scheduler_job_create():
-    from core.modules.scheduler.engine import create_job, get_registered_actions
+    from astrapi.core.modules.scheduler.engine import create_job, get_registered_actions
 
     label         = request.form.get("label", "").strip()
     cron          = request.form.get("cron", "").strip()
@@ -125,7 +125,7 @@ def scheduler_job_create():
 
 @bp.route(f"/ui/{KEY}/job/<job_id>/update", methods=["POST"])
 def scheduler_job_save(job_id: str):
-    from core.modules.scheduler.engine import update_job, get_registered_actions
+    from astrapi.core.modules.scheduler.engine import update_job, get_registered_actions
 
     label         = request.form.get("label", "").strip()
     cron          = request.form.get("cron", "").strip()
@@ -135,7 +135,7 @@ def scheduler_job_save(job_id: str):
     notify_end    = "1" in request.form.getlist("notify_end")
 
     if not label or not cron:
-        from core.modules.scheduler.engine import get_job
+        from astrapi.core.modules.scheduler.engine import get_job
         job = get_job(job_id) or {"id": job_id}
         job.update({"label": label, "cron": cron, "enabled": enabled, "steps": steps,
                     "notify_start": notify_start, "notify_end": notify_end})
@@ -156,6 +156,6 @@ def scheduler_job_save(job_id: str):
 
 @bp.route(f"/ui/{KEY}/job/<job_id>/trigger", methods=["POST"])
 def scheduler_job_trigger(job_id: str):
-    from core.modules.scheduler.engine import trigger_job
+    from astrapi.core.modules.scheduler.engine import trigger_job
     trigger_job(job_id)
     return render_template(f"{KEY}/partials/list.html", **_list_ctx())

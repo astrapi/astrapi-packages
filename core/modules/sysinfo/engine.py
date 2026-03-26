@@ -3,7 +3,7 @@
 
 Projekte können optional projektspezifische Extras und Services konfigurieren:
 
-    from core.modules.sysinfo.engine import configure
+    from astrapi.core.modules.sysinfo.engine import configure
 
     configure(
         services=["myapp", "nginx"],
@@ -49,7 +49,7 @@ def _run(cmd: list, timeout: int = 5) -> str:
         return ""
 
 
-from core.system.format import fmt_bytes as _fmt_size
+from astrapi.core.system.format import fmt_bytes as _fmt_size
 
 
 def _fmt_uptime(seconds: float) -> str:

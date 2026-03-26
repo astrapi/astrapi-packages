@@ -5,7 +5,7 @@ Daten werden in der zentralen SQLite-Datenbank in der Tabelle `kvstore`
 gespeichert (Werte als JSON).  Ersetzt den früheren YAML-basierten Speicher.
 
 Verwendung in einem Modul:
-    from core.ui.storage import SqliteStorage
+    from astrapi.core.ui.storage import SqliteStorage
     store = SqliteStorage("hosts")
 
     store.list()                          # dict aller Einträge
@@ -61,7 +61,7 @@ class SqliteStorage:
                 continue  # wird von settings_registry migriert
             collection = yaml_path.stem
             try:
-                from core.system.db import kv_list, kv_set_many
+                from astrapi.core.system.db import kv_list, kv_set_many
                 if kv_list(collection):
                     yaml_path.rename(yaml_path.with_suffix(".yaml.migrated"))
                     continue
@@ -99,7 +99,7 @@ class SqliteStorage:
 
     def _load_all(self) -> dict:
         """Gibt alle Einträge der Collection als dict zurück."""
-        from core.system.db import kv_list
+        from astrapi.core.system.db import kv_list
         raw = kv_list(self.collection)
         return {k: json.loads(v) for k, v in raw.items()}
 
@@ -113,7 +113,7 @@ class SqliteStorage:
         with self._lock:
             data = self._load_all()
             if not data and self._seed:
-                from core.system.db import kv_set_many
+                from astrapi.core.system.db import kv_set_many
                 kv_set_many(self.collection, {k: json.dumps(v) for k, v in self._seed.items()})
                 data = dict(self._seed)
 
@@ -127,13 +127,13 @@ class SqliteStorage:
 
     def get(self, key: str) -> dict | None:
         self._maybe_migrate()
-        from core.system.db import kv_get
+        from astrapi.core.system.db import kv_get
         raw = kv_get(self.collection, key)
         return json.loads(raw) if raw is not None else None
 
     def exists(self, key: str) -> bool:
         self._maybe_migrate()
-        from core.system.db import kv_get
+        from astrapi.core.system.db import kv_get
         return kv_get(self.collection, key) is not None
 
     # ── Schreiben ─────────────────────────────────────────────────
@@ -151,7 +151,7 @@ class SqliteStorage:
             )
         self._maybe_migrate()
         with self._lock:
-            from core.system.db import kv_get, kv_set
+            from astrapi.core.system.db import kv_get, kv_set
             if kv_get(self.collection, key) is not None:
                 raise KeyError(f"'{key}' existiert bereits in '{self.collection}'")
             kv_set(self.collection, key, json.dumps(values))
@@ -160,7 +160,7 @@ class SqliteStorage:
     def update(self, key: str, values: dict) -> None:
         self._maybe_migrate()
         with self._lock:
-            from core.system.db import kv_get, kv_set
+            from astrapi.core.system.db import kv_get, kv_set
             raw = kv_get(self.collection, key)
             if raw is None:
                 raise KeyError(f"'{key}' nicht gefunden in '{self.collection}'")
@@ -171,7 +171,7 @@ class SqliteStorage:
     def upsert(self, key: str, values: dict) -> dict:
         self._maybe_migrate()
         with self._lock:
-            from core.system.db import kv_get, kv_set
+            from astrapi.core.system.db import kv_get, kv_set
             raw = kv_get(self.collection, key)
             if raw is not None:
                 existing = json.loads(raw)
@@ -184,7 +184,7 @@ class SqliteStorage:
     def delete(self, key: str) -> bool:
         self._maybe_migrate()
         with self._lock:
-            from core.system.db import kv_get, kv_delete
+            from astrapi.core.system.db import kv_get, kv_delete
             if kv_get(self.collection, key) is None:
                 raise KeyError(f"'{key}' nicht gefunden in '{self.collection}'")
             kv_delete(self.collection, key)
@@ -193,7 +193,7 @@ class SqliteStorage:
     def toggle(self, key: str, field: str = "enabled", default: bool = True) -> bool:
         self._maybe_migrate()
         with self._lock:
-            from core.system.db import kv_get, kv_set
+            from astrapi.core.system.db import kv_get, kv_set
             raw = kv_get(self.collection, key)
             if raw is None:
                 raise KeyError(f"'{key}' nicht gefunden in '{self.collection}'")

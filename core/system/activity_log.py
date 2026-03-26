@@ -6,7 +6,7 @@
 import json
 from datetime import datetime
 
-from core.system.db import _conn, get_setting, set_setting
+from astrapi.core.system.db import _conn, get_setting, set_setting
 
 
 # ── Activity Log ──────────────────────────────────────────────────

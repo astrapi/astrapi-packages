@@ -6,8 +6,8 @@ Registriert automatisch alle Modul-Router aus app/modules/.
 from pathlib import Path
 import time
 from fastapi import FastAPI
-from core.system.health import register_health
-from core.system.version import get_app_version
+from astrapi.core.system.health import register_health
+from astrapi.core.system.version import get_app_version
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,7 +44,7 @@ def create(modules: list | None = None) -> FastAPI:
     )
 
     # ── Modul-Router registrieren (nur laden wenn nicht übergeben) ────────────
-    from core.ui.module_registry import load_modules, register_fastapi_modules
+    from astrapi.core.ui.module_registry import load_modules, register_fastapi_modules
     if modules is None:
         modules = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)

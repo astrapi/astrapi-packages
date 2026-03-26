@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from core.ui.fastapi_templates import get_templates
+from astrapi.core.ui.fastapi_templates import get_templates
 from .engine import (
     list_activity, get_activity_log, clear_activity_log, get_log_lines,
     enrich, registered_modules, fmt_duration, fmt_bytes,

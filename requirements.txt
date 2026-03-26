@@ -37,3 +37,6 @@ apispec>=6.0            # OpenAPI-Spec-Generierung (swagger_utils.py)
 pytest>=8.0
 httpx>=0.27
 playwright>=1.51
+
+# ── Astrapi-Framework ─────────────────────────────────────────────
+astrapi-framework @ git+ssh://git@gitlab.com/astrapi-os/ctl/astrapi-framework.git@v26.3.5

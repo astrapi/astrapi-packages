@@ -7,7 +7,7 @@ backupctl-Implementierung, die auf core.system.db (generische CRUD-API mit
 auto-increment Integer-IDs) delegiert.
 
 Verwendung:
-    from core.ui.store import SqliteTableStore
+    from astrapi.core.ui.store import SqliteTableStore
     store = SqliteTableStore("remotes")
 
     store.list()                  # {str(id): item_dict}
@@ -61,12 +61,12 @@ class SqliteTableStore:
 
     def list(self) -> dict[str, dict]:
         """Gibt {str(id): item_dict} zurück – identisch zu core.system.db.load_config."""
-        from core.system.db import load_config
+        from astrapi.core.system.db import load_config
         return load_config(self.key)
 
     def get(self, item_id: str) -> dict | None:
         """Gibt ein Item per ID zurück oder None."""
-        from core.system.db import get_item
+        from astrapi.core.system.db import get_item
         return get_item(self.key, item_id)
 
     def create(self, item_id: str | None, data: dict) -> str:
@@ -75,7 +75,7 @@ class SqliteTableStore:
         item_id=None → auto-increment (SQLite wählt nächste freie ID).
         Gibt die neue ID als str zurück.
         """
-        from core.system.db import save_item, load_config
+        from astrapi.core.system.db import save_item, load_config
         save_item(self.key, item_id, data)
         if item_id is None:
             # Letzte eingefügte ID ermitteln (größte ID in der Tabelle)
@@ -87,12 +87,12 @@ class SqliteTableStore:
 
     def update(self, item_id: str, data: dict) -> None:
         """Aktualisiert einen bestehenden Eintrag."""
-        from core.system.db import save_item
+        from astrapi.core.system.db import save_item
         save_item(self.key, item_id, data)
 
     def delete(self, item_id: str) -> bool:
         """Löscht einen Eintrag. Gibt True zurück wenn erfolgreich."""
-        from core.system.db import delete_item
+        from astrapi.core.system.db import delete_item
         return delete_item(self.key, item_id)
 
     def __repr__(self) -> str:

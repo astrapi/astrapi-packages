@@ -82,7 +82,7 @@ def _split_sources() -> tuple[dict, dict]:
     """
     all_sources = get_registered_sources()
     try:
-        from core.modules.scheduler.engine import list_jobs as _sched_list
+        from astrapi.core.modules.scheduler.engine import list_jobs as _sched_list
         sched_ids = {j["id"] for j in _sched_list()}
     except Exception:
         sched_ids = set()

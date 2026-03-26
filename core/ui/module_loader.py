@@ -150,7 +150,7 @@ def _expand_card_actions(actions: list, module_key: str) -> list:
 
 
 def load_modul(module_dir: Path, key: str, api_router, ui_blueprint) -> "Module":
-    from core.ui._base import Module
+    from astrapi.core.ui._base import Module
 
     yaml_path = module_dir / "modul.yaml"
     cfg = {}

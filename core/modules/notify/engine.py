@@ -4,16 +4,16 @@
 Beim Aufruf von send() werden alle passenden aktiven Kanaele benachrichtigt.
 
 Nutzung:
-    from core.modules.notify import engine as notify
+    from astrapi.core.modules.notify import engine as notify
     notify.send("Backup fertig", "web-01 gesichert", event=notify.SUCCESS)
     notify.send("Host down",    "web-01 nicht erreichbar", event=notify.WARNING, source="hosts")
 
 Quelle registrieren (in __init__.py des Moduls):
-    from core.modules.notify.engine import register_source
+    from astrapi.core.modules.notify.engine import register_source
     register_source("hosts", "Hosts")
 
 Eigenes Backend registrieren (in main.py, vor App-Start):
-    from core.modules.notify.engine import register_backend, BaseNotifier
+    from astrapi.core.modules.notify.engine import register_backend, BaseNotifier
 
     class TelegramNotifier(BaseNotifier):
         def __init__(self, bot_token, chat_id):
@@ -37,7 +37,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
 
-from core.ui.storage import SqliteStorage
+from astrapi.core.ui.storage import SqliteStorage
 
 log = logging.getLogger(__name__)
 
@@ -316,7 +316,7 @@ def send_simple(message: str, priority: str | None = None) -> None:
     if not message or not message.strip():
         return
     try:
-        from core.modules.settings.engine import get_app_name
+        from astrapi.core.modules.settings.engine import get_app_name
         _engine.send(
             title    = get_app_name(),
             message  = message,

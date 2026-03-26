@@ -5,7 +5,7 @@ angelegt und verwaltet werden.
 
 Nutzung in anderen Modulen:
 
-    from core.modules.notify import engine as notify
+    from astrapi.core.modules.notify import engine as notify
 
     notify.send("Backup fertig",         "web-01 gesichert",          event=notify.SUCCESS)
     notify.send("Verbindungsfehler",     "host-db nicht erreichbar",  event=notify.ERROR)
@@ -13,7 +13,7 @@ Nutzung in anderen Modulen:
     notify.send("Job gestartet",         "nightly_sync läuft",        event=notify.INFO)
 """
 
-from core.ui import Module
+from astrapi.core.ui import Module
 from .api import router
 from .ui import bp
 

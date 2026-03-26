@@ -53,14 +53,14 @@ def _fernet() -> Fernet:
 
 
 def _db_set(key: str, value: str) -> None:
-    from core.system.db import set_setting
+    from astrapi.core.system.db import set_setting
     token = _fernet().encrypt(value.encode()).decode()
     set_setting(f"__secret__{key}", token)
     os.environ[key] = value
 
 
 def _db_get(key: str, default: str = "") -> str:
-    from core.system.db import get_setting
+    from astrapi.core.system.db import get_setting
     token = get_setting(f"__secret__{key}", "")
     if not token:
         return default
@@ -92,7 +92,7 @@ def get_secret_safe(key: str, default: str = "") -> str:
 
 def get_all_secrets() -> dict:
     """Gibt alle gesetzten Secrets als Klartext-Dict zurück."""
-    from core.system.db import _conn, _init_settings
+    from astrapi.core.system.db import _conn, _init_settings
     _init_settings()
     rows = _conn().execute(
         "SELECT key, value FROM settings WHERE key LIKE '__secret__%'"

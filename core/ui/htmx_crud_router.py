@@ -8,7 +8,7 @@ Erzeugt einen APIRouter mit HTMX-tauglichen CRUD-Endpunkten:
   POST   /{item_id}/toggle    → enabled-Flag umschalten
 
 Verwendung:
-    from core.ui.htmx_crud_router import make_htmx_crud_router
+    from astrapi.core.ui.htmx_crud_router import make_htmx_crud_router
     from pathlib import Path
 
     KEY = "mymodule"

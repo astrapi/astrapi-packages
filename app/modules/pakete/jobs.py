@@ -36,7 +36,7 @@ def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
 
 
 def _settings():
-    from core.ui.settings_registry import get_module as _get
+    from astrapi.core.ui.settings_registry import get_module as _get
     def s(key, default): return _get("pakete", key, default)
     return s
 

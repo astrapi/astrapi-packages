@@ -177,7 +177,7 @@ def create(
 
         def last_run_status(module: str, item_id) -> str | None:
             try:
-                from core.system.activity_log import list_runs_for_item
+                from astrapi.core.system.activity_log import list_runs_for_item
                 runs = list_runs_for_item(module, str(item_id), limit=5)
                 for run in runs:
                     if run.get("status") != "running":
@@ -186,7 +186,7 @@ def create(
                 pass
             return None
 
-        from core.ui.settings_registry import get as _srget
+        from astrapi.core.ui.settings_registry import get as _srget
         _light = _srget("LIGHT_MODE", _light_default)
         return {
             "app_name":             _display_name,
@@ -247,7 +247,7 @@ def create(
 
     # ── Scheduler starten ─────────────────────────────────────────────────────
     try:
-        from core.modules.scheduler.engine import init as scheduler_init
+        from astrapi.core.modules.scheduler.engine import init as scheduler_init
         scheduler_init()
     except Exception as _e:
         import warnings
@@ -348,7 +348,7 @@ def _register_settings_routes(app: Flask, modules: list, app_cfg: dict,
 def _register_module_settings_routes(app: Flask, modules: list) -> None:
     """Registriert GET/POST /ui/<key>/settings für Module mit settings_schema."""
     from .settings_registry import get_module, set_many as _set_many
-    from core.system.secrets import set_secret, get_secret_safe
+    from astrapi.core.system.secrets import set_secret, get_secret_safe
 
     mod_map = {m.key: m for m in modules if m.settings_schema}
     if not mod_map:
@@ -361,7 +361,7 @@ def _register_module_settings_routes(app: Flask, modules: list) -> None:
             return "", 404
 
         if request.method == "GET":
-            from core.ui.module_loader import reload_settings
+            from astrapi.core.ui.module_loader import reload_settings
             reload_settings(mod)
 
         if request.method == "POST":
@@ -409,7 +409,7 @@ def _register_module_settings_routes(app: Flask, modules: list) -> None:
             for field in mod.settings_schema
             if "key" in field
         }
-        from core.ui.field_resolver import resolve_options_endpoint
+        from astrapi.core.ui.field_resolver import resolve_options_endpoint
         return render_template(
             "partials/settings_modal.html",
             mod=mod,

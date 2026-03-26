@@ -10,7 +10,7 @@ Erzeugt einen Standard-CRUD-Router mit folgenden Endpunkten:
   DELETE /{item_id}           → Löschen
 
 Verwendung:
-    from core.ui.crud_router import make_crud_router
+    from astrapi.core.ui.crud_router import make_crud_router
     from pydantic import BaseModel
 
     class ItemIn(BaseModel):

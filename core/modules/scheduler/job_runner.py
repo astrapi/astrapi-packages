@@ -3,7 +3,7 @@
 
 Module nutzen diese Funktionen in ihren ``run()``-Implementierungen:
 
-    from core.modules.scheduler.job_runner import run_all, run_logged
+    from astrapi.core.modules.scheduler.job_runner import run_all, run_logged
 
     def run():
         run_all("borg", _get_config(), run_single)
@@ -30,10 +30,10 @@ def run_logged(module: str, item_id: str, description: str, fn) -> str:
     Returns:
         Status-String: ``"ok"``, ``"warning"`` oder ``"error"``.
     """
-    from core.system.activity_log import (
+    from astrapi.core.system.activity_log import (
         history_start, history_finish, get_log_lines,
     )
-    from core.system.logger import (
+    from astrapi.core.system.logger import (
         set_tee_context, clear_tee_context,
         set_active_log_id, clear_active_log_id,
     )
@@ -104,7 +104,7 @@ def _notify(module: str, description: str, status: str, duration: int) -> None:
         duration:    Laufzeit in Sekunden.
     """
     try:
-        from core.modules.notify import engine as _ne
+        from astrapi.core.modules.notify import engine as _ne
         event = {
             "ok":      _ne.SUCCESS,
             "warning": _ne.WARNING,

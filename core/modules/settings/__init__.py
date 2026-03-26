@@ -1,6 +1,6 @@
 """core/modules/settings/__init__.py – Framework-Einstellungen Modul."""
 
-from core.ui import Module
+from astrapi.core.ui import Module
 from .ui import bp
 
 module = Module(

@@ -1,7 +1,7 @@
 # core/system/reachability.py
 import subprocess
-from core.system.logger import log
-from core.system.cmd import is_local
+from astrapi.core.system.logger import log
+from astrapi.core.system.cmd import is_local
 
 
 def check_ssh(host: str, user: str = "backupadm", timeout: int = 5) -> bool:

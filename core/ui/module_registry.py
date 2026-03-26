@@ -66,7 +66,7 @@ _mod_registry: dict = _instance._registry
 
 def _load_from_dir(modules_dir: Path, pkg_prefix: str) -> dict:
     """Lädt alle Module-Instanzen aus einem Verzeichnis → {key: instance}."""
-    from core.ui._base import Module
+    from astrapi.core.ui._base import Module
 
     found: dict[str, Module] = {}
     if not modules_dir.exists():
@@ -138,7 +138,7 @@ def load_modules(app_root: Path) -> list:
 
     # Deaktivierte Core-Module herausfiltern (Einstellung: core.module.<key>.enabled != "0")
     try:
-        from core.ui.settings_registry import get as _settings_get
+        from astrapi.core.ui.settings_registry import get as _settings_get
         core_mods = {
             k: v for k, v in core_mods.items()
             if _settings_get(f"core.module.{k}.enabled", "1") != "0"
@@ -330,7 +330,7 @@ def list_available_core_modules() -> list:
     """
     import yaml as _yaml
     try:
-        from core.ui.settings_registry import get as _settings_get
+        from astrapi.core.ui.settings_registry import get as _settings_get
     except Exception:
         def _settings_get(k, d=None): return d
 

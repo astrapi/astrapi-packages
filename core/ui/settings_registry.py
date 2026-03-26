@@ -50,7 +50,7 @@ class SettingsRegistry:
         if not yaml_path.exists():
             return
         try:
-            from core.system.db import kv_list
+            from astrapi.core.system.db import kv_list
             if kv_list(_COLLECTION):
                 yaml_path.rename(yaml_path.with_suffix(".yaml.migrated"))
                 return
@@ -67,7 +67,7 @@ class SettingsRegistry:
             )
             raw = _yaml.load(yaml_path.read_text(encoding="utf-8"), Loader=_SafeLoader) or {}
             if raw:
-                from core.system.db import kv_set_many
+                from astrapi.core.system.db import kv_set_many
                 kv_set_many(_COLLECTION, {k: json.dumps(v) for k, v in raw.items()})
             yaml_path.rename(yaml_path.with_suffix(".yaml.migrated"))
             print(f"[settings] Migriert: {len(raw)} Einstellungen → SQLite")
@@ -78,28 +78,28 @@ class SettingsRegistry:
 
     def _load(self) -> dict:
         try:
-            from core.system.db import kv_list
+            from astrapi.core.system.db import kv_list
             return {k: json.loads(v) for k, v in kv_list(_COLLECTION).items()}
         except Exception:
             return {}
 
     def _save_one(self, key: str, value: Any) -> None:
         try:
-            from core.system.db import kv_set
+            from astrapi.core.system.db import kv_set
             kv_set(_COLLECTION, key, json.dumps(value))
         except Exception:
             pass
 
     def _save_many(self, items: dict) -> None:
         try:
-            from core.system.db import kv_set_many
+            from astrapi.core.system.db import kv_set_many
             kv_set_many(_COLLECTION, {k: json.dumps(v) for k, v in items.items()})
         except Exception:
             pass
 
     def _delete_one(self, key: str) -> None:
         try:
-            from core.system.db import kv_delete
+            from astrapi.core.system.db import kv_delete
             kv_delete(_COLLECTION, key)
         except Exception:
             pass

@@ -3,7 +3,7 @@ core/modules/settings/engine.py – Framework-Status für die Einstellungsseite
 
 Projekte konfigurieren den Health-Check:
 
-    from core.modules.settings.engine import configure
+    from astrapi.core.modules.settings.engine import configure
     configure(health_fn=my_check_fn)   # () -> (ok: bool, details: dict)
 """
 

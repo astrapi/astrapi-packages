@@ -44,8 +44,8 @@ def _generate_key() -> tuple[bool, str]:
 
 
 def _ctx(flash: str = "") -> dict:
-    from core.ui.settings_registry import all_settings
-    from core.ui.module_registry import list_available_core_modules
+    from astrapi.core.ui.settings_registry import all_settings
+    from astrapi.core.ui.module_registry import list_available_core_modules
     return {
         "settings":         all_settings(),
         "modules":          current_app.config.get("LOADED_MODULES", []),

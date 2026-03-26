@@ -3,7 +3,7 @@ core/ui/_base.py  –  Modul-Basisklasse des Astrapi-Frameworks
 
 Jedes Modul erstellt eine Module-Instanz und exportiert sie als `module`:
 
-    from core.ui import Module
+    from astrapi.core.ui import Module
 
     module = Module(
         key          = "mein_modul",

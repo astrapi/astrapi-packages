@@ -122,7 +122,7 @@ def log(*args) -> None:
     db_log_id = get_active_log_id()
     if db_log_id is not None:
         try:
-            from core.system.activity_log import append_log_line
+            from astrapi.core.system.activity_log import append_log_line
             append_log_line(db_log_id, line, level)
         except Exception:
             pass

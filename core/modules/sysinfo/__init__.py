@@ -1,6 +1,6 @@
 """core/modules/sysinfo/__init__.py – System-Informationen Modul."""
 
-from core.ui import Module
+from astrapi.core.ui import Module
 from .api import router
 from .ui import bp
 

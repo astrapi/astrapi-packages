@@ -4,8 +4,8 @@ from pathlib import Path
 
 from flask import render_template, request
 
-from core.ui.crud_blueprint import make_crud_blueprint
-from core.ui.schema_loader import load_schema
+from astrapi.core.ui.crud_blueprint import make_crud_blueprint
+from astrapi.core.ui.schema_loader import load_schema
 from .storage import store, KEY
 
 _DIR = Path(__file__).parent

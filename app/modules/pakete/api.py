@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from core.ui.crud_router import make_crud_router
+from astrapi.core.ui.crud_router import make_crud_router
 from .storage import store, KEY
 
 
