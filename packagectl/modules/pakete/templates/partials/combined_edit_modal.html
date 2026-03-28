@@ -1,0 +1,154 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+{% set _typ = (item or {}).get('typ', 'aur') %}
+{% set _source_url = (item or {}).get('source_url') or '' %}
+<div id="create-edit-modal"
+     class="ds-modal-backdrop"
+     x-data="{ typ: '{{ _typ }}' }"
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal"
+       :style="typ === 'custom' ? 'max-width:640px;' : 'max-width:480px;'"
+       style="padding:20px 24px; width:92vw;">
+
+    {% if item_id %}
+      {{ modal_title(title="Paket bearbeiten – " ~ item_id, icon="edit") }}
+      {% set submit_url = "/ui/pakete/" ~ item_id ~ "/update" %}
+    {% else %}
+      {{ modal_title(is_edit=false, title="Neues Paket") }}
+      {% set submit_url = "/ui/pakete/" %}
+    {% endif %}
+
+    <form id="create-edit-form"
+      hx-post="{{ submit_url }}"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="form-stack" style="gap:12px; margin-top:8px;">
+
+      {# ── Typ ─────────────────────────────────────────────────────────── #}
+      <div class="form-group">
+        <label class="form-label">Typ</label>
+        <select name="typ" class="form-input" x-model="typ">
+          <option value="aur"    {% if _typ == 'aur'    %}selected{% endif %}>AUR</option>
+          <option value="custom" {% if _typ == 'custom' %}selected{% endif %}>Custom</option>
+        </select>
+      </div>
+
+      {# ── AUR: Git-URL ─────────────────────────────────────────────────── #}
+      <div x-show="typ === 'aur'" x-cloak>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <label class="form-label" style="margin:0;">AUR Git-URL <span class="required-mark">*</span></label>
+          <button type="button" class="btn btn-sm"
+                  hx-post="/ui/pakete/deps"
+                  hx-trigger="click"
+                  hx-target="#deps-preview"
+                  hx-include="[name='source_url']">
+            Abhängigkeiten prüfen
+          </button>
+        </div>
+        <div class="form-group" style="margin-top:6px;">
+          <input
+            type="text"
+            name="source_url"
+            id="field-source-url"
+            class="form-input"
+            placeholder="https://aur.archlinux.org/my-package.git"
+            maxlength="500"
+            value="{{ _source_url }}"
+            hx-post="/ui/pakete/deps"
+            hx-trigger="blur"
+            hx-target="#deps-preview"
+            hx-include="[name='source_url']"
+          >
+          <span class="form-hint">Paketname wird automatisch aus der URL abgeleitet.</span>
+          <span class="form-error"></span>
+        </div>
+        <div id="deps-preview">
+          {% if _source_url %}
+          {# Bei Edit: Deps sofort anzeigen #}
+          <div hx-post="/ui/pakete/deps"
+               hx-trigger="load"
+               hx-target="#deps-preview"
+               hx-vals='{"source_url": "{{ _source_url }}"}'></div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── Custom: PKGBUILD ─────────────────────────────────────────────── #}
+      <div x-show="typ === 'custom'" x-cloak style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <label class="form-label" style="margin:0;">
+            PKGBUILD
+            <span class="form-hint" style="font-weight:normal;">(pkgname wird als Paketname verwendet)</span>
+          </label>
+          <button type="button" class="btn btn-sm"
+                  hx-post="/ui/pakete/deps"
+                  hx-trigger="click"
+                  hx-target="#deps-preview-custom"
+                  hx-include="[name='pkgbuild_content']">
+            Abhängigkeiten prüfen
+          </button>
+        </div>
+        <textarea
+          name="pkgbuild_content"
+          spellcheck="false"
+          placeholder="# Maintainer: Dein Name <mail@example.com>&#10;pkgname=my-package&#10;pkgver=1.0&#10;pkgrel=1&#10;arch=('x86_64')&#10;&#10;build() { ... }&#10;package() { ... }"
+          style="
+            min-height: 360px;
+            font-family: var(--mono, monospace);
+            font-size: 12px;
+            line-height: 1.6;
+            background: var(--bg-2, #1a1a1a);
+            color: var(--text-1, #d4d4d4);
+            border: 1px solid var(--border, #333);
+            border-radius: 6px;
+            padding: 12px 14px;
+            resize: vertical;
+            tab-size: 4;
+            box-sizing: border-box;
+            width: 100%;
+          "
+        >{{ (item or {}).get('pkgbuild_content') or '' }}</textarea>
+        <div id="deps-preview-custom"></div>
+      </div>
+
+      {{ modal_footer(enabled=(item or {}).get('enabled', True), enabled_id='modal-enabled',
+                      save_label='Speichern' if item_id else 'Erstellen',
+                      has_toggle=true, save_id='create-edit-submit',
+                      save_type='button') }}
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const form      = document.getElementById('create-edit-form');
+  const submitBtn = document.getElementById('create-edit-submit');
+
+  function validateField(input) {
+    const errorEl = input.parentElement.querySelector('.form-error');
+    let message = '';
+    if (!input.value.trim()) message = 'Dieses Feld ist erforderlich.';
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.classList.toggle('visible', message !== '');
+    }
+    input.classList.toggle('is-invalid', message !== '');
+    return message === '';
+  }
+
+  submitBtn.addEventListener('click', function () {
+    const typ = form.querySelector('select[name="typ"]')?.value || 'aur';
+    let valid = true;
+    if (typ === 'aur') {
+      const urlField = document.getElementById('field-source-url');
+      if (urlField && !validateField(urlField)) valid = false;
+    }
+    if (!valid) return;
+
+    htmx.trigger(form, 'submit');
+    form.addEventListener('htmx:afterRequest', function handler(e) {
+      if (e.detail.successful) document.getElementById('create-edit-modal')?.remove();
+      form.removeEventListener('htmx:afterRequest', handler);
+    });
+  });
+})();
+</script>

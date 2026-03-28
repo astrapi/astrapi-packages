@@ -18,10 +18,9 @@ dist/
 .coverage
 htmlcov/
 
-# Datenbank
-app/data/*.db
-app/data/*.db-shm
-app/data/*.db-wal
+# Laufzeitdaten (Dev: ./data/, ./logs/ – Prod: /var/lib/packagectl/)
+data/
+logs/
 
 # Logs
 *.log
@@ -34,3 +33,6 @@ app/data/*.db-wal
 # IDE
 .idea/
 .vscode/
+
+# packagectl-spezifisch
+.release.env

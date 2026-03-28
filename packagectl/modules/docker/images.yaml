@@ -1,0 +1,5 @@
+arch-builder:
+  tag: latest
+
+debian-builder:
+  tag: latest

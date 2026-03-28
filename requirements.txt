@@ -1,10 +1,5 @@
-# backupctl – Python-Abhängigkeiten
+# packagectl – Python-Abhängigkeiten
 # Installation: pip install -r requirements.txt
-#
-# Systemabhängigkeiten (nicht via pip):
-#   borgbackup    – borg-Befehl muss im PATH sein (/var/lib/backupadm/.venv/bin/borg)
-#   wakeonlan     – für Wake-on-LAN (apt install wakeonlan)
-#   openssh       – ssh/scp für Remote-Backups
 
 # ── Web-Framework ─────────────────────────────────────────────────
 fastapi>=0.115
@@ -19,7 +14,7 @@ jinja2>=3.1             # direkt verwendet (ChoiceLoader)
 APScheduler>=3.10
 
 # ── Daten & Konfiguration ─────────────────────────────────────────
-pyyaml>=6.0             # Nav-YAMLs, Schema-Dateien, YAML-Migration
+pyyaml>=6.0             # Nav-YAMLs, Schema-Dateien
 python-multipart>=0.0.9 # FastAPI request.form()
 cryptography>=42.0      # Fernet-Verschlüsselung für DB-Secrets
 
@@ -36,7 +31,6 @@ apispec>=6.0            # OpenAPI-Spec-Generierung (swagger_utils.py)
 # ── Tests ─────────────────────────────────────────────────────────
 pytest>=8.0
 httpx>=0.27
-playwright>=1.51
 
 # ── Astrapi-Core ──────────────────────────────────────────────────
-astrapi-core @ git+ssh://git@gitlab.com/astrapi-os/ctl/astrapi-core.git@v26.3.7
+astrapi-core @ git+ssh://git@gitlab.com/astrapi-os/ctl/astrapi-core.git@v26.3.11

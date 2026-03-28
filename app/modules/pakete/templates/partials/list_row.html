@@ -1,4 +1,0 @@
-<td>{{ item_data.typ or 'aur' }}</td>
-<td class="col-trunc">{{ item_data.source_url if item_data.typ != 'custom' else '(custom PKGBUILD)' }}</td>
-<td style="white-space:nowrap">{{ item_data.last_built or '—' }}</td>
-<td>{{ ui.status_inline(item_data.last_status) }}</td>

@@ -1,30 +1,16 @@
-"""
-backupctl – Einstiegspunkt (FastAPI + Flask)
+"""packagectl._app – ASGI-App-Factory.
 
-FastAPI  → /api/...       JSON-Endpunkte, OpenAPI, Swagger
-Flask    → /              UI, HTMX-Partials, Modals
-
-Start:
-    python main.py              # Port 5001 (Standard)
-    python main.py --port 8080
-    python main.py --no-reload  # ohne File-Watcher
+Wird von packagectl._cli (Console-Script) und direkt von uvicorn importiert:
+    uvicorn packagectl._app:app
 """
-import sys
 import time
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-APP_ROOT     = PROJECT_ROOT / "app"
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-if str(APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(APP_ROOT))
+from astrapi.core.system.paths import configure as _configure_paths
+_configure_paths("packagectl")
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from a2wsgi import WSGIMiddleware
-import uvicorn
 
 from astrapi.core.ui import create as create_ui
 from astrapi.core.ui.module_registry import load_modules
@@ -33,7 +19,9 @@ from astrapi.core.system.health import register_health
 from astrapi.core.system.systemd import sd_notify, start_watchdog
 from astrapi.core.system.version import get_display_name
 from astrapi.core.modules.settings.engine import configure as configure_settings
-from app.api.fastapi_app import create as create_api
+
+from packagectl._paths import package_dir, work_dir, db_path
+from packagectl.api.fastapi_app import create as create_api
 
 _START_TIME = time.time()
 
@@ -48,19 +36,20 @@ def _db_check() -> tuple[bool, dict]:
 
 
 def create_app() -> FastAPI:
-    configure_settings(health_fn=_db_check, app_name=get_display_name(APP_ROOT))
+    _pkg = package_dir()
+    configure_settings(health_fn=_db_check, app_name=get_display_name(_pkg))
 
-    # DB zuerst konfigurieren, damit settings_registry + SqliteStorage SQLite nutzen können
     from astrapi.core.system.db import configure as _configure_db, create_all_registered_tables
-    _configure_db(APP_ROOT / "data" / "app.db")
+    _configure_db(db_path())
     create_all_registered_tables()
 
-    settings_init(APP_ROOT)
-    modules = load_modules(APP_ROOT)
+    settings_init(work_dir())
+    modules = load_modules(_pkg)
     api = create_api(modules=modules)
-    ui  = create_ui(app_root=APP_ROOT, modules=modules)
+    ui  = create_ui(app_root=_pkg, modules=modules)
 
     import astrapi.core.ui
+    from pathlib import Path
     core_static = Path(astrapi.core.ui.__file__).parent / "static"
     api.mount("/static", StaticFiles(directory=str(core_static)), name="static")
     api.mount("/", WSGIMiddleware(ui))
@@ -72,13 +61,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=5001)
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--no-reload", dest="reload", action="store_false", default=True)
-    args = parser.parse_args()
-    uvicorn.run("main:app", host=args.host, port=args.port, reload=args.reload)

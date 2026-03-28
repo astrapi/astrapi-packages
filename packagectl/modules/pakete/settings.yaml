@@ -20,12 +20,12 @@ fields:
     label:       Repository-Pfad (Host)
     type:        text
     placeholder: "/srv/pacman-repo"
-    default:     "/srv/pacman-repo"
+    default:     "/home/ottomi/Projekte/ctl/packagectl/packages"
     description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden"
 
   - key:         repo_name
     label:       Repository-Name
     type:        text
-    placeholder: "local"
-    default:     "local"
-    description: "Name der Pacman-Datenbank (z.B. local → local.db.tar.gz)"
+    placeholder: "pkgctl"
+    default:     "pkgctl"
+    description: "Name der Pacman-Datenbank (z.B. pkgctl → pkgctl.db.tar.gz). Achtung: 'local' ist von pacman reserviert."

@@ -52,7 +52,7 @@ def build_package(item_id: str) -> None:
     s           = _settings()
     image       = s("default_image", "ctl/arch-builder:latest")
     repo_path   = s("repo_path",     "/srv/pacman-repo")
-    repo_name   = s("repo_name",     "local")
+    repo_name   = s("repo_name",     "pkgctl")
     typ         = item.get("typ", "aur")
     source_url  = (item.get("source_url") or "").strip()
     pkgbuild    = item.get("pkgbuild_content") or ""
@@ -73,6 +73,9 @@ def build_package(item_id: str) -> None:
 
     tmpdir = None
     try:
+        repo_vol = ["-v", f"{repo_path}:/home/makepkg/pkg",
+                    "-v", f"{repo_path}:/home/makepkg/repo:ro"]
+
         if typ == "custom":
             # PKGBUILD in temporäres Verzeichnis schreiben und als Volume mounten
             tmpdir = tempfile.mkdtemp(prefix=f"pkgbuild-{item_id}-")
@@ -80,7 +83,7 @@ def build_package(item_id: str) -> None:
                 f.write(pkgbuild)
             cmd = [
                 "docker", "run", "--rm",
-                "-v", f"{repo_path}:/home/makepkg/pkg",
+                *repo_vol,
                 "-v", f"{tmpdir}:/home/makepkg/source",
                 image,
                 item_id,
@@ -88,7 +91,7 @@ def build_package(item_id: str) -> None:
         else:
             cmd = [
                 "docker", "run", "--rm",
-                "-v", f"{repo_path}:/home/makepkg/pkg",
+                *repo_vol,
                 image,
                 item_id, source_url,
             ]

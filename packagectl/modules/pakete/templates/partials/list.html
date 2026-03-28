@@ -1,0 +1,24 @@
+<div class="meta-grid">
+  <span class="meta-label">Typ</span>
+  <span class="meta-value">
+    {{ item_data.typ or 'aur' }}
+    {% if item_data.typ != 'custom' %}
+    <a href="https://aur.archlinux.org/packages/{{ item_name }}" target="_blank" rel="noopener"
+       class="btn-icon" title="AUR-Seite öffnen" style="vertical-align:middle; margin-left:4px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/>
+        <line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+    </a>
+    {% endif %}
+  </span>
+  {% if item_data.typ != 'custom' %}
+  <span class="meta-label">URL</span>
+  <span class="meta-value col-trunc">{{ item_data.source_url or '—' }}</span>
+  {% endif %}
+  {% if item_data.last_status %}
+  <span class="meta-label">Status</span>
+  <span class="meta-value">{{ ui.status_inline(item_data.last_status) }}</span>
+  {% endif %}
+</div>
