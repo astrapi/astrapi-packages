@@ -1,6 +1,6 @@
 <td class="col-trunc">
   <a href="{{ item_data.source_url or '' }}" target="_blank" rel="noopener">{{ item_data.source_url or '—' }}</a>
 </td>
-<td style="white-space:nowrap;font-family:monospace;font-size:.85em">{{ item_data.last_version or '—' }}</td>
+<td style="white-space:nowrap;font-family:monospace;font-size:.85em;max-width:160px;overflow:hidden;text-overflow:ellipsis">{{ item_data.last_version or '—' }}</td>
 <td style="white-space:nowrap">{{ item_data.last_built or '—' }}</td>
 <td>{{ ui.status_inline(item_data.last_status) }}</td>

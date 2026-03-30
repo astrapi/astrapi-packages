@@ -49,10 +49,10 @@ def build_package(item_id: str) -> None:
         log.warning("pakete.build: Eintrag '%s' nicht gefunden", item_id)
         return
 
-    from astrapi.core.system.paths import work_dir as _work_dir
+    from packagectl._paths import repo_dir as _repo_dir
     s           = _settings()
     image       = s("default_image", "ctl/arch-builder:latest")
-    repo_path   = s("repo_path", "") or str(_work_dir() / "repo")
+    repo_path   = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
     repo_name   = s("repo_name",     "pkgctl")
     source_url    = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
@@ -65,14 +65,15 @@ def build_package(item_id: str) -> None:
 
     store.update(item_id, {"last_status": "building", "last_built": _now()})
 
-    # Ausgabeverzeichnis sicherstellen
-    Path(repo_path).mkdir(parents=True, exist_ok=True)
+    # Ausgabeverzeichnis sicherstellen (777 damit Container-User schreiben kann)
+    p = Path(repo_path)
+    p.mkdir(parents=True, exist_ok=True)
+    p.chmod(0o777)
 
     tmpdir = None
     try:
-        repo_vol = ["-v", f"{repo_path}:/home/makepkg/pkg",
-                    "-v", f"{repo_path}:/home/makepkg/repo:ro"]
-        env_args = []
+        repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
+        env_args = ["-e", f"REPO_NAME={repo_name}"]
         if source_subdir:
             env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
 
@@ -100,6 +101,7 @@ def build_package(item_id: str) -> None:
 
         log.info("pakete.build: %s", " ".join(cmd))
         rc, output = _run(cmd)
+        output = f"$ {' '.join(cmd)}\n\n{output}"
     finally:
         if tmpdir:
             import shutil

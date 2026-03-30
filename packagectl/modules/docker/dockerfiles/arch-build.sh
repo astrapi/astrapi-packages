@@ -11,8 +11,8 @@ set -euo pipefail
 
 ITEM_ID="${1:?Fehler: Item-ID fehlt}"
 SOURCE_URL="${2:-}"
-PKG_OUT="/home/makepkg/pkg"
 LOCAL_REPO="/home/makepkg/repo"
+REPO_NAME="${REPO_NAME:-pkgctl}"
 BUILD_DIR="/tmp/build-${ITEM_ID}"
 
 # Lokales Repo als pacman-Quelle registrieren (nur wenn Pakete vorhanden)
@@ -85,9 +85,9 @@ if [ "${#deps[@]}" -gt 0 ]; then
 fi
 
 echo "==> Starte makepkg ..."
-makepkg --nodeps --noconfirm --noprogressbar
+PKGDEST="$LOCAL_REPO" makepkg --nodeps --noconfirm --noprogressbar --force
 
-echo "==> Kopiere Pakete nach ${PKG_OUT} ..."
-find . -maxdepth 1 -name "*.pkg.tar.*" ! -name "*-debug-*" -exec cp {} "$PKG_OUT"/ \;
+echo "==> Aktualisiere Repo-Datenbank '${REPO_NAME}' ..."
+repo-add --new --remove "${LOCAL_REPO}/${REPO_NAME}.db.tar.gz" "${LOCAL_REPO}"/*.pkg.tar.*
 
 echo "==> Fertig."

@@ -24,17 +24,23 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-2. `astrapi-core` aus der GitLab Package-Registry installieren:
+2. pip für die GitLab Package-Registry konfigurieren:
 
-```bash
-pip install astrapi-core --extra-index-url https://gitlab.com/api/v4/projects/79861535/packages/pypi/simple
-```
+   Datei `~/.config/pip/pip.conf` anlegen (wird von pip automatisch geladen):
 
-3. `backupctl` selbst installieren:
+   ```ini
+   [global]
+   extra-index-url = https://<TOKEN_NAME>:<TOKEN_SECRET>@gitlab.com/api/v4/projects/79861535/packages/pypi/simple
+   ```
 
-```bash
-pip install -e .
-```
+   `<TOKEN_NAME>` und `<TOKEN_SECRET>` sind ein GitLab Deploy-Token oder Personal Access Token
+   mit mindestens dem Scope `read_package_registry`.
+
+3. Abhängigkeiten inklusive `astrapi-core` installieren:
+
+   ```bash
+   pip install -e .
+   ```
 
 ## Starten
 

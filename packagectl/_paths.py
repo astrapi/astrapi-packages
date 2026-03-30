@@ -10,5 +10,5 @@ def package_dir() -> Path:
 
 
 def repo_dir() -> Path:
-    """Lokales Pacman-Repository im Arbeitsverzeichnis."""
-    return work_dir() / "repo"
+    """Lokales Pacman-Repository direkt im Projektordner (= work_dir)."""
+    return work_dir().resolve() / "repo"
