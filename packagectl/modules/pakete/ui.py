@@ -117,16 +117,27 @@ bp = make_crud_blueprint(
 
 
 def _ctx():
+    cfg = store.list()
+    running = {
+        f"{KEY}:{k}": v["last_status"]
+        for k, v in cfg.items()
+        if v.get("last_status") in ("building", "pending")
+    }
     return dict(
-        cfg=store.list(),
+        cfg=cfg,
         module=KEY,
         container_id=f"tab-{KEY}",
         loading_id=f"{KEY}-loading",
         content_template=f"{KEY}/partials/list.html",
         extra_page_actions_template=f"{KEY}/partials/page_actions.html",
-        running={},
+        running=running,
         has_run_buttons=False,
     )
+
+
+@bp.route(f"/ui/{KEY}/status")
+def status():
+    return render_template("partials/list_wrapper_inner.html", **_ctx())
 
 
 @bp.before_request
@@ -310,8 +321,19 @@ def check_updates():
     if not all_items:
         return render_template("partials/list_wrapper_inner.html", **_ctx())
 
+    # ── Einmalige Bereinigung: upstream_version bei ungebauten Paketen löschen ─
+    for k, v in all_items.items():
+        if v.get("last_status") != "ok" and v.get("upstream_version"):
+            store.update(k, {"upstream_version": ""})
+
+    # ── Nur bereits gebaute Pakete berücksichtigen ────────────────────────────
+    all_ids = [
+        k for k, v in all_items.items() if v.get("last_status") == "ok"
+    ]
+    if not all_ids:
+        return render_template("partials/list_wrapper_inner.html", **_ctx())
+
     # ── AUR: alle item_ids als Paketnamen probieren (Batch) ──────────────────
-    all_ids = list(all_items.keys())
     qs = "&".join(f"arg[]={quote(i)}" for i in all_ids)
     aur_versions: dict[str, str] = {}  # Name → Version
     try:

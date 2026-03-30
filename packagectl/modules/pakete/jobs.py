@@ -222,6 +222,11 @@ def build_package_with_deps(item_id: str) -> None:
         })
         return
 
+    # Pending-Status für alle noch zu bauenden Einträge setzen
+    for pending_id in build_order:
+        if not is_up_to_date(pending_id, repo_path):
+            store.update(pending_id, {"last_status": "pending"})
+
     # Deps zuerst bauen (alles außer dem Hauptpaket)
     for dep_id in build_order:
         if dep_id == item_id:

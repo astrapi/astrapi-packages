@@ -1,8 +1,8 @@
 <td style="white-space:nowrap">
   {% if item_data.pkg_type == 'dependency' %}
-    <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--bg-3);color:var(--text-3);">Dep</span>
+    <span class="badge-pill badge-muted">Dep</span>
   {% else %}
-    <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--accent-dim,#1e3a5f);color:var(--accent,#4a9eff);">Paket</span>
+    <span class="badge-pill badge-live">Paket</span>
   {% endif %}
 </td>
 <td class="col-trunc" {% if item_data.pkg_type == 'dependency' %}style="opacity:.7"{% endif %}>
@@ -18,14 +18,15 @@
 </td>
 <td style="white-space:nowrap;font-family:monospace;font-size:.85em;max-width:160px;overflow:hidden;text-overflow:ellipsis">
   {{ item_data.last_version or '—' }}
-  {% if item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
-    <span title="Neu: {{ item_data.upstream_version }}"
-          style="margin-left:4px;font-size:10px;padding:1px 5px;border-radius:3px;
-                 background:var(--warning-dim,#3a2e00);color:var(--warning,#f0b429);
-                 font-family:sans-serif;vertical-align:middle;">
-      ↑ {{ item_data.upstream_version }}
-    </span>
-  {% endif %}
 </td>
 <td style="white-space:nowrap">{{ item_data.last_built or '—' }}</td>
-<td>{{ ui.status_inline(item_data.last_status) }}</td>
+<td>
+  {% if item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
+    <span class="status-inline status-inline--warning" title="Installiert: {{ item_data.last_version }} → Neu: {{ item_data.upstream_version }}">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 20h20L12 2z"/></svg>
+      Update
+    </span>
+  {% else %}
+    {{ ui.status_inline(item_data.last_status) }}
+  {% endif %}
+</td>
