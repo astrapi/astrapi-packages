@@ -19,9 +19,8 @@ fields:
   - key:         repo_path
     label:       Repository-Pfad (Host)
     type:        text
-    placeholder: "/srv/pacman-repo"
-    default:     "/home/ottomi/Projekte/ctl/packagectl/packages"
-    description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden"
+    placeholder: "<Arbeitsverzeichnis>/repo"
+    description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden (Standard: <Arbeitsverzeichnis>/repo)"
 
   - key:         repo_name
     label:       Repository-Name
@@ -29,3 +28,14 @@ fields:
     placeholder: "pkgctl"
     default:     "pkgctl"
     description: "Name der Pacman-Datenbank (z.B. pkgctl → pkgctl.db.tar.gz). Achtung: 'local' ist von pacman reserviert."
+
+  - type:  section
+    label: GitLab-Paketquelle
+    cols:  1
+
+  - key:         gitlab_group
+    label:       GitLab-Paket-Repos
+    type:        list
+    mono:        true
+    placeholder: "astrapi-os/packages/arch_linux"
+    description: "Pfad oder URL zu Monorepos mit packages.json (z.B. astrapi-os/packages/arch_linux). Wird alle 5 Min. aktualisiert."

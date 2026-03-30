@@ -81,6 +81,22 @@ def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
     return [results[d] for d in deps]
 _SCHEMA = load_schema(str(_DIR / "schema.yaml"))
 
+# GitLab-Cache: direkt per importlib laden (app.modules.* Namespace umgehen)
+import importlib.util as _ilu, sys as _sys
+
+def _get_gitlab_cache():
+    _key = "_pakete_gitlab_cache"
+    if _key not in _sys.modules:
+        _spec = _ilu.spec_from_file_location(_key, _DIR / "gitlab_cache.py")
+        _mod  = _ilu.module_from_spec(_spec)
+        _sys.modules[_key] = _mod
+        _spec.loader.exec_module(_mod)
+        _mod.start()
+    return _sys.modules[_key]
+
+_get_gitlab_cache()  # beim Modulstart anwerfen
+
+
 bp = make_crud_blueprint(
     store, KEY,
     schema_path=str(_DIR / "schema.yaml"),
@@ -117,24 +133,17 @@ def _intercept():
 
     # POST /ui/pakete/ → Anlegen
     if endpoint == f"{KEY}_ui.create_apply":
-        typ        = request.form.get("typ", "aur")
         source_url = request.form.get("source_url", "").strip()
-
-        if typ == "aur":
-            # Name aus URL ableiten: https://aur.archlinux.org/yay-bin.git → yay-bin
-            item_id = source_url.rstrip("/").split("/")[-1].removesuffix(".git")
-        else:
-            # pkgname= aus PKGBUILD lesen
-            item_id = _pkgname(request.form.get("pkgbuild_content", ""))
+        pkg_name   = request.form.get("pkg_name", "").strip()
+        item_id    = pkg_name or source_url.rstrip("/").split("/")[-1].removesuffix(".git")
 
         if not item_id:
             return "Paketname fehlt", 400
 
         data = {
-            "typ":              typ,
-            "source_url":       source_url,
-            "pkgbuild_content": request.form.get("pkgbuild_content", ""),
-            "enabled":          "enabled" in request.form,
+            "source_url":    source_url,
+            "source_subdir": request.form.get("source_subdir", "").strip(),
+            "enabled":       "enabled" in request.form,
         }
         try:
             store.create(item_id, data)
@@ -155,20 +164,64 @@ def _intercept():
             schema=_SCHEMA["fields"],
         )
 
-    # POST /ui/pakete/{id}/update → pkgbuild_content vorab schreiben, dann Liste neu rendern
+    # POST /ui/pakete/{id}/update → Felder aktualisieren, dann Liste neu rendern
     if endpoint == f"{KEY}_ui.edit_apply":
         item_id = request.view_args.get("item_id")
         if store.get(item_id) is not None:
-            store.update(item_id, {"pkgbuild_content": request.form.get("pkgbuild_content", "")})
             store.update(item_id, {
-                "typ":        request.form.get("typ", "aur"),
-                "source_url": request.form.get("source_url", "").strip(),
-                "enabled":    "enabled" in request.form,
+                "source_url":    request.form.get("source_url", "").strip(),
+                "source_subdir": request.form.get("source_subdir", "").strip(),
+                "enabled":       "enabled" in request.form,
             })
         return render_template("partials/list_wrapper.html", **_ctx())
 
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
+
+def _search_aur(term: str) -> list[dict]:
+    import json, urllib.request, re
+    try:
+        url = f"https://aur.archlinux.org/rpc/v5/search?arg={term}&by=name-desc"
+        with urllib.request.urlopen(url, timeout=5) as r:
+            data = json.loads(r.read())
+        return [
+            {
+                "name":    p["Name"],
+                "pkgver":  p.get("Version", ""),
+                "pkgdesc": p.get("Description", "") or "",
+                "git_url": f"https://aur.archlinux.org/{p['Name']}.git",
+                "source":  "aur",
+            }
+            for p in data.get("results", [])[:12]
+        ]
+    except Exception:
+        return []
+
+
+@bp.route(f"/ui/{KEY}/search")
+def search_packages():
+    import threading
+    gitlab_cache = _get_gitlab_cache()
+    term = request.args.get("q", "").strip()
+    if len(term) < 2:
+        return ""
+    # Cache leer (z.B. Gruppe erst nach Start konfiguriert) → Refresh anstoßen
+    if not gitlab_cache.get_all():
+        threading.Thread(target=gitlab_cache.refresh, daemon=True).start()
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_gl  = ex.submit(gitlab_cache.search, term)
+        f_aur = ex.submit(_search_aur, term)
+        gl_results  = f_gl.result()
+        aur_results = f_aur.result()
+    return render_template(
+        f"{KEY}/partials/search_results.html",
+        gitlab_results=gl_results,
+        aur_results=aur_results,
+        term=term,
+        cache_empty=not gitlab_cache.get_all(),
+    )
+
 
 @bp.route(f"/ui/{KEY}/deps", methods=["POST"])
 def deps_preview():

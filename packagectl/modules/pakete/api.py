@@ -12,12 +12,13 @@ from .storage import store, KEY
 
 class ItemIn(BaseModel):
     name:       Optional[str] = ""
-    typ:        Optional[str] = "aur"
     source_url: Optional[str] = ""
     enabled:    bool          = True
 
 
-router = make_crud_router(store, KEY, ItemIn)
+from .jobs import delete_package
+
+router = make_crud_router(store, KEY, ItemIn, on_delete=delete_package)
 
 
 @router.post("/{item_id}/build")
