@@ -158,14 +158,22 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
 # ── Cleanup beim Löschen ───────────────────────────────────────────────────────
 
 def delete_package(item_id: str, item: dict) -> None:
-    """Entfernt Paketdateien und den Eintrag aus der Pacman-Repo-Datenbank."""
+    """Entfernt Paketdateien und den Eintrag aus der Pacman-Repo-Datenbank.
+
+    Löscht außerdem verwaiste Dependency-Einträge die nur von diesem Paket
+    benötigt wurden.
+    """
     from astrapi.core.system.paths import work_dir as _work_dir
     import glob as _glob
-    import shutil
+    from .storage import store
+    from .dep_graph import find_orphan_deps
 
     s         = _settings()
-    repo_path = s("repo_path", "") or str(_work_dir() / "repo")
+    repo_path = str(Path(s("repo_path", "") or str(_work_dir() / "repo")).resolve())
     repo_name = s("repo_name", "pkgctl")
+
+    # Verwaiste Deps ermitteln BEVOR der Eintrag gelöscht wird
+    orphans = find_orphan_deps(item_id, store)
 
     # Pakete aus Pacman-DB entfernen
     db = os.path.join(repo_path, f"{repo_name}.db.tar.gz")
@@ -183,8 +191,64 @@ def delete_package(item_id: str, item: dict) -> None:
             except OSError as e:
                 log.warning("pakete.delete: Konnte %s nicht löschen: %s", path, e)
 
+    # Verwaiste Deps rekursiv bereinigen
+    for orphan_id in orphans:
+        orphan_item = store.get(orphan_id)
+        if orphan_item is None:
+            continue
+        log.info("pakete.delete: verwaiste Dep '%s' wird mitgelöscht", orphan_id)
+        delete_package(orphan_id, orphan_item)
+        store.delete(orphan_id)
+
+
+# ── Build mit Dep-Graph ────────────────────────────────────────────────────────
+
+def build_package_with_deps(item_id: str) -> None:
+    """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem Hauptpaket."""
+    from .storage import store
+    from .dep_graph import resolve_build_order, is_up_to_date, CyclicDependencyError
+    from packagectl._paths import repo_dir as _repo_dir
+
+    s         = _settings()
+    repo_path = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
+
+    try:
+        build_order = resolve_build_order([item_id], store)
+    except CyclicDependencyError as e:
+        store.update(item_id, {
+            "last_status": "error",
+            "last_built":  _now(),
+            "last_log":    str(e),
+        })
+        return
+
+    # Deps zuerst bauen (alles außer dem Hauptpaket)
+    for dep_id in build_order:
+        if dep_id == item_id:
+            continue
+        if is_up_to_date(dep_id, repo_path):
+            log.info("pakete.build_with_deps: Dep '%s' bereits aktuell, übersprungen", dep_id)
+            continue
+        log.info("pakete.build_with_deps: baue Dep '%s'", dep_id)
+        build_package(dep_id)
+        dep_item = store.get(dep_id)
+        if dep_item and dep_item.get("last_status") == "error":
+            store.update(item_id, {
+                "last_status": "error",
+                "last_built":  _now(),
+                "last_log":    f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.\n\n"
+                               f"{dep_item.get('last_log', '')}",
+            })
+            return
+
+    build_package(item_id)
+
 
 # ── Async-Wrapper ──────────────────────────────────────────────────────────────
 
 def build_package_async(item_id: str) -> None:
     threading.Thread(target=build_package, args=(item_id,), daemon=True).start()
+
+
+def build_package_with_deps_async(item_id: str) -> None:
+    threading.Thread(target=build_package_with_deps, args=(item_id,), daemon=True).start()

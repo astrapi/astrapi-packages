@@ -62,8 +62,26 @@
         <input type="hidden" name="source_url"    id="field-source-url"    value="{{ _source_url }}">
         <input type="hidden" name="pkg_name"      id="field-pkg-name-aur"  value="{{ _pkg_name }}">
         <input type="hidden" name="source_subdir" id="field-source-subdir" value="{{ (item or {}).get('source_subdir', '') }}">
+        <input type="hidden" name="pkg_type"      value="{{ (item or {}).get('pkg_type', 'package') }}">
         <span class="form-error" id="source-url-error"></span>
 
+      </div>
+
+      {# ── AUR-Abhängigkeiten ───────────────────────────────────────────── #}
+      <div>
+        <label class="form-label" for="field-aur-deps">
+          AUR-Abhängigkeiten
+          <span class="form-hint" style="font-weight:normal;margin-left:4px;">kommagetrennte Paketnamen</span>
+        </label>
+        <input type="text"
+               id="field-aur-deps"
+               name="aur_deps"
+               class="form-input"
+               placeholder="pkg-a, pkg-b"
+               value="{{ (item or {}).get('aur_deps', '') }}">
+        <span class="form-hint" style="font-size:11px;margin-top:3px;display:block;">
+          Abhängigkeiten die nicht in den offiziellen Repos sind. Werden automatisch als Einträge angelegt und vor diesem Paket gebaut.
+        </span>
       </div>
 
       {{ modal_footer(enabled=(item or {}).get('enabled', True), enabled_id='modal-enabled',
@@ -99,6 +117,18 @@ function pkgSelect(name, url, subdir) {
   document.getElementById('pkg-search-results').innerHTML  = '';
   document.getElementById('source-url-error').textContent  = '';
   document.getElementById('source-url-error').classList.remove('visible');
+
+  // AUR-Abhängigkeiten automatisch ermitteln
+  const hint = document.getElementById('pkg-search-hint');
+  if (hint) hint.textContent = 'Lade Abhängigkeiten …';
+  fetch(`/ui/pakete/aur-deps?pkg=${encodeURIComponent(name)}`)
+    .then(r => r.text())
+    .then(deps => {
+      const f = document.getElementById('field-aur-deps');
+      if (f && !f.value) f.value = deps;
+      if (hint) hint.textContent = '';
+    })
+    .catch(() => { if (hint) hint.textContent = ''; });
 }
 
 function pkgClear() {

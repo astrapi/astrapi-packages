@@ -13,6 +13,8 @@ from .storage import store, KEY
 class ItemIn(BaseModel):
     name:       Optional[str] = ""
     source_url: Optional[str] = ""
+    aur_deps:   Optional[str] = ""
+    pkg_type:   Optional[str] = "package"
     enabled:    bool          = True
 
 
@@ -25,8 +27,8 @@ router = make_crud_router(store, KEY, ItemIn, on_delete=delete_package)
 def build_item(item_id: str):
     if store.get(item_id) is None:
         raise HTTPException(404, detail="Nicht gefunden")
-    from .jobs import build_package_async
-    build_package_async(item_id)
+    from .jobs import build_package_with_deps_async
+    build_package_with_deps_async(item_id)
     return JSONResponse({"status": "building", "item_id": item_id}, status_code=202)
 
 

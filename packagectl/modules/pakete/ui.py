@@ -48,37 +48,46 @@ def _deps_from_aur(pkgname: str) -> list[str]:
             data = json.loads(r.read())
         results = data.get("results", [])
         if results:
-            return [re.sub(r'[<>=].*', '', d) for d in results[0].get("Depends", [])]
+            r0 = results[0]
+            all_deps = r0.get("Depends", []) + r0.get("MakeDepends", [])
+            return list(dict.fromkeys(re.sub(r'[<>=].*', '', d) for d in all_deps))
     except Exception:
         pass
     return []
 
 
 def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
-    """Klassifiziert Abhängigkeiten: packagectl | official | aur."""
+    """Klassifiziert Abhängigkeiten: packagectl | official | aur.
+
+    Strategie: Batch-Abfrage gegen AUR-RPC – was dort gefunden wird ist AUR,
+    alles andere kommt aus den Official Repos (oder existiert nicht).
+    """
     import json, urllib.request
-    from concurrent.futures import ThreadPoolExecutor
+    from urllib.parse import urlencode
 
-    def _is_official(name: str) -> bool:
+    unknown = [d for d in deps if d not in existing]
+    in_aur: set[str] = set()
+
+    if unknown:
+        # AUR RPC erlaubt mehrere arg[]-Parameter in einem Request
+        qs = "&".join(f"arg[]={urllib.parse.quote(n)}" for n in unknown)
         try:
-            url = f"https://archlinux.org/packages/search/json/?name={name}"
-            with urllib.request.urlopen(url, timeout=4) as r:
+            url = f"https://aur.archlinux.org/rpc/v5/info?{qs}"
+            with urllib.request.urlopen(url, timeout=8) as r:
                 data = json.loads(r.read())
-            return len(data.get("results", [])) > 0
+            in_aur = {p["Name"] for p in data.get("results", [])}
         except Exception:
-            return False
+            pass
 
-    def classify(name: str) -> dict:
+    result = []
+    for name in deps:
         if name in existing:
-            return {"name": name, "status": "packagectl"}
-        if _is_official(name):
-            return {"name": name, "status": "official"}
-        return {"name": name, "status": "aur"}
-
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        results = dict(zip(deps, ex.map(classify, deps)))
-
-    return [results[d] for d in deps]
+            result.append({"name": name, "status": "packagectl"})
+        elif name in in_aur:
+            result.append({"name": name, "status": "aur"})
+        else:
+            result.append({"name": name, "status": "official"})
+    return result
 _SCHEMA = load_schema(str(_DIR / "schema.yaml"))
 
 # GitLab-Cache: direkt per importlib laden (app.modules.* Namespace umgehen)
@@ -103,6 +112,7 @@ bp = make_crud_blueprint(
     label="Paket",
     description_field="name",
     has_run_buttons=False,
+    extra_page_actions_template=f"{KEY}/partials/page_actions.html",
 )
 
 
@@ -113,6 +123,7 @@ def _ctx():
         container_id=f"tab-{KEY}",
         loading_id=f"{KEY}-loading",
         content_template=f"{KEY}/partials/list.html",
+        extra_page_actions_template=f"{KEY}/partials/page_actions.html",
         running={},
         has_run_buttons=False,
     )
@@ -143,12 +154,18 @@ def _intercept():
         data = {
             "source_url":    source_url,
             "source_subdir": request.form.get("source_subdir", "").strip(),
+            "aur_deps":      request.form.get("aur_deps", "").strip(),
+            "pkg_type":      request.form.get("pkg_type", "package").strip() or "package",
             "enabled":       "enabled" in request.form,
         }
         try:
             store.create(item_id, data)
         except KeyError:
             return "Bereits vorhanden", 409
+
+        from .dep_graph import autocreate_deps
+        autocreate_deps(item_id, data, store)
+
         return render_template("partials/list_wrapper.html", **_ctx())
 
     # GET /ui/pakete/{id}/edit → kombiniertes Modal (befüllt)
@@ -168,11 +185,16 @@ def _intercept():
     if endpoint == f"{KEY}_ui.edit_apply":
         item_id = request.view_args.get("item_id")
         if store.get(item_id) is not None:
-            store.update(item_id, {
+            data = {
                 "source_url":    request.form.get("source_url", "").strip(),
                 "source_subdir": request.form.get("source_subdir", "").strip(),
+                "aur_deps":      request.form.get("aur_deps", "").strip(),
+                "pkg_type":      request.form.get("pkg_type", "package").strip() or "package",
                 "enabled":       "enabled" in request.form,
-            })
+            }
+            store.update(item_id, data)
+            from .dep_graph import autocreate_deps
+            autocreate_deps(item_id, data, store)
         return render_template("partials/list_wrapper.html", **_ctx())
 
 
@@ -223,6 +245,21 @@ def search_packages():
     )
 
 
+@bp.route(f"/ui/{KEY}/aur-deps")
+def aur_deps_for_pkg():
+    """Gibt die AUR-Abhängigkeiten eines Pakets als kommaseparierten String zurück."""
+    pkgname = request.args.get("pkg", "").strip()
+    if not pkgname:
+        return ""
+    deps = _deps_from_aur(pkgname)
+    if not deps:
+        return ""
+    existing = set(store.list().keys())
+    classified = _classify_deps(deps, existing)
+    aur_only = [d["name"] for d in classified if d["status"] == "aur"]
+    return ", ".join(aur_only)
+
+
 @bp.route(f"/ui/{KEY}/deps", methods=["POST"])
 def deps_preview():
     """Gibt Runtime-Abhängigkeiten als HTML-Partial zurück."""
@@ -248,8 +285,8 @@ def deps_preview():
 def build_item(item_id: str):
     if store.get(item_id) is None:
         return "Nicht gefunden", 404
-    from .jobs import build_package_async
-    build_package_async(item_id)
+    from .jobs import build_package_with_deps_async
+    build_package_with_deps_async(item_id)
     return render_template("partials/list_wrapper_inner.html", **_ctx())
 
 
@@ -261,3 +298,46 @@ def log_item(item_id: str):
         item_id=item_id,
         item_data=item,
     )
+
+
+@bp.route(f"/ui/{KEY}/check-updates", methods=["POST"])
+def check_updates():
+    """Prüft für alle Pakete ob eine neue Version verfügbar ist."""
+    import json, urllib.request
+    from urllib.parse import quote
+
+    all_items = store.list()
+    if not all_items:
+        return render_template("partials/list_wrapper_inner.html", **_ctx())
+
+    # ── AUR: alle item_ids als Paketnamen probieren (Batch) ──────────────────
+    all_ids = list(all_items.keys())
+    qs = "&".join(f"arg[]={quote(i)}" for i in all_ids)
+    aur_versions: dict[str, str] = {}  # Name → Version
+    try:
+        with urllib.request.urlopen(
+            f"https://aur.archlinux.org/rpc/v5/info?{qs}", timeout=10
+        ) as r:
+            data = json.loads(r.read())
+        for result in data.get("results", []):
+            aur_versions[result["Name"]] = result.get("Version", "")
+    except Exception as e:
+        log.warning("check_updates: AUR-Abfrage fehlgeschlagen: %s", e)
+
+    # ── GitLab: packages.json aus Cache ───────────────────────────────────────
+    gitlab_cache = _get_gitlab_cache()
+    gl_entries = {e.get("name"): e for e in gitlab_cache.get_all() if e.get("name")}
+
+    # ── Ergebnisse schreiben ──────────────────────────────────────────────────
+    for item_id in all_ids:
+        if item_id in aur_versions:
+            store.update(item_id, {"upstream_version": aur_versions[item_id]})
+        elif item_id in gl_entries:
+            entry = gl_entries[item_id]
+            ver = entry.get("pkgver") or entry.get("version") or ""
+            rel = entry.get("pkgrel", "")
+            upstream = f"{ver}-{rel}" if rel else ver
+            if upstream:
+                store.update(item_id, {"upstream_version": upstream})
+
+    return render_template("partials/list_wrapper_inner.html", **_ctx())
