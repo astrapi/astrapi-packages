@@ -166,8 +166,7 @@ def _intercept():
             import json as _json
             from flask import make_response
             resp = make_response("", 200)
-            resp.headers["HX-Retarget"] = "this"
-            resp.headers["HX-Reswap"]   = "none"
+            resp.headers["HX-Reswap"] = "none"
             resp.headers["HX-Trigger"]  = _json.dumps({
                 "paketeModalError": f'"{item_id}" ist bereits vorhanden.'
             })

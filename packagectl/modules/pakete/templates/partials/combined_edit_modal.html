@@ -3,9 +3,7 @@
 {% set _pkg_name = _source_url.rstrip('/').split('/')[-1].removesuffix('.git') if _source_url else '' %}
 <div id="create-edit-modal"
      class="ds-modal-backdrop"
-     x-on:keydown.escape.window="$el.remove()"
-     @paketeModalError.window="document.getElementById('modal-error-container').innerHTML =
-       '<div style=\'padding:8px 12px;border-radius:6px;background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;\'>' + $event.detail + '</div>'">
+     x-on:keydown.escape.window="$el.remove()">
   <div class="ds-modal"
        style="max-width:560px; padding:20px 24px; width:92vw;">
 
@@ -24,6 +22,20 @@
       hx-post="{{ submit_url }}"
       hx-target="#main-content"
       hx-swap="innerHTML"
+      hx-on::after-request="
+        var trigger = event.detail.xhr.getResponseHeader('HX-Trigger');
+        if (trigger) {
+          try {
+            var t = JSON.parse(trigger);
+            if (t.paketeModalError) {
+              document.getElementById('modal-error-container').innerHTML =
+                '<div style=\'padding:8px 12px;border-radius:6px;margin-bottom:4px;' +
+                'background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;\'>'
+                + t.paketeModalError + '</div>';
+            }
+          } catch(e) {}
+        }
+      "
       class="form-stack" style="gap:12px; margin-top:8px;">
 
       {# ── AUR / GitLab: Suche ──────────────────────────────────────────── #}
