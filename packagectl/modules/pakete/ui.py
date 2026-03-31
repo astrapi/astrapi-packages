@@ -218,6 +218,30 @@ def _intercept():
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
 
+def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> str:
+    """Liest pkgver-pkgrel direkt aus dem PKGBUILD auf GitLab.
+
+    Konstruiert die Raw-URL aus source_url + source_subdir und probiert
+    main- und master-Branch. Gibt 'pkgver-pkgrel' zurück oder '' bei Fehler.
+    """
+    import re, urllib.request
+    base = source_url.rstrip("/").removesuffix(".git")
+    for branch in ("main", "master"):
+        url = f"{base}/-/raw/{branch}/{source_subdir}/PKGBUILD"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                text = r.read().decode("utf-8", errors="replace")
+            m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
+            m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
+            if m_ver:
+                ver = m_ver.group(1).strip().strip("'\"")
+                rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
+                return f"{ver}-{rel}" if rel else ver
+        except Exception:
+            continue
+    return ""
+
+
 def _search_aur(term: str) -> list[dict]:
     import json, urllib.request, re
     try:
@@ -381,11 +405,19 @@ def check_updates():
     for item_id in all_ids:
         if item_id in aur_versions:
             store.update(item_id, {"upstream_version": aur_versions[item_id]})
-        elif item_id in gl_entries:
-            entry = gl_entries[item_id]
-            ver = entry.get("pkgver") or entry.get("version") or ""
-            rel = entry.get("pkgrel", "")
-            upstream = f"{ver}-{rel}" if rel else ver
+        else:
+            # GitLab: PKGBUILD direkt lesen, packages.json als Fallback
+            item        = all_items[item_id]
+            source_url  = item.get("source_url", "")
+            source_sub  = item.get("source_subdir", "")
+            upstream    = ""
+            if "gitlab" in source_url and source_sub:
+                upstream = _version_from_pkgbuild_url(source_url, source_sub)
+            if not upstream and item_id in gl_entries:
+                entry    = gl_entries[item_id]
+                ver      = entry.get("pkgver") or entry.get("version") or ""
+                rel      = entry.get("pkgrel", "")
+                upstream = f"{ver}-{rel}" if rel else ver
             if upstream:
                 store.update(item_id, {"upstream_version": upstream})
 

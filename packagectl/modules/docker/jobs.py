@@ -50,6 +50,16 @@ def build_image(item_id: str) -> None:
 
     store.upsert(item_id, {"last_status": "building", "last_built": _now()})
 
+    import time as _time
+    _t0 = _time.time()
+    _act_id = None
+    try:
+        from astrapi.core.system.activity_log import log_activity
+        _act_id = log_activity("job", "docker", f"Docker: {item_id} bauen",
+                               status="running", item_id=item_id)
+    except Exception:
+        pass
+
     cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
     log.info("docker.build: %s", " ".join(cmd))
     rc, output = _run(cmd, _TIMEOUT_BUILD)
@@ -62,6 +72,38 @@ def build_image(item_id: str) -> None:
         "last_built":  _now(),
         "last_log":    output[-20_000:],
     })
+
+    if _act_id:
+        try:
+            from astrapi.core.system.activity_log import update_activity_log
+            update_activity_log(
+                log_id=_act_id,
+                status=status,
+                duration_s=int(_time.time() - _t0),
+                full_log=output[-20_000:],
+                error_message=output[-500:] if status == "error" else None,
+            )
+        except Exception:
+            pass
+
+    try:
+        from astrapi.core.modules.notify import engine as _notify
+        if status == "ok":
+            _notify.send(
+                title=f"Docker: {item_id} erfolgreich gebaut",
+                message=f"Image ctl/{item_id}:{tag} wurde aktualisiert.",
+                event=_notify.SUCCESS,
+                source="docker",
+            )
+        else:
+            _notify.send(
+                title=f"Docker: {item_id} – Fehler beim Bauen",
+                message=output[-400:].strip(),
+                event=_notify.ERROR,
+                source="docker",
+            )
+    except Exception:
+        pass
 
 
 # ── Async-Wrapper ──────────────────────────────────────────────────────────────

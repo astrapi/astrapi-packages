@@ -9,6 +9,7 @@ module = load_modul(Path(__file__).parent, _KEY, router, bp)
 try:
     from astrapi.core.modules.scheduler.engine import register_action
     from .jobs import build_image
-    register_action(f"{_KEY}.build", "Docker: Image bauen", build_image, source=_KEY, source_label="Docker")
+    register_action(f"{_KEY}.build_arch_builder", "arch-builder: Aktualisieren",
+                    lambda: build_image("arch-builder"), source=_KEY, source_label="Docker")
 except Exception:
     pass

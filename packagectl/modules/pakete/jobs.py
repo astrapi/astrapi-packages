@@ -65,6 +65,16 @@ def build_package(item_id: str) -> None:
 
     store.update(item_id, {"last_status": "building", "last_built": _now()})
 
+    import time as _time
+    _t0 = _time.time()
+    _act_id = None
+    try:
+        from astrapi.core.system.activity_log import log_activity
+        _act_id = log_activity("job", "pakete", f"Paket bauen: {item_id}",
+                               status="running", item_id=item_id)
+    except Exception:
+        pass
+
     # Ausgabeverzeichnis sicherstellen (777 damit Container-User schreiben kann)
     p = Path(repo_path)
     p.mkdir(parents=True, exist_ok=True)
@@ -122,6 +132,39 @@ def build_package(item_id: str) -> None:
     if version:
         update["last_version"] = version
     store.update(item_id, update)
+
+    if _act_id:
+        try:
+            from astrapi.core.system.activity_log import update_activity_log
+            update_activity_log(
+                log_id=_act_id,
+                status=status,
+                duration_s=int(_time.time() - _t0),
+                full_log=output[-20_000:],
+                error_message=output[-500:] if status == "error" else None,
+            )
+        except Exception:
+            pass
+
+    try:
+        from astrapi.core.modules.notify import engine as _notify
+        if status == "ok":
+            ver_info = f" ({version})" if version else ""
+            _notify.send(
+                title=f"Paket {item_id} erfolgreich gebaut{ver_info}",
+                message=f"Status: ok",
+                event=_notify.SUCCESS,
+                source="pakete",
+            )
+        else:
+            _notify.send(
+                title=f"Paket {item_id} – Fehler beim Bauen",
+                message=output[-400:].strip(),
+                event=_notify.ERROR,
+                source="pakete",
+            )
+    except Exception:
+        pass
 
 
 def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
@@ -262,3 +305,132 @@ def build_package_async(item_id: str) -> None:
 
 def build_package_with_deps_async(item_id: str) -> None:
     threading.Thread(target=build_package_with_deps, args=(item_id,), daemon=True).start()
+
+
+# ── Update-Job ─────────────────────────────────────────────────────────────────
+
+def update_all_packages() -> None:
+    """Prüft auf neue Versionen und baut veraltete Pakete."""
+    import json, urllib.request, time as _time
+    from urllib.parse import quote
+    from .storage import store
+
+    _t0 = _time.time()
+    _act_id = None
+    try:
+        from astrapi.core.system.activity_log import log_activity
+        _act_id = log_activity("job", "pakete", "Pakete: Aktualisieren", status="running")
+    except Exception:
+        pass
+
+    def _finish(status: str, built: int = 0, error: str | None = None):
+        if _act_id:
+            try:
+                from astrapi.core.system.activity_log import update_activity_log
+                update_activity_log(
+                    log_id=_act_id,
+                    status=status,
+                    duration_s=int(_time.time() - _t0),
+                    changed_count=built,
+                    error_message=error,
+                )
+            except Exception:
+                pass
+
+    all_items = store.list()
+    if not all_items:
+        _finish("ok")
+        return
+
+    # Nur erfolgreich gebaute Pakete berücksichtigen
+    built_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
+    if not built_ids:
+        _finish("ok")
+        return
+
+    # GitLab-Cache aktualisieren
+    try:
+        from .ui import _get_gitlab_cache
+        gitlab_cache = _get_gitlab_cache()
+        gitlab_cache.refresh()
+    except Exception as e:
+        log.warning("update_all_packages: GitLab-Cache-Refresh fehlgeschlagen: %s", e)
+        gitlab_cache = None
+
+    # AUR: Batch-Abfrage für alle item_ids
+    qs = "&".join(f"arg[]={quote(i)}" for i in built_ids)
+    aur_versions: dict[str, str] = {}
+    try:
+        with urllib.request.urlopen(
+            f"https://aur.archlinux.org/rpc/v5/info?{qs}", timeout=10
+        ) as r:
+            data = json.loads(r.read())
+        for result in data.get("results", []):
+            aur_versions[result["Name"]] = result.get("Version", "")
+    except Exception as e:
+        log.warning("update_all_packages: AUR-Abfrage fehlgeschlagen: %s", e)
+
+    # GitLab-Versionen
+    gl_entries: dict[str, dict] = {}
+    if gitlab_cache:
+        try:
+            gl_entries = {e.get("name"): e for e in gitlab_cache.get_all() if e.get("name")}
+        except Exception:
+            pass
+
+    # upstream_version speichern und veraltete Pakete bauen
+    from .ui import _version_from_pkgbuild_url
+    built_count = 0
+    errors = []
+    for item_id in built_ids:
+        upstream = ""
+        if item_id in aur_versions:
+            upstream = aur_versions[item_id]
+        else:
+            # GitLab: PKGBUILD direkt lesen, packages.json als Fallback
+            item       = all_items[item_id]
+            source_url = item.get("source_url", "")
+            source_sub = item.get("source_subdir", "")
+            if "gitlab" in source_url and source_sub:
+                upstream = _version_from_pkgbuild_url(source_url, source_sub)
+            if not upstream and item_id in gl_entries:
+                entry    = gl_entries[item_id]
+                ver      = entry.get("pkgver") or entry.get("version") or ""
+                rel      = entry.get("pkgrel", "")
+                upstream = f"{ver}-{rel}" if rel else ver
+
+        if upstream:
+            store.update(item_id, {"upstream_version": upstream})
+
+        current = (store.get(item_id) or {}).get("last_version", "")
+        if upstream and upstream != current:
+            log.info("update_all_packages: %s ist veraltet (%s → %s), baue …", item_id, current, upstream)
+            build_package_with_deps(item_id)
+            result_status = (store.get(item_id) or {}).get("last_status", "")
+            if result_status == "ok":
+                built_count += 1
+            else:
+                errors.append(item_id)
+
+    final_status = "error" if errors else "ok"
+    error_msg = f"Fehler bei: {', '.join(errors)}" if errors else None
+    _finish(final_status, built=built_count, error=error_msg)
+
+    try:
+        from astrapi.core.modules.notify import engine as _notify
+        if errors:
+            _notify.send(
+                title="Pakete: Aktualisieren – Fehler",
+                message=f"{built_count} gebaut, Fehler bei: {', '.join(errors)}",
+                event=_notify.ERROR,
+                source="pakete",
+            )
+        elif built_count:
+            _notify.send(
+                title=f"Pakete: {built_count} Paket(e) aktualisiert",
+                message=f"{built_count} von {len(built_ids)} geprüften Paketen wurden neu gebaut.",
+                event=_notify.SUCCESS,
+                source="pakete",
+            )
+    except Exception:
+        pass

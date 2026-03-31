@@ -24,7 +24,7 @@ def create(modules: list | None = None) -> FastAPI:
 
     from astrapi.core.ui.module_registry import load_modules, register_fastapi_modules
     if modules is None:
-        modules = load_modules(APP_ROOT)
+        modules, _ = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)
 
     return app

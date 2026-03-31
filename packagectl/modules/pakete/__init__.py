@@ -8,7 +8,8 @@ module = load_modul(Path(__file__).parent, _KEY, router, bp)
 
 try:
     from astrapi.core.modules.scheduler.engine import register_action
-    from .jobs import build_package
-    register_action(f"{_KEY}.build", "Pakete: Paket bauen", build_package, source=_KEY, source_label="Pakete")
+    from .jobs import update_all_packages
+    register_action(f"{_KEY}.update_all", "Pakete: Aktualisieren",
+                    update_all_packages, source=_KEY, source_label="Pakete")
 except Exception:
     pass
