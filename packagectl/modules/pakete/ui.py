@@ -322,6 +322,16 @@ def log_item(item_id: str):
     )
 
 
+@bp.route(f"/ui/{KEY}/exists")
+def pkg_exists():
+    item_id = request.args.get("id", "").strip()
+    if item_id and store.get(item_id) is not None:
+        return (f'<div id="modal-error-container" style="padding:8px 12px;border-radius:6px;'
+                f'background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">'
+                f'"{item_id}" ist bereits vorhanden.</div>')
+    return '<div id="modal-error-container"></div>'
+
+
 @bp.route(f"/ui/{KEY}/check-updates", methods=["POST"])
 def check_updates():
     """Prüft für alle Pakete ob eine neue Version verfügbar ist."""
