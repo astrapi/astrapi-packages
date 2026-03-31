@@ -162,6 +162,13 @@ def _intercept():
         if not item_id:
             return "Paketname fehlt", 400
 
+        if store.get(item_id) is not None:
+            return render_template(
+                f"{KEY}/partials/combined_edit_modal.html",
+                item=None, item_id=None,
+                error=f"„{item_id}" ist bereits vorhanden.",
+            )
+
         data = {
             "source_url":    source_url,
             "source_subdir": request.form.get("source_subdir", "").strip(),
@@ -169,10 +176,7 @@ def _intercept():
             "pkg_type":      request.form.get("pkg_type", "package").strip() or "package",
             "enabled":       "enabled" in request.form,
         }
-        try:
-            store.create(item_id, data)
-        except KeyError:
-            return "Bereits vorhanden", 409
+        store.create(item_id, data)
 
         from .dep_graph import autocreate_deps
         autocreate_deps(item_id, data, store)
