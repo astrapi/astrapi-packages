@@ -299,7 +299,10 @@ def build_item(item_id: str):
     store.update(item_id, {"last_status": "pending"})
     from .jobs import build_package_with_deps_async
     build_package_with_deps_async(item_id)
-    return render_template("partials/list_wrapper_inner.html", **_ctx())
+    ctx = _ctx()
+    # Polling erzwingen: unabhängig vom running-Dict direkt einfügen
+    ctx["running"] = ctx["running"] or {f"{KEY}:{item_id}": "pending"}
+    return render_template("partials/list_wrapper_inner.html", **ctx)
 
 
 @bp.route(f"/ui/{KEY}/<item_id>/log")

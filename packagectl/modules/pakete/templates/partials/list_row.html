@@ -21,7 +21,9 @@
 </td>
 <td style="white-space:nowrap">{{ item_data.last_built or '—' }}</td>
 <td>
-  {% if item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
+  {% if item_data.last_status in ('building', 'pending') %}
+    {{ ui.status_inline(item_data.last_status) }}
+  {% elif item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
     <span class="status-inline status-inline--warning" title="Installiert: {{ item_data.last_version }} → Neu: {{ item_data.upstream_version }}">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 20h20L12 2z"/></svg>
       Update
