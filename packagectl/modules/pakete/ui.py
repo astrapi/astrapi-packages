@@ -321,6 +321,12 @@ def check_updates():
     import json, urllib.request
     from urllib.parse import quote
 
+    # GitLab-Cache vor der Prüfung aktualisieren
+    try:
+        _get_gitlab_cache().refresh()
+    except Exception:
+        pass
+
     all_items = store.list()
     if not all_items:
         return render_template("partials/list_wrapper_inner.html", **_ctx())
