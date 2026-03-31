@@ -166,7 +166,7 @@ def _intercept():
             return render_template(
                 f"{KEY}/partials/combined_edit_modal.html",
                 item=None, item_id=None,
-                error=f"„{item_id}" ist bereits vorhanden.",
+                error=f'"{item_id}" ist bereits vorhanden.',
             )
 
         data = {
