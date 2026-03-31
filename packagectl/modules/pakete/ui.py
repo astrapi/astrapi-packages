@@ -163,11 +163,14 @@ def _intercept():
             return "Paketname fehlt", 400
 
         if store.get(item_id) is not None:
-            return render_template(
-                f"{KEY}/partials/combined_edit_modal.html",
-                item=None, item_id=None,
-                error=f'"{item_id}" ist bereits vorhanden.',
-            )
+            from flask import make_response
+            html = (f'<div style="padding:8px 12px;border-radius:6px;'
+                    f'background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">'
+                    f'"{item_id}" ist bereits vorhanden.</div>')
+            resp = make_response(html)
+            resp.headers["HX-Retarget"] = "#modal-error-container"
+            resp.headers["HX-Reswap"]   = "innerHTML"
+            return resp
 
         data = {
             "source_url":    source_url,

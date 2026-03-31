@@ -15,12 +15,8 @@
       {% set submit_url = "/ui/pakete/" %}
     {% endif %}
 
-    {% if error %}
-    <div style="margin:8px 0;padding:8px 12px;border-radius:6px;
-                background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
-      {{ error }}
-    </div>
-    {% endif %}
+    <div id="modal-error-container">{% if error %}<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">{{ error }}</div>{% endif %}</div>
 
     <form id="create-edit-form"
       hx-post="{{ submit_url }}"
