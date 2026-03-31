@@ -3,7 +3,9 @@
 {% set _pkg_name = _source_url.rstrip('/').split('/')[-1].removesuffix('.git') if _source_url else '' %}
 <div id="create-edit-modal"
      class="ds-modal-backdrop"
-     x-on:keydown.escape.window="$el.remove()">
+     x-on:keydown.escape.window="$el.remove()"
+     @paketeModalError.window="document.getElementById('modal-error-container').innerHTML =
+       '<div style=\'padding:8px 12px;border-radius:6px;background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;\'>' + $event.detail + '</div>'">
   <div class="ds-modal"
        style="max-width:560px; padding:20px 24px; width:92vw;">
 

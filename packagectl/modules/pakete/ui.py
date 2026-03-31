@@ -163,13 +163,14 @@ def _intercept():
             return "Paketname fehlt", 400
 
         if store.get(item_id) is not None:
+            import json as _json
             from flask import make_response
-            html = (f'<div style="padding:8px 12px;border-radius:6px;'
-                    f'background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">'
-                    f'"{item_id}" ist bereits vorhanden.</div>')
-            resp = make_response(html)
-            resp.headers["HX-Retarget"] = "#modal-error-container"
-            resp.headers["HX-Reswap"]   = "innerHTML"
+            resp = make_response("", 200)
+            resp.headers["HX-Retarget"] = "this"
+            resp.headers["HX-Reswap"]   = "none"
+            resp.headers["HX-Trigger"]  = _json.dumps({
+                "paketeModalError": f'"{item_id}" ist bereits vorhanden.'
+            })
             return resp
 
         data = {
