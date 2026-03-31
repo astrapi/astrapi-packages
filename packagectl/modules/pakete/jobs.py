@@ -144,13 +144,18 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
     symlink = os.path.join(repo_path, f"{repo_name}.db")
     if not os.path.exists(symlink):
         os.symlink(f"{repo_name}.db.tar.gz", symlink)
-    # Version aus Dateinamen extrahieren: pkgname-pkgver-pkgrel-arch.pkg.tar.*
-    # pkgver darf keine Bindestriche enthalten (makepkg-Einschränkung)
+    # Version aus Dateinamen extrahieren – von rechts parsen damit Split-Pakete
+    # (z.B. ttf-ms-win11-auto-other-3:11.0.2-1-any.pkg.tar.zst) korrekt erkannt werden.
+    # Format: {pkgname}-{pkgver}-{pkgrel}-{arch}.pkg.tar.{ext}
+    # Von rechts: arch, pkgrel, pkgver (pkgver kann Epoch "N:" enthalten)
     try:
+        import re as _re
         filename = os.path.basename(pkgs[0])
-        rest = filename[len(item_id) + 1:]          # "pkgver-pkgrel-arch.pkg.tar.*"
-        parts = rest.split("-")
-        return f"{parts[0]}-{parts[1]}"             # "pkgver-pkgrel"
+        # .pkg.tar.* Suffix entfernen
+        stem = _re.sub(r'\.pkg\.tar\.\w+$', '', filename)
+        parts = stem.rsplit("-", 3)   # maximal 3 Splits von rechts: pkgname, pkgver, pkgrel, arch
+        # parts[-1]=arch, parts[-2]=pkgrel, parts[-3]=pkgver
+        return f"{parts[-3]}-{parts[-2]}"
     except Exception:
         return None
 
