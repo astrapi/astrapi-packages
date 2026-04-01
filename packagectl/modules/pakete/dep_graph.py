@@ -127,6 +127,26 @@ def autocreate_deps(item_id: str, item: dict, store) -> list[str]:
 
 # ── Orphan-Cleanup ─────────────────────────────────────────────────────────────
 
+def find_all_orphan_deps(store) -> list[str]:
+    """Gibt alle Dep-IDs zurück die von keinem Paket mehr referenziert werden.
+
+    Nur Einträge mit pkg_type=='dependency' werden berücksichtigt –
+    manuell angelegte Pakete werden nie als verwaist betrachtet.
+    """
+    all_items = store.list()
+
+    referenced: set[str] = set()
+    for pkg_data in all_items.values():
+        for d in parse_aur_deps(pkg_data):
+            referenced.add(d)
+
+    return [
+        item_id for item_id, item_data in all_items.items()
+        if item_data.get("pkg_type") == "dependency"
+        and item_id not in referenced
+    ]
+
+
 def find_orphan_deps(deleted_id: str, store) -> list[str]:
     """Gibt Dep-IDs zurück die nach dem Löschen von deleted_id verwaist wären.
 

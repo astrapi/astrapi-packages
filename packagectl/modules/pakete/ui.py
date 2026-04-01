@@ -218,11 +218,32 @@ def _intercept():
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
 
-def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> str:
-    """Liest pkgver-pkgrel direkt aus dem PKGBUILD auf GitLab.
+def _parse_pkgbuild_deps(text: str) -> list[str]:
+    """Liest depends + makedepends aus einem PKGBUILD-Text.
+
+    Gibt bereinigte Paketnamen zurück (ohne Versionsconstraints wie >=1.0).
+    """
+    import re
+    deps: list[str] = []
+    for key in ("depends", "makedepends"):
+        m = re.search(rf"^{key}\s*=\s*\((.*?)\)", text, re.MULTILINE | re.DOTALL)
+        if not m:
+            continue
+        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", m.group(1)):
+            name = (token[0] or token[1] or token[2]).strip()
+            name = re.sub(r"[><=!].*", "", name).strip()  # Versionsconstraint entfernen
+            if name:
+                deps.append(name)
+    # Deduplizieren, Reihenfolge erhalten
+    seen: set[str] = set()
+    return [d for d in deps if not (d in seen or seen.add(d))]  # type: ignore[func-returns-value]
+
+
+def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
+    """Liest pkgver-pkgrel und depends/makedepends direkt aus dem PKGBUILD auf GitLab.
 
     Konstruiert die Raw-URL aus source_url + source_subdir und probiert
-    main- und master-Branch. Gibt 'pkgver-pkgrel' zurück oder '' bei Fehler.
+    main- und master-Branch. Gibt (version, deps) zurück; bei Fehler ('', []).
     """
     import re, urllib.request
     base = source_url.rstrip("/").removesuffix(".git")
@@ -233,13 +254,15 @@ def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> str:
                 text = r.read().decode("utf-8", errors="replace")
             m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
             m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
+            version = ""
             if m_ver:
                 ver = m_ver.group(1).strip().strip("'\"")
                 rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
-                return f"{ver}-{rel}" if rel else ver
+                version = f"{ver}-{rel}" if rel else ver
+            return version, _parse_pkgbuild_deps(text)
         except Exception:
             continue
-    return ""
+    return "", []
 
 
 def _search_aur(term: str) -> list[dict]:
@@ -412,7 +435,7 @@ def check_updates():
             source_sub  = item.get("source_subdir", "")
             upstream    = ""
             if "gitlab" in source_url and source_sub:
-                upstream = _version_from_pkgbuild_url(source_url, source_sub)
+                upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
             if not upstream and item_id in gl_entries:
                 entry    = gl_entries[item_id]
                 ver      = entry.get("pkgver") or entry.get("version") or ""

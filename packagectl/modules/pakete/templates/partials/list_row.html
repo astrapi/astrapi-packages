@@ -1,5 +1,7 @@
 <td style="white-space:nowrap">
-  {% if item_data.pkg_type == 'dependency' %}
+  {% if item_data.orphaned %}
+    <span class="badge-pill" style="background:rgba(220,38,38,0.15);border-color:rgba(248,113,113,0.25);color:#f87171" title="Wird von keinem Paket mehr benötigt">Verwaist</span>
+  {% elif item_data.pkg_type == 'dependency' %}
     <span class="badge-pill badge-muted">Dep</span>
   {% else %}
     <span class="badge-pill badge-live">Paket</span>

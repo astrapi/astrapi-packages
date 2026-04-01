@@ -249,6 +249,60 @@ def delete_package(item_id: str, item: dict) -> None:
         store.delete(orphan_id)
 
 
+# ── PKGBUILD-Dep-Sync ──────────────────────────────────────────────────────────
+
+def _sync_pkgbuild_deps(item_id: str, store) -> None:
+    """Liest depends/makedepends aus dem GitLab-PKGBUILD und legt fehlende AUR-Deps an.
+
+    Nur für Pakete mit source_subdir (GitLab-Monorepo). Deps die nicht auf AUR
+    existieren (z.B. offizielle Repo-Pakete) werden übersprungen.
+    Aktualisiert außerdem upstream_version damit der Update-Badge nach einem
+    manuellen Build korrekt verschwindet.
+    """
+    import json, urllib.request
+    from .dep_graph import autocreate_deps
+    from .ui import _version_from_pkgbuild_url
+
+    item       = store.get(item_id) or {}
+    source_url = item.get("source_url", "")
+    source_sub = item.get("source_subdir", "")
+    if not ("gitlab" in source_url and source_sub):
+        return
+
+    upstream_ver, pkgbuild_deps = _version_from_pkgbuild_url(source_url, source_sub)
+    if upstream_ver:
+        store.update(item_id, {"upstream_version": upstream_ver})
+    if not pkgbuild_deps:
+        return
+
+    current_deps  = set(d.strip() for d in (item.get("aur_deps") or "").split(",") if d.strip())
+    pkgbuild_set  = set(pkgbuild_deps)
+    new_deps      = [d for d in pkgbuild_deps if d not in current_deps]
+    removed_deps  = current_deps - pkgbuild_set  # in aur_deps aber nicht mehr im PKGBUILD
+
+    # Neue Deps: nur anlegen wenn sie auf AUR existieren
+    aur_new: list[str] = []
+    if new_deps:
+        aur_qs = "&".join(f"arg[]={d}" for d in new_deps)
+        try:
+            with urllib.request.urlopen(
+                f"https://aur.archlinux.org/rpc/v5/info?{aur_qs}", timeout=8
+            ) as r:
+                aur_data = json.loads(r.read())
+            aur_new = [res["Name"] for res in aur_data.get("results", [])]
+        except Exception as e:
+            log.warning("_sync_pkgbuild_deps: AUR-Check für '%s' fehlgeschlagen: %s", item_id, e)
+
+    if aur_new or removed_deps:
+        updated_deps = (current_deps | set(aur_new)) - removed_deps
+        store.update(item_id, {"aur_deps": ", ".join(sorted(updated_deps))})
+        if aur_new:
+            autocreate_deps(item_id, {"aur_deps": ", ".join(sorted(updated_deps))}, store)
+            log.info("_sync_pkgbuild_deps: '%s' – neue AUR-Deps: %s", item_id, ", ".join(aur_new))
+        if removed_deps:
+            log.info("_sync_pkgbuild_deps: '%s' – Deps entfernt: %s", item_id, ", ".join(removed_deps))
+
+
 # ── Build mit Dep-Graph ────────────────────────────────────────────────────────
 
 def build_package_with_deps(item_id: str) -> None:
@@ -256,6 +310,8 @@ def build_package_with_deps(item_id: str) -> None:
     from .storage import store
     from .dep_graph import resolve_build_order, is_up_to_date, CyclicDependencyError
     from packagectl._paths import repo_dir as _repo_dir
+
+    _sync_pkgbuild_deps(item_id, store)
 
     s         = _settings()
     repo_path = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
@@ -305,6 +361,43 @@ def build_package_async(item_id: str) -> None:
 
 def build_package_with_deps_async(item_id: str) -> None:
     threading.Thread(target=build_package_with_deps, args=(item_id,), daemon=True).start()
+
+
+# ── Orphan-Markierung ──────────────────────────────────────────────────────────
+
+def mark_orphan_deps() -> None:
+    """Markiert verwaiste Dep-Einträge und hebt veraltete Markierungen auf.
+
+    Ein Dep-Eintrag gilt als verwaist wenn er von keinem Paket mehr in
+    aur_deps referenziert wird.  Das Feld 'orphaned' wird entsprechend gesetzt.
+    """
+    from .storage import store
+    from .dep_graph import find_all_orphan_deps
+
+    all_items   = store.list()
+    orphan_ids  = set(find_all_orphan_deps(store))
+
+    newly_orphaned: list[str] = []
+    newly_adopted:  list[str] = []
+
+    for item_id, item_data in all_items.items():
+        if item_data.get("pkg_type") != "dependency":
+            continue
+        was_orphan = bool(item_data.get("orphaned"))
+        is_orphan  = item_id in orphan_ids
+        if is_orphan and not was_orphan:
+            store.update(item_id, {"orphaned": True})
+            newly_orphaned.append(item_id)
+            log.info("mark_orphan_deps: '%s' als verwaist markiert", item_id)
+        elif not is_orphan and was_orphan:
+            store.update(item_id, {"orphaned": False})
+            newly_adopted.append(item_id)
+            log.info("mark_orphan_deps: '%s' ist nicht mehr verwaist", item_id)
+
+    log.info(
+        "mark_orphan_deps: %d neu verwaist, %d wieder referenziert",
+        len(newly_orphaned), len(newly_adopted),
+    )
 
 
 # ── Update-Job ─────────────────────────────────────────────────────────────────
@@ -392,12 +485,14 @@ def update_all_packages() -> None:
             source_url = item.get("source_url", "")
             source_sub = item.get("source_subdir", "")
             if "gitlab" in source_url and source_sub:
-                upstream = _version_from_pkgbuild_url(source_url, source_sub)
-            if not upstream and item_id in gl_entries:
-                entry    = gl_entries[item_id]
-                ver      = entry.get("pkgver") or entry.get("version") or ""
-                rel      = entry.get("pkgrel", "")
-                upstream = f"{ver}-{rel}" if rel else ver
+                upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
+                _sync_pkgbuild_deps(item_id, store)
+
+        if not upstream and item_id in gl_entries:
+            entry    = gl_entries[item_id]
+            ver      = entry.get("pkgver") or entry.get("version") or ""
+            rel      = entry.get("pkgrel", "")
+            upstream = f"{ver}-{rel}" if rel else ver
 
         if upstream:
             store.update(item_id, {"upstream_version": upstream})
