@@ -4,8 +4,33 @@ Web-UI zum Bauen von Paketen für Arch Linux, Debian und Alpine über Docker-Con
 
 ## Voraussetzungen
 
-- Python >= 3.11
-- Docker (für Container-Builds)
+### Systemabhängigkeiten
+
+**Debian 13:**
+```bash
+# Docker-Repository hinzufügen
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# packagectl-Abhängigkeiten installieren
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip docker-ce docker-ce-cli containerd.io git
+sudo usermod -aG docker $USER  # Docker-Zugriff ohne sudo
+```
+### Benutzer
+
+Nach Docker-Installation muss der aktuelle Benutzer zur `docker`-Gruppe hinzugefügt werden:
+```bash
+sudo usermod -aG docker $USER
+# Dann neu anmelden oder: newgrp docker
+```
+
+Überprüfung:
+```bash
+docker ps  # sollte ohne sudo funktionieren
+```
 
 ## Installation
 
