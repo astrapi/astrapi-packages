@@ -1,10 +1,10 @@
-"""packagectl-spezifische Konfiguration des Core-Sysinfo-Moduls."""
+"""astrapi-packages-spezifische Konfiguration des Core-Sysinfo-Moduls."""
 from pathlib import Path
 
 from astrapi.core.modules.sysinfo import module  # noqa: F401  – wird von der Registry erwartet
 from astrapi.core.modules.sysinfo.engine import configure
 
-from packagectl._paths import package_dir as _package_dir, db_path as _db_path
+from astrapi_packages._paths import package_dir as _package_dir, db_path as _db_path
 
 
 def _read_version_yaml(path: Path) -> str:
@@ -22,7 +22,7 @@ def _app_version() -> str:
     try:
         from importlib.metadata import version
         from astrapi.core.system.version import _clean_version
-        return _clean_version(version("packagectl"))
+        return _clean_version(version("astrapi-packages"))
     except Exception:
         return _read_version_yaml(_package_dir() / "app.yaml")
 

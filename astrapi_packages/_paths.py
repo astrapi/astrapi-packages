@@ -1,4 +1,4 @@
-# packagectl/_paths.py
+# astrapi_packages/_paths.py
 from pathlib import Path
 
 from astrapi.core.system.paths import work_dir, db_path, log_dir  # noqa: F401 – re-export

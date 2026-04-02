@@ -67,4 +67,4 @@ twine upload \
     --username "__token__" \
     --password "$GITLAB_TOKEN_SECRET" \
     dist/*
-echo "  ✓ Fertig – packagectl==${VERSION} ist in der Registry"
+echo "  ✓ Fertig – astrapi-packages==${VERSION} ist in der Registry"

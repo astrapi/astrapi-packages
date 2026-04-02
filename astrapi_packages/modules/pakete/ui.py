@@ -57,7 +57,7 @@ def _deps_from_aur(pkgname: str) -> list[str]:
 
 
 def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
-    """Klassifiziert Abhängigkeiten: packagectl | official | aur.
+    """Klassifiziert Abhängigkeiten: astrapi-packages | official | aur.
 
     Strategie: Batch-Abfrage gegen AUR-RPC – was dort gefunden wird ist AUR,
     alles andere kommt aus den Official Repos (oder existiert nicht).
@@ -82,7 +82,7 @@ def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
     result = []
     for name in deps:
         if name in existing:
-            result.append({"name": name, "status": "packagectl"})
+            result.append({"name": name, "status": "astrapi-packages"})
         elif name in in_aur:
             result.append({"name": name, "status": "aur"})
         else:

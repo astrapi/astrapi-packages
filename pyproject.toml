@@ -1,5 +1,5 @@
 [project]
-name = "packagectl"
+name = "astrapi-packages"
 dynamic = ["version"]
 description = "Package Control – Web-UI für Arch/Debian/Alpine-Paketbau"
 requires-python = ">=3.11"
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-packagectl = "packagectl._cli:main"
+astrapi-packages = "astrapi_packages._cli:main"
 
 [build-system]
 requires = ["setuptools>=61", "setuptools-scm"]
@@ -30,10 +30,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 
 [tool.setuptools.packages.find]
-include = ["packagectl*"]
+include = ["astrapi_packages*"]
 
 [tool.setuptools.package-data]
-packagectl = [
+astrapi_packages = [
     "app.yaml",
     "navigation.yaml",
     "modules/*/templates/**/*.html",

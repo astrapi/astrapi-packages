@@ -1,12 +1,12 @@
-"""packagectl._app – ASGI-App-Factory.
+"""astrapi_packages._app – ASGI-App-Factory.
 
-Wird von packagectl._cli (Console-Script) und direkt von uvicorn importiert:
-    uvicorn packagectl._app:app
+Wird von astrapi_packages._cli (Console-Script) und direkt von uvicorn importiert:
+    uvicorn astrapi_packages._app:app
 """
 import time
 
 from astrapi.core.system.paths import configure as _configure_paths
-_configure_paths("packagectl")
+_configure_paths("astrapi-packages")
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -20,8 +20,8 @@ from astrapi.core.system.systemd import sd_notify, start_watchdog
 from astrapi.core.system.version import get_display_name
 from astrapi.core.modules.settings.engine import configure as configure_settings
 
-from packagectl._paths import package_dir, work_dir, db_path
-from packagectl.api.fastapi_app import create as create_api
+from astrapi_packages._paths import package_dir, work_dir, db_path
+from astrapi_packages.api.fastapi_app import create as create_api
 
 _START_TIME = time.time()
 

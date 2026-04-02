@@ -7,7 +7,7 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from astrapi.core.system.paths import configure as _configure_paths
-_configure_paths("packagectl")
+_configure_paths("astrapi-packages")
 
 import pytest
 from astrapi.core.system.db import configure as _configure_db, create_all_registered_tables
@@ -23,9 +23,9 @@ def app(tmp_path):
     settings_init(tmp_path)
 
     # Store zurücksetzen
-    from packagectl.modules.pakete.storage import store
+    from astrapi_packages.modules.pakete.storage import store
     # Blueprint holen
-    from packagectl.modules.pakete.ui import bp
+    from astrapi_packages.modules.pakete.ui import bp
 
     from flask import Flask
     from jinja2 import ChoiceLoader, FileSystemLoader
@@ -37,7 +37,7 @@ def app(tmp_path):
 
     # Template-Loader
     core_tpl  = Path(__file__).parent.parent / ".venv/lib/python3.14/site-packages/astrapi/core/ui/templates"
-    mod_tpl   = Path(__file__).parent.parent / "packagectl/modules/pakete/templates"
+    mod_tpl   = Path(__file__).parent.parent / "astrapi_packages/modules/pakete/templates"
     from jinja2 import PrefixLoader
     flask_app.jinja_env.loader = ChoiceLoader([
         PrefixLoader({"pakete": FileSystemLoader(str(mod_tpl))}),

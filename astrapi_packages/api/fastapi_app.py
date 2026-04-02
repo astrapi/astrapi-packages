@@ -1,8 +1,8 @@
-"""packagectl.api.fastapi_app – FastAPI-Factory."""
+"""astrapi_packages.api.fastapi_app – FastAPI-Factory."""
 from fastapi import FastAPI
 from astrapi.core.system.version import get_app_version
 
-from packagectl._paths import package_dir
+from astrapi_packages._paths import package_dir
 
 APP_ROOT = package_dir()
 

@@ -5,9 +5,9 @@
   </div>
   <div style="display:flex; flex-wrap:wrap; gap:6px;">
     {% for dep in deps %}
-      {% if dep.status == 'packagectl' %}
-        {# Grün: bereits in packagectl verwaltet #}
-        <span style="display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:4px; background:var(--green-bg,#1a2e1a); color:var(--green,#4caf50); border:1px solid var(--green-border,#2d4a2d);" title="Bereits in packagectl vorhanden">
+      {% if dep.status == 'astrapi-packages' %}
+        {# Grün: bereits in astrapi-packages verwaltet #}
+        <span style="display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:4px; background:var(--green-bg,#1a2e1a); color:var(--green,#4caf50); border:1px solid var(--green-border,#2d4a2d);" title="Bereits in astrapi-packages vorhanden">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           {{ dep.name }}
         </span>
@@ -18,8 +18,8 @@
           {{ dep.name }}
         </span>
       {% else %}
-        {# Orange: AUR-Paket, noch nicht in packagectl #}
-        <span style="display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:4px; background:var(--warn-bg,#2e2210); color:var(--warn,#f59e0b); border:1px solid var(--warn-border,#4a3510);" title="AUR-Paket – nicht in packagectl, ggf. hinzufügen">
+        {# Orange: AUR-Paket, noch nicht in astrapi-packages #}
+        <span style="display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:4px; background:var(--warn-bg,#2e2210); color:var(--warn,#f59e0b); border:1px solid var(--warn-border,#4a3510);" title="AUR-Paket – nicht in astrapi-packages, ggf. hinzufügen">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><circle cx="12" cy="12" r="10"/></svg>
           {{ dep.name }}
         </span>
@@ -27,7 +27,7 @@
     {% endfor %}
   </div>
   <div style="margin-top:8px; font-size:11px; color:var(--text-2,#888); display:flex; gap:12px;">
-    <span style="color:var(--green,#4caf50);">✓ packagectl</span>
+    <span style="color:var(--green,#4caf50);">✓ astrapi-packages</span>
     <span style="color:var(--text-2,#888);">● offiziell</span>
     <span style="color:var(--warn,#f59e0b);">⚠ AUR fehlt</span>
   </div>

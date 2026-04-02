@@ -49,7 +49,7 @@ def build_package(item_id: str) -> None:
         log.warning("pakete.build: Eintrag '%s' nicht gefunden", item_id)
         return
 
-    from packagectl._paths import repo_dir as _repo_dir
+    from astrapi_packages._paths import repo_dir as _repo_dir
     s           = _settings()
     image       = s("default_image", "ctl/arch-builder:latest")
     repo_path   = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
@@ -309,7 +309,7 @@ def build_package_with_deps(item_id: str) -> None:
     """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem Hauptpaket."""
     from .storage import store
     from .dep_graph import resolve_build_order, is_up_to_date, CyclicDependencyError
-    from packagectl._paths import repo_dir as _repo_dir
+    from astrapi_packages._paths import repo_dir as _repo_dir
 
     _sync_pkgbuild_deps(item_id, store)
 
