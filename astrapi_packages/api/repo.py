@@ -14,10 +14,19 @@ _DISTROS: dict[str, str] = {
 }
 
 
+def _configured_repo_base() -> Path:
+    """Gibt den konfigurierten Repository-Pfad zurück (Einstellung 'repo_path' aus pakete-Modul)."""
+    from pathlib import Path as _Path
+    from astrapi.core.ui.settings_registry import get_module
+    from astrapi_packages._paths import repo_dir as _repo_dir
+    raw = get_module("pakete", "repo_path", default="")
+    return _Path(raw).resolve() if raw else _repo_dir().resolve()
+
+
 def _distro_dir(distro: str):
     """Gibt das Verzeichnis für eine Distro zurück."""
-    base = repo_dir()
-    # Wenn work_dir/repo/arch existiert, nutze das; sonst work_dir/repo direkt (Bestandskompatibilität)
+    base = _configured_repo_base()
+    # Wenn <base>/arch existiert, nutze das; sonst base direkt (Bestandskompatibilität)
     sub = base / distro
     return sub if sub.exists() else base
 
