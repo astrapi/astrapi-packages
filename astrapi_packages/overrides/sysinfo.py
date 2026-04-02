@@ -46,7 +46,7 @@ def _db_size() -> str:
 
 def _extra_info() -> dict:
     return {
-        "PackageCtl": _app_version(),
+        "Package Control": _app_version(),
         "Core":       _core_version(),
         "DB":         _db_size(),
     }

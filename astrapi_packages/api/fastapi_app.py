@@ -15,7 +15,7 @@ def create(modules: list | None = None) -> FastAPI:
     """
     _version = get_app_version(APP_ROOT, default="1.0.0")
     app = FastAPI(
-        title="PackageCtl API",
+        title="Package Control API",
         version=_version,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
