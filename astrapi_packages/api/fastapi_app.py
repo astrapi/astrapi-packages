@@ -27,4 +27,7 @@ def create(modules: list | None = None) -> FastAPI:
         modules, _ = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)
 
+    from astrapi_packages.api.repo import router as repo_router
+    app.include_router(repo_router)
+
     return app
