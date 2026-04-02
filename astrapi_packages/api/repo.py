@@ -1,6 +1,6 @@
 """astrapi_packages.api.repo – Pacman/APT-Repository HTTP-Server."""
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from astrapi_packages._paths import repo_dir
@@ -49,10 +49,12 @@ _CSS = """
     td.size { text-align: right; color: #8b949e; white-space: nowrap; }
     a { text-decoration: none; color: #58a6ff; }
     a:hover { text-decoration: underline; }
+    p.back { margin-bottom: 1rem; font-size: 0.85rem; }
 """
 
 
-def _page(title: str, hint: str, rows_html: str) -> str:
+def _page(title: str, hint: str, rows_html: str, back: str | None = None) -> str:
+    back_html = f'<p class="back"><a href="{back}">← Verfügbare Distributionen</a></p>' if back else ""
     return f"""<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -61,6 +63,7 @@ def _page(title: str, hint: str, rows_html: str) -> str:
   <style>{_CSS}</style>
 </head>
 <body>
+  {back_html}
   <h1>{title}</h1>
   <p class="hint">{hint}</p>
   <table>
@@ -111,7 +114,7 @@ def distro_redirect(distro: str):
 # /repo/{distro}/  –  Datei-Listing
 # ---------------------------------------------------------------------------
 @router.get("/repo/{distro}/", response_class=HTMLResponse, include_in_schema=False)
-def distro_listing(distro: str):
+def distro_listing(request: Request, distro: str):
     if distro not in _DISTROS:
         raise HTTPException(status_code=404, detail="Unbekannte Distribution")
 
@@ -122,6 +125,7 @@ def distro_listing(distro: str):
             status_code=404,
         )
 
+    base_url = str(request.base_url).rstrip("/")
     files = sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
     rows = "\n".join(
         f'<tr><td><a href="/repo/{distro}/{f.name}">{f.name}</a></td>'
@@ -130,8 +134,9 @@ def distro_listing(distro: str):
     )
     return HTMLResponse(_page(
         title=f"Repository · {distro}",
-        hint=f'pacman.conf: <code>Server = http://&lt;host&gt;/repo/{distro}</code>',
+        hint=f'pacman.conf: <code>Server = {base_url}/repo/{distro}</code>',
         rows_html=rows or '<tr><td colspan="2">Keine Dateien vorhanden.</td></tr>',
+        back="/repo/",
     ))
 
 
