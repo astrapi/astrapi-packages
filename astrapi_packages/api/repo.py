@@ -1,5 +1,6 @@
 """astrapi_packages.api.repo – Pacman/APT-Repository HTTP-Server."""
 from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
@@ -9,27 +10,29 @@ router = APIRouter()
 
 _UNITS = [("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)]
 
-# Bekannte Distros → lokales Verzeichnis
-_DISTROS: dict[str, str] = {
-    "arch": "arch",  # work_dir/repo/arch  (aktuell: work_dir/repo als Fallback)
+# Bekannte Distros → unterstützte Architekturen
+_DISTROS: dict[str, list[str]] = {
+    "arch": ["x86_64"],
 }
 
 
 def _configured_repo_base() -> Path:
     """Gibt den konfigurierten Repository-Pfad zurück (Einstellung 'repo_path' aus pakete-Modul)."""
-    from pathlib import Path as _Path
     from astrapi.core.ui.settings_registry import get_module
     from astrapi_packages._paths import repo_dir as _repo_dir
     raw = get_module("pakete", "repo_path", default="")
-    return _Path(raw).resolve() if raw else _repo_dir().resolve()
+    return Path(raw).resolve() if raw else _repo_dir().resolve()
 
 
-def _distro_dir(distro: str):
-    """Gibt das Verzeichnis für eine Distro zurück."""
+def _arch_dir(distro: str, arch: str) -> Path:
+    """Verzeichnis für distro/arch – mit Fallback auf flache Struktur."""
     base = _configured_repo_base()
-    # Wenn <base>/arch existiert, nutze das; sonst base direkt (Bestandskompatibilität)
-    sub = base / distro
-    return sub if sub.exists() else base
+    # Tiefe Struktur: base/arch/x86_64/
+    deep = base / distro / arch
+    if deep.exists():
+        return deep
+    # Flache Struktur: base/ (Bestandskompatibilität)
+    return base
 
 
 def _fmt_size(n: int) -> str:
@@ -43,18 +46,18 @@ _CSS = """
     body { font-family: monospace; padding: 2rem; background: #0d1117; color: #c9d1d9; }
     h1 { color: #58a6ff; margin-bottom: 0.25rem; }
     p.hint { color: #8b949e; font-size: 0.85rem; margin-bottom: 1.5rem; }
+    p.back { margin-bottom: 1rem; font-size: 0.85rem; }
     table { border-collapse: collapse; width: 100%; }
     thead th { text-align: left; padding: 0.4rem 1rem; border-bottom: 2px solid #30363d; color: #8b949e; }
     td { padding: 0.3rem 1rem; border-bottom: 1px solid #21262d; }
     td.size { text-align: right; color: #8b949e; white-space: nowrap; }
     a { text-decoration: none; color: #58a6ff; }
     a:hover { text-decoration: underline; }
-    p.back { margin-bottom: 1rem; font-size: 0.85rem; }
 """
 
 
 def _page(title: str, hint: str, rows_html: str, back: str | None = None) -> str:
-    back_html = f'<p class="back"><a href="{back}">← Verfügbare Distributionen</a></p>' if back else ""
+    back_html = f'<p class="back"><a href="{back}">← Zurück</a></p>' if back else ""
     return f"""<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -85,7 +88,7 @@ def repo_redirect():
 
 
 # ---------------------------------------------------------------------------
-# /repo/  –  Top-Level: Distro-Übersicht
+# /repo/  –  Distro-Übersicht
 # ---------------------------------------------------------------------------
 @router.get("/repo/", response_class=HTMLResponse, include_in_schema=False)
 def repo_index():
@@ -111,14 +114,46 @@ def distro_redirect(distro: str):
 
 
 # ---------------------------------------------------------------------------
-# /repo/{distro}/  –  Datei-Listing
+# /repo/{distro}/  –  Architektur-Übersicht
 # ---------------------------------------------------------------------------
 @router.get("/repo/{distro}/", response_class=HTMLResponse, include_in_schema=False)
-def distro_listing(request: Request, distro: str):
+def distro_index(request: Request, distro: str):
     if distro not in _DISTROS:
         raise HTTPException(status_code=404, detail="Unbekannte Distribution")
 
-    d = _distro_dir(distro)
+    base_url = str(request.base_url).rstrip("/")
+    arches = _DISTROS[distro]
+    rows = "\n".join(
+        f'<tr><td><a href="/repo/{distro}/{arch}/">{arch}/</a></td><td class="size">—</td></tr>'
+        for arch in arches
+    )
+    return HTMLResponse(_page(
+        title=f"Repository · {distro}",
+        hint=f'pacman.conf: <code>Server = {base_url}/repo/{distro}/$arch</code>',
+        rows_html=rows,
+        back="/repo/",
+    ))
+
+
+# ---------------------------------------------------------------------------
+# /repo/{distro}/{arch}  →  /repo/{distro}/{arch}/
+# ---------------------------------------------------------------------------
+@router.get("/repo/{distro}/{arch}", include_in_schema=False)
+def arch_redirect(distro: str, arch: str):
+    if distro not in _DISTROS or arch not in _DISTROS[distro]:
+        raise HTTPException(status_code=404)
+    return RedirectResponse(url=f"/repo/{distro}/{arch}/", status_code=301)
+
+
+# ---------------------------------------------------------------------------
+# /repo/{distro}/{arch}/  –  Datei-Listing
+# ---------------------------------------------------------------------------
+@router.get("/repo/{distro}/{arch}/", response_class=HTMLResponse, include_in_schema=False)
+def arch_listing(request: Request, distro: str, arch: str):
+    if distro not in _DISTROS or arch not in _DISTROS[distro]:
+        raise HTTPException(status_code=404)
+
+    d = _arch_dir(distro, arch)
     if not d.exists():
         return HTMLResponse(
             "<html><body><p>Repository-Verzeichnis nicht vorhanden.</p></body></html>",
@@ -128,29 +163,28 @@ def distro_listing(request: Request, distro: str):
     base_url = str(request.base_url).rstrip("/")
     files = sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
     rows = "\n".join(
-        f'<tr><td><a href="/repo/{distro}/{f.name}">{f.name}</a></td>'
+        f'<tr><td><a href="/repo/{distro}/{arch}/{f.name}">{f.name}</a></td>'
         f'<td class="size">{_fmt_size(f.stat().st_size)}</td></tr>'
         for f in files
     )
     return HTMLResponse(_page(
-        title=f"Repository · {distro}",
-        hint=f'pacman.conf: <code>Server = {base_url}/repo/{distro}</code>',
+        title=f"Repository · {distro} · {arch}",
+        hint=f'pacman.conf: <code>Server = {base_url}/repo/{distro}/$arch</code>',
         rows_html=rows or '<tr><td colspan="2">Keine Dateien vorhanden.</td></tr>',
-        back="/repo/",
+        back=f"/repo/{distro}/",
     ))
 
 
 # ---------------------------------------------------------------------------
-# /repo/{distro}/{filename}  –  Datei-Download
+# /repo/{distro}/{arch}/{filename}  –  Datei-Download
 # ---------------------------------------------------------------------------
-@router.get("/repo/{distro}/{filename}", include_in_schema=False)
-def distro_file(distro: str, filename: str):
-    if distro not in _DISTROS:
-        raise HTTPException(status_code=404, detail="Unbekannte Distribution")
+@router.get("/repo/{distro}/{arch}/{filename}", include_in_schema=False)
+def arch_file(distro: str, arch: str, filename: str):
+    if distro not in _DISTROS or arch not in _DISTROS[distro]:
+        raise HTTPException(status_code=404)
 
-    d = _distro_dir(distro)
+    d = _arch_dir(distro, arch)
     path = (d / filename).resolve()
-    # Pfad-Traversal verhindern
     if not str(path).startswith(str(d.resolve())):
         raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
     if not path.exists() or not path.is_file():
