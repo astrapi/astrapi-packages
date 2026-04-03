@@ -42,14 +42,45 @@ def _settings():
 
 
 def _arch_repo_path() -> str:
-    """Gibt <repo_path>/arch/x86_64/ zurück und legt das Verzeichnis an."""
+    """Gibt <repo_path>/arch/x86_64/ zurück, legt das Verzeichnis an und migriert ggf. flache Struktur."""
     from astrapi_packages._paths import repo_dir as _repo_dir
     s = _settings()
     base = Path(s("repo_path", "") or str(_repo_dir())).resolve()
     path = base / "arch" / "x86_64"
     path.mkdir(parents=True, exist_ok=True)
     path.chmod(0o777)
+    _migrate_flat_repo(base, path)
     return str(path)
+
+
+_MIGRATE_PATTERNS = ("*.pkg.tar.*", "*.db", "*.db.tar.*", "*.files", "*.files.tar.*")
+_migrated_bases: set[Path] = set()
+
+
+def _migrate_flat_repo(base: Path, target: Path) -> None:
+    """Verschiebt Paket- und DB-Dateien aus base/ nach target/ (einmalig pro Prozess)."""
+    import glob as _glob
+    import shutil
+
+    if base in _migrated_bases:
+        return
+    _migrated_bases.add(base)
+
+    candidates = []
+    for pattern in _MIGRATE_PATTERNS:
+        candidates.extend(Path(p) for p in _glob.glob(str(base / pattern)))
+
+    if not candidates:
+        return
+
+    log.info("_migrate_flat_repo: %d Datei(en) von %s → %s", len(candidates), base, target)
+    for src in candidates:
+        dst = target / src.name
+        try:
+            shutil.move(str(src), str(dst))
+            log.info("_migrate_flat_repo: verschoben %s", src.name)
+        except Exception as e:
+            log.warning("_migrate_flat_repo: Fehler bei %s: %s", src.name, e)
 
 
 def build_package(item_id: str) -> None:
