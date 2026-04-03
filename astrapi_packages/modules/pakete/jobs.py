@@ -41,6 +41,17 @@ def _settings():
     return s
 
 
+def _arch_repo_path() -> str:
+    """Gibt <repo_path>/arch/x86_64/ zurück und legt das Verzeichnis an."""
+    from astrapi_packages._paths import repo_dir as _repo_dir
+    s = _settings()
+    base = Path(s("repo_path", "") or str(_repo_dir())).resolve()
+    path = base / "arch" / "x86_64"
+    path.mkdir(parents=True, exist_ok=True)
+    path.chmod(0o777)
+    return str(path)
+
+
 def build_package(item_id: str) -> None:
     from .storage import store
 
@@ -49,10 +60,9 @@ def build_package(item_id: str) -> None:
         log.warning("pakete.build: Eintrag '%s' nicht gefunden", item_id)
         return
 
-    from astrapi_packages._paths import repo_dir as _repo_dir
     s           = _settings()
     image       = s("default_image", "ctl/arch-builder:latest")
-    repo_path   = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
+    repo_path   = _arch_repo_path()
     repo_name   = s("repo_name",     "pkgctl")
     source_url    = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
@@ -74,11 +84,6 @@ def build_package(item_id: str) -> None:
                                status="running", item_id=item_id)
     except Exception:
         pass
-
-    # Ausgabeverzeichnis sicherstellen (777 damit Container-User schreiben kann)
-    p = Path(repo_path)
-    p.mkdir(parents=True, exist_ok=True)
-    p.chmod(0o777)
 
     tmpdir = None
     try:
@@ -211,13 +216,12 @@ def delete_package(item_id: str, item: dict) -> None:
     Löscht außerdem verwaiste Dependency-Einträge die nur von diesem Paket
     benötigt wurden.
     """
-    from astrapi.core.system.paths import work_dir as _work_dir
     import glob as _glob
     from .storage import store
     from .dep_graph import find_orphan_deps
 
     s         = _settings()
-    repo_path = str(Path(s("repo_path", "") or str(_work_dir() / "repo")).resolve())
+    repo_path = _arch_repo_path()
     repo_name = s("repo_name", "pkgctl")
 
     # Verwaiste Deps ermitteln BEVOR der Eintrag gelöscht wird
@@ -309,12 +313,11 @@ def build_package_with_deps(item_id: str) -> None:
     """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem Hauptpaket."""
     from .storage import store
     from .dep_graph import resolve_build_order, is_up_to_date, CyclicDependencyError
-    from astrapi_packages._paths import repo_dir as _repo_dir
 
     _sync_pkgbuild_deps(item_id, store)
 
     s         = _settings()
-    repo_path = str(Path(s("repo_path", "") or str(_repo_dir())).resolve())
+    repo_path = _arch_repo_path()
 
     try:
         build_order = resolve_build_order([item_id], store)

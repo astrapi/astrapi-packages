@@ -25,14 +25,8 @@ def _configured_repo_base() -> Path:
 
 
 def _arch_dir(distro: str, arch: str) -> Path:
-    """Verzeichnis für distro/arch – mit Fallback auf flache Struktur."""
-    base = _configured_repo_base()
-    # Tiefe Struktur: base/arch/x86_64/
-    deep = base / distro / arch
-    if deep.exists():
-        return deep
-    # Flache Struktur: base/ (Bestandskompatibilität)
-    return base
+    """Verzeichnis für distro/arch."""
+    return _configured_repo_base() / distro / arch
 
 
 def _fmt_size(n: int) -> str:
