@@ -40,8 +40,8 @@ else
     echo "==> Lokales Repo leer oder nicht vorhanden – wird übersprungen."
 fi
 
-# Paketdatenbanken aktualisieren (nach lokaler Repo-Registrierung)
-sudo pacman -Sy --noconfirm
+# System vollständig aktualisieren (nach lokaler Repo-Registrierung)
+sudo pacman -Syu --noconfirm
 
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
