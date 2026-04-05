@@ -50,7 +50,7 @@ fi
 echo "→ Setze Tag $TAG …"
 git tag "$TAG"
 git push
-git push --tags
+git push origin "$TAG"
 echo "  ✓ Gepusht"
 
 # ── Paket bauen ───────────────────────────────────────────────────────────────
