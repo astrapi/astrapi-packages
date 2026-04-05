@@ -1,8 +1,9 @@
 # app/modules/pakete/modul.yaml
 
-label:     Pakete
-icon:      package
-nav_group: Pakete
+label:           Pakete
+icon:            package
+nav_group:       Pakete
+settings_button: false
 
 card_actions:
   - title:     "Paket bauen"
