@@ -4,10 +4,8 @@
 # ── Web-Framework ─────────────────────────────────────────────────
 fastapi>=0.115
 uvicorn[standard]>=0.30
-a2wsgi>=1.10            # WSGIMiddleware: Flask in FastAPI einbetten
 
 # ── UI / Templates ────────────────────────────────────────────────
-flask>=3.0
 jinja2>=3.1             # direkt verwendet (ChoiceLoader)
 
 # ── Scheduler ─────────────────────────────────────────────────────

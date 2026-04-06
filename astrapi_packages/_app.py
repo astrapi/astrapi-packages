@@ -10,7 +10,6 @@ _configure_paths("astrapi-packages")
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from a2wsgi import WSGIMiddleware
 
 from astrapi.core.ui import create as create_ui
 from astrapi.core.ui.module_registry import load_modules
@@ -49,13 +48,13 @@ def create_app() -> FastAPI:
 
     modules, _ = load_modules(_pkg)
     api = create_api(modules=modules)
-    ui  = create_ui(app_root=_pkg, modules=modules)
 
     import astrapi.core.ui
     from pathlib import Path
     core_static = Path(astrapi.core.ui.__file__).parent / "static"
     api.mount("/static", StaticFiles(directory=str(core_static)), name="static")
-    api.mount("/", WSGIMiddleware(ui))
+
+    create_ui(api, app_root=_pkg, modules=modules)
 
     register_health(api, check_fn=_db_check, start_time=_START_TIME)
     start_watchdog(check_fn=lambda: _db_check()[0])

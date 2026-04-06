@@ -1,14 +1,16 @@
-"""app/modules/docker/ui.py – Flask-Blueprint für das Docker-Modul."""
+"""app/modules/docker/ui.py – FastAPI-Router für das Docker-Modul."""
 
 from pathlib import Path
 
-from flask import Blueprint, render_template
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 
+from astrapi.core.ui.render import render
 from .images import IMAGES
 from .storage import store
 
-KEY = "docker"
-bp = Blueprint(f"{KEY}_ui", __name__)
+KEY    = "docker"
+router = APIRouter()
 
 
 def _items() -> dict:
@@ -36,30 +38,28 @@ def _ctx(**extra) -> dict:
     )
 
 
-# ── Listen-Route (wird vom Framework für HTMX-Reloads genutzt) ───────────────
+# ── Listen-Route ──────────────────────────────────────────────────────────────
 
-@bp.route(f"/ui/{KEY}/content")
-def content():
-    return render_template("partials/list_wrapper.html", **_ctx())
+@router.get(f"/ui/{KEY}/content", response_class=HTMLResponse)
+def content(request: Request):
+    return render(request, "partials/list_wrapper.html", _ctx())
 
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
 
-@bp.route(f"/ui/{KEY}/<item_id>/build", methods=["POST"])
-def build_item(item_id: str):
+@router.post(f"/ui/{KEY}/{{item_id}}/build", response_class=HTMLResponse)
+def build_item(item_id: str, request: Request):
     if item_id not in IMAGES:
-        return "Nicht gefunden", 404
+        return HTMLResponse("Nicht gefunden", status_code=404)
     from .jobs import build_image_async
     build_image_async(item_id)
-    return render_template("partials/list_wrapper_inner.html", **_ctx())
+    return render(request, "partials/list_wrapper_inner.html", _ctx())
 
 
-
-@bp.route(f"/ui/{KEY}/<item_id>/log")
-def log_item(item_id: str):
+@router.get(f"/ui/{KEY}/{{item_id}}/log", response_class=HTMLResponse)
+def log_item(item_id: str, request: Request):
     item = store.get(item_id) or {}
-    return render_template(
-        f"{KEY}/partials/log_modal.html",
+    return render(request, f"{KEY}/partials/log_modal.html", dict(
         item_id=item_id,
         item_data=item,
-    )
+    ))
