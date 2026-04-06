@@ -1,4 +1,4 @@
-<td style="white-space:nowrap">
+<td class="col-type">
   {% if item_data.orphaned %}
     <span class="badge-pill" style="background:rgba(220,38,38,0.15);border-color:rgba(248,113,113,0.25);color:#f87171" title="Wird von keinem Paket mehr benötigt">Verwaist</span>
   {% elif item_data.pkg_type == 'dependency' %}
@@ -7,7 +7,7 @@
     <span class="badge-pill badge-live">Paket</span>
   {% endif %}
 </td>
-<td class="col-trunc" {% if item_data.pkg_type == 'dependency' %}style="opacity:.7"{% endif %}>
+<td class="col-trunc">
   {% if item_data.source_url %}
     {% set _url = item_data.source_url %}
     {% if 'aur.archlinux.org' in _url %}
@@ -18,19 +18,9 @@
     <a href="{{ _href }}" target="_blank" rel="noopener">{{ _url }}</a>
   {% else %}—{% endif %}
 </td>
-<td style="white-space:nowrap;font-family:monospace;font-size:.85em;max-width:160px;overflow:hidden;text-overflow:ellipsis">
+<td class="col-version">
   {{ item_data.last_version or '—' }}
-</td>
-<td style="white-space:nowrap">{{ item_data.last_built or '—' }}</td>
-<td>
-  {% if item_data.last_status in ('building', 'pending') %}
-    {{ ui.status_inline(item_data.last_status) }}
-  {% elif item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
-    <span class="status-inline status-inline--warning" title="Installiert: {{ item_data.last_version }} → Neu: {{ item_data.upstream_version }}">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 20h20L12 2z"/></svg>
-      Update
-    </span>
-  {% else %}
-    {{ ui.status_inline(item_data.last_status) }}
+  {% if item_data.upstream_version and item_data.upstream_version != item_data.last_version %}
+    <span title="Neu: {{ item_data.upstream_version }}" style="margin-left:4px;color:#fbbf24;">→ {{ item_data.upstream_version }}</span>
   {% endif %}
 </td>

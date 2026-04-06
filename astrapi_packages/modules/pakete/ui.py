@@ -111,18 +111,14 @@ _crud = make_crud_router(
     schema_path=str(_DIR / "schema.yaml"),
     label="Paket",
     description_field="name",
-    has_run_buttons=False,
+    has_run_buttons=True,
     extra_page_actions_template=f"{KEY}/partials/page_actions.html",
 )
 
-# Aus dem CRUD-Router nur delete + toggle übernehmen –
-# wir re-exportieren alles und überschreiben die spezifischen Routen manuell.
-# Da FastAPI letzte Route gewinnt bei gleichen Pfaden, definieren wir
-# unsere Overrides als eigenständigen Router NACH dem CRUD-Router.
+# Eigene Routen werden ZUERST auf diesem Router registriert,
+# danach wird der CRUD-Router eingebunden (FastAPI: first-match).
+# So gewinnen unsere Overrides für create/edit/create_apply/edit_apply.
 router = APIRouter()
-
-# Alle CRUD-Routen einfügen
-router.include_router(_crud)
 
 
 def _ctx():
@@ -140,7 +136,6 @@ def _ctx():
         content_template=f"{KEY}/partials/list.html",
         extra_page_actions_template=f"{KEY}/partials/page_actions.html",
         running=running,
-        has_run_buttons=False,
     )
 
 
@@ -434,3 +429,7 @@ def check_updates(request: Request):
                 store.update(item_id, {"upstream_version": upstream})
 
     return render(request, "partials/list_wrapper_inner.html", _ctx())
+
+
+# CRUD-Router am Ende einbinden – eigene Routen oben haben Vorrang (first-match)
+router.include_router(_crud)

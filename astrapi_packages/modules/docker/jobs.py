@@ -36,7 +36,7 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
 
 
 def build_image(item_id: str) -> None:
-    """Baut ein Docker-Image synchron. Aktualisiert last_status/last_built/last_log im Store."""
+    """Baut ein Docker-Image synchron. Aktualisiert last_status/last_run/last_log im Store."""
     from .storage import store
     from .images import IMAGES
 
@@ -48,7 +48,7 @@ def build_image(item_id: str) -> None:
     tag        = IMAGES[item_id].get("tag", "latest")
     dockerfile = _DOCKERFILES / f"{item_id}.dockerfile"
 
-    store.upsert(item_id, {"last_status": "building", "last_built": _now()})
+    store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
     import time as _time
     _t0 = _time.time()
@@ -69,7 +69,7 @@ def build_image(item_id: str) -> None:
 
     store.upsert(item_id, {
         "last_status": status,
-        "last_built":  _now(),
+        "last_run":  _now(),
         "last_log":    output[-20_000:],
     })
 

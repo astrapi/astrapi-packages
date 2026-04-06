@@ -29,7 +29,6 @@ def _ctx(**extra) -> dict:
         loading_id=f"{KEY}-loading",
         content_template=f"{KEY}/partials/list.html",
         running={},
-        has_run_buttons=False,
         has_create=False,
         has_edit=False,
         has_delete=False,

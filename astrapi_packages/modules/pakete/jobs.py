@@ -100,11 +100,11 @@ def build_package(item_id: str) -> None:
     pkgbuild    = item.get("pkgbuild_content") or ""
 
     if not source_url and not pkgbuild.strip():
-        store.update(item_id, {"last_status": "error", "last_built": _now(),
+        store.update(item_id, {"last_status": "error", "last_run": _now(),
                                 "last_log": "Keine Git-URL und kein PKGBUILD-Inhalt vorhanden."})
         return
 
-    store.update(item_id, {"last_status": "building", "last_built": _now()})
+    store.update(item_id, {"last_status": "building", "last_run": _now()})
 
     import time as _time
     _t0 = _time.time()
@@ -162,7 +162,7 @@ def build_package(item_id: str) -> None:
 
     update: dict = {
         "last_status": status,
-        "last_built":  _now(),
+        "last_run":  _now(),
         "last_log":    output[-20_000:],
     }
     if version:
@@ -355,7 +355,7 @@ def build_package_with_deps(item_id: str) -> None:
     except CyclicDependencyError as e:
         store.update(item_id, {
             "last_status": "error",
-            "last_built":  _now(),
+            "last_run":  _now(),
             "last_log":    str(e),
         })
         return
@@ -378,7 +378,7 @@ def build_package_with_deps(item_id: str) -> None:
         if dep_item and dep_item.get("last_status") == "error":
             store.update(item_id, {
                 "last_status": "error",
-                "last_built":  _now(),
+                "last_run":  _now(),
                 "last_log":    f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.\n\n"
                                f"{dep_item.get('last_log', '')}",
             })
