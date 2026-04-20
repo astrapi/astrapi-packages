@@ -18,7 +18,7 @@ _lock  = threading.Lock()
 
 def _repo_paths() -> list[str]:
     try:
-        from astrapi.core.ui.settings_registry import get_module
+        from astrapi_core.ui.settings_registry import get_module
         raw = get_module("pakete", "gitlab_group", []) or []
         if isinstance(raw, str):
             lines = [raw]

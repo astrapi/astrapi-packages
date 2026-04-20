@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from astrapi.core.ui.render import render
+from astrapi_core.ui.render import render
 from .images import IMAGES
 from .storage import store
 
@@ -27,7 +27,7 @@ def _ctx(**extra) -> dict:
         module=KEY,
         container_id=f"tab-{KEY}",
         loading_id=f"{KEY}-loading",
-        content_template=f"{KEY}/partials/list.html",
+        content_template=f"{KEY}/partials/card_body.html",
         running={},
         has_create=False,
         has_edit=False,
@@ -41,7 +41,7 @@ def _ctx(**extra) -> dict:
 
 @router.get(f"/ui/{KEY}/content", response_class=HTMLResponse)
 def content(request: Request):
-    return render(request, "partials/list_wrapper.html", _ctx())
+    return render(request, "content.html", _ctx())
 
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
@@ -58,7 +58,7 @@ def build_item(item_id: str, request: Request):
 @router.get(f"/ui/{KEY}/{{item_id}}/log", response_class=HTMLResponse)
 def log_item(item_id: str, request: Request):
     item = store.get(item_id) or {}
-    return render(request, f"{KEY}/partials/log_modal.html", dict(
+    return render(request, f"{KEY}/modals/log.html", dict(
         item_id=item_id,
         item_data=item,
     ))

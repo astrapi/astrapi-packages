@@ -4,7 +4,7 @@ Start:
     astrapi-packages --work-dir /opt/astrapi-packages --port 5001
     astrapi-packages --work-dir /opt/astrapi-packages --port 5001 --debug    # Debug-Modus (inkl. reload)
 """
-from astrapi.core.system.paths import run_app
+from astrapi_core.system.paths import run_app
 
 
 def main() -> None:

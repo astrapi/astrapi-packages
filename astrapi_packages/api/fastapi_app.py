@@ -1,6 +1,6 @@
 """astrapi_packages.api.fastapi_app – FastAPI-Factory."""
 from fastapi import FastAPI
-from astrapi.core.system.version import get_app_version
+from astrapi_core.system.version import get_app_version
 
 from astrapi_packages._paths import package_dir
 
@@ -22,7 +22,7 @@ def create(modules: list | None = None) -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
-    from astrapi.core.ui.module_registry import load_modules, register_fastapi_modules
+    from astrapi_core.ui.module_registry import load_modules, register_fastapi_modules
     if modules is None:
         modules, _ = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)

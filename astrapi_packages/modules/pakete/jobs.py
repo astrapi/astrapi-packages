@@ -36,7 +36,7 @@ def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
 
 
 def _settings():
-    from astrapi.core.ui.settings_registry import get_module as _get
+    from astrapi_core.ui.settings_registry import get_module as _get
     def s(key, default): return _get("pakete", key, default)
     return s
 
@@ -110,7 +110,7 @@ def build_package(item_id: str) -> None:
     _t0 = _time.time()
     _act_id = None
     try:
-        from astrapi.core.system.activity_log import log_activity
+        from astrapi_core.system.activity_log import log_activity
         _act_id = log_activity("job", "pakete", f"Paket bauen: {item_id}",
                                status="running", item_id=item_id)
     except Exception:
@@ -171,7 +171,7 @@ def build_package(item_id: str) -> None:
 
     if _act_id:
         try:
-            from astrapi.core.system.activity_log import update_activity_log
+            from astrapi_core.system.activity_log import update_activity_log
             update_activity_log(
                 log_id=_act_id,
                 status=status,
@@ -183,7 +183,7 @@ def build_package(item_id: str) -> None:
             pass
 
     try:
-        from astrapi.core.modules.notify import engine as _notify
+        from astrapi_core.modules.notify import engine as _notify
         if status == "ok":
             ver_info = f" ({version})" if version else ""
             _notify.send(
@@ -445,7 +445,7 @@ def update_all_packages() -> None:
     _t0 = _time.time()
     _act_id = None
     try:
-        from astrapi.core.system.activity_log import log_activity
+        from astrapi_core.system.activity_log import log_activity
         _act_id = log_activity("job", "pakete", "Pakete: Aktualisieren", status="running")
     except Exception:
         pass
@@ -453,7 +453,7 @@ def update_all_packages() -> None:
     def _finish(status: str, built: int = 0, error: str | None = None):
         if _act_id:
             try:
-                from astrapi.core.system.activity_log import update_activity_log
+                from astrapi_core.system.activity_log import update_activity_log
                 update_activity_log(
                     log_id=_act_id,
                     status=status,
@@ -546,7 +546,7 @@ def update_all_packages() -> None:
     _finish(final_status, built=built_count, error=error_msg)
 
     try:
-        from astrapi.core.modules.notify import engine as _notify
+        from astrapi_core.modules.notify import engine as _notify
         if errors:
             _notify.send(
                 title="Pakete: Aktualisieren – Fehler",

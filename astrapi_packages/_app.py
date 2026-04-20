@@ -5,20 +5,20 @@ Wird von astrapi_packages._cli (Console-Script) und direkt von uvicorn importier
 """
 import time
 
-from astrapi.core.system.paths import configure as _configure_paths
+from astrapi_core.system.paths import configure as _configure_paths
 _configure_paths("astrapi-packages")
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from astrapi.core.ui import create as create_ui
-from astrapi.core.ui.module_registry import load_modules
-from astrapi.core.ui.settings_registry import init as settings_init
-from astrapi.core.system.health import register_health
-from astrapi.core.system.systemd import sd_notify, start_watchdog
-from astrapi.core.system.version import get_display_name
-from astrapi.core.modules.settings.engine import configure as configure_settings
-from astrapi.core.modules.updater.engine import configure as configure_updater
+from astrapi_core.ui import create as create_ui
+from astrapi_core.ui.module_registry import load_modules
+from astrapi_core.ui.settings_registry import init as settings_init
+from astrapi_core.system.health import register_health
+from astrapi_core.system.systemd import sd_notify, start_watchdog
+from astrapi_core.system.version import get_display_name
+from astrapi_core.modules.settings.engine import configure as configure_settings
+from astrapi_core.modules.system.updater import configure as configure_updater
 
 from astrapi_packages._paths import package_dir, work_dir, db_path
 from astrapi_packages.api.fastapi_app import create as create_api
@@ -27,7 +27,7 @@ _START_TIME = time.time()
 
 
 def _db_check() -> tuple[bool, dict]:
-    from astrapi.core.system.db import _conn
+    from astrapi_core.system.db import _conn
     try:
         _conn().execute("SELECT 1").fetchone()
         return True, {"db": True}
@@ -40,7 +40,7 @@ def create_app() -> FastAPI:
     configure_settings(health_fn=_db_check, app_name=get_display_name(_pkg))
     configure_updater(_pkg)
 
-    from astrapi.core.system.db import configure as _configure_db, create_all_registered_tables
+    from astrapi_core.system.db import configure as _configure_db, create_all_registered_tables
     _configure_db(db_path())
     create_all_registered_tables()
 
@@ -49,9 +49,9 @@ def create_app() -> FastAPI:
     modules, _ = load_modules(_pkg)
     api = create_api(modules=modules)
 
-    import astrapi.core.ui
+    import astrapi_core.ui
     from pathlib import Path
-    core_static = Path(astrapi.core.ui.__file__).parent / "static"
+    core_static = Path(astrapi_core.ui.__file__).parent / "static"
     api.mount("/static", StaticFiles(directory=str(core_static)), name="static")
 
     create_ui(api, app_root=_pkg, modules=modules)

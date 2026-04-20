@@ -1,7 +1,6 @@
 # app/modules/docker/modul.yaml
 
 label:     Docker Images
-icon:      box
 nav_group: Pakete
 
 card_actions:

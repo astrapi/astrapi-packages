@@ -54,7 +54,7 @@ def build_image(item_id: str) -> None:
     _t0 = _time.time()
     _act_id = None
     try:
-        from astrapi.core.system.activity_log import log_activity
+        from astrapi_core.system.activity_log import log_activity
         _act_id = log_activity("job", "docker", f"Docker: {item_id} bauen",
                                status="running", item_id=item_id)
     except Exception:
@@ -75,7 +75,7 @@ def build_image(item_id: str) -> None:
 
     if _act_id:
         try:
-            from astrapi.core.system.activity_log import update_activity_log
+            from astrapi_core.system.activity_log import update_activity_log
             update_activity_log(
                 log_id=_act_id,
                 status=status,
@@ -87,7 +87,7 @@ def build_image(item_id: str) -> None:
             pass
 
     try:
-        from astrapi.core.modules.notify import engine as _notify
+        from astrapi_core.modules.notify import engine as _notify
         if status == "ok":
             _notify.send(
                 title=f"Docker: {item_id} erfolgreich gebaut",

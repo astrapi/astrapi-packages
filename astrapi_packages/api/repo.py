@@ -18,7 +18,7 @@ _DISTROS: dict[str, list[str]] = {
 
 def _configured_repo_base() -> Path:
     """Gibt den konfigurierten Repository-Pfad zurück (Einstellung 'repo_path' aus pakete-Modul)."""
-    from astrapi.core.ui.settings_registry import get_module
+    from astrapi_core.ui.settings_registry import get_module
     from astrapi_packages._paths import repo_dir as _repo_dir
     raw = get_module("pakete", "repo_path", default="")
     return Path(raw).resolve() if raw else _repo_dir().resolve()

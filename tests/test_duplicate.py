@@ -6,11 +6,11 @@ import tempfile
 # Pfade einrichten
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from astrapi.core.system.paths import configure as _configure_paths
+from astrapi_core.system.paths import configure as _configure_paths
 _configure_paths("astrapi-packages")
 
 import pytest
-from astrapi.core.system.db import configure as _configure_db, create_all_registered_tables
+from astrapi_core.system.db import configure as _configure_db, create_all_registered_tables
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -22,17 +22,17 @@ def app(tmp_path):
     _configure_db(str(tmp_path / "test.db"))
     create_all_registered_tables()
 
-    from astrapi.core.ui.settings_registry import init as settings_init
+    from astrapi_core.ui.settings_registry import init as settings_init
     settings_init(tmp_path)
 
     from astrapi_packages.modules.pakete.ui import router
-    from astrapi.core.ui.fastapi_templates import configure as configure_templates
+    from astrapi_core.ui.fastapi_templates import configure as configure_templates
     from jinja2 import ChoiceLoader, FileSystemLoader, Environment, PrefixLoader
     from starlette.templating import Jinja2Templates
     from pathlib import Path
-    from astrapi.core.ui.render import configure as configure_render
+    from astrapi_core.ui.render import configure as configure_render
 
-    core_tpl = Path(__file__).parent.parent / ".venv/lib/python3.14/site-packages/astrapi/core/ui/templates"
+    core_tpl = Path(__file__).parent.parent / ".venv/lib/python3.14/site-packages/astrapi_core/ui/templates"
     mod_tpl  = Path(__file__).parent.parent / "astrapi_packages/modules/pakete/templates"
 
     jinja_env = Environment(

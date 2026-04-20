@@ -5,9 +5,9 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from astrapi.core.ui.render import render
-from astrapi.core.ui.crud_blueprint import make_crud_router
-from astrapi.core.ui.schema_loader import load_schema
+from astrapi_core.ui.render import render
+from astrapi_core.ui.crud_blueprint import make_crud_router
+from astrapi_core.ui.schema_loader import load_schema
 from .storage import store, KEY
 
 _DIR    = Path(__file__).parent
@@ -133,7 +133,7 @@ def _ctx():
         module=KEY,
         container_id=f"tab-{KEY}",
         loading_id=f"{KEY}-loading",
-        content_template=f"{KEY}/partials/list.html",
+        content_template=f"{KEY}/partials/card_body.html",
         extra_page_actions_template=f"{KEY}/partials/page_actions.html",
         running=running,
     )
@@ -148,7 +148,7 @@ def status(request: Request):
 
 @router.get(f"/ui/{KEY}/create", response_class=HTMLResponse)
 def create_modal(request: Request):
-    return render(request, f"{KEY}/partials/combined_edit_modal.html", dict(
+    return render(request, f"{KEY}/modals/edit.html", dict(
         item_id=None,
         item=None,
         schema=_SCHEMA["fields"],
@@ -188,7 +188,7 @@ async def create_apply(request: Request):
     from .dep_graph import autocreate_deps
     autocreate_deps(item_id, data, store)
 
-    return render(request, "partials/list_wrapper.html", _ctx())
+    return render(request, "content.html", _ctx())
 
 
 @router.get(f"/ui/{KEY}/{{item_id}}/edit", response_class=HTMLResponse)
@@ -196,7 +196,7 @@ def edit_modal(item_id: str, request: Request):
     item = store.get(item_id)
     if item is None:
         return HTMLResponse("Nicht gefunden", status_code=404)
-    return render(request, f"{KEY}/partials/combined_edit_modal.html", dict(
+    return render(request, f"{KEY}/modals/edit.html", dict(
         item_id=item_id,
         item=item,
         schema=_SCHEMA["fields"],
@@ -217,7 +217,7 @@ async def edit_apply(item_id: str, request: Request):
         store.update(item_id, data)
         from .dep_graph import autocreate_deps
         autocreate_deps(item_id, data, store)
-    return render(request, "partials/list_wrapper.html", _ctx())
+    return render(request, "content.html", _ctx())
 
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
@@ -352,7 +352,7 @@ def build_item(item_id: str, request: Request):
 @router.get(f"/ui/{KEY}/{{item_id}}/log", response_class=HTMLResponse)
 def log_item(item_id: str, request: Request):
     item = store.get(item_id) or {}
-    return render(request, f"{KEY}/partials/log_modal.html", dict(
+    return render(request, f"{KEY}/modals/log.html", dict(
         item_id=item_id,
         item_data=item,
     ))
