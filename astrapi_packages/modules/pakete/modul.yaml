@@ -1,20 +1,9 @@
-# app/modules/pakete/modul.yaml
-
 label:           Pakete
 nav_group:       Pakete
 settings_button: false
 
 card_actions:
-  - title:     "Paket bauen"
-    icon:      play
-    style:     run
-    hx_post:   "/ui/pakete/{item}/build"
-    hx_target: "#{container_id}"
-    hx_swap:   innerHTML
-
-  - title:     "Build-Log"
-    icon:      file-text
-    style:     log
-    hx_get:    "/ui/pakete/{item}/log"
-    hx_target: body
-    hx_swap:   beforeend
+  - type: run
+    url:  /ui/pakete/{item}/build
+  - type: log
+    url:  /ui/pakete/{item}/log

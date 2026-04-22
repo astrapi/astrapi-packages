@@ -1,15 +1,13 @@
-# app/modules/docker/modul.yaml
-
 label:     Docker Images
 nav_group: Pakete
 
 card_actions:
-  - title:    "Image bauen"
-    icon:     play
-    style:    run
-    hx_post:  "/ui/docker/{item}/build"
+  - title:     "Image bauen"
+    icon:      play
+    style:     run
+    hx_post:   "/ui/docker/{item}/build"
     hx_target: "#{container_id}"
-    hx_swap:  innerHTML
+    hx_swap:   innerHTML
 
   - title:     "Build-Log"
     icon:      file-text

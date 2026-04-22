@@ -106,6 +106,14 @@ _get_gitlab_cache()
 
 # ── CRUD-Router für delete + toggle (Standard-Verhalten) ─────────────────────
 # content, create, edit, create_apply, edit_apply werden unten manuell definiert
+def _running_fn() -> dict:
+    return {
+        f"{KEY}:{k}": v["last_status"]
+        for k, v in store.list().items()
+        if v.get("last_status") in ("building", "pending")
+    }
+
+
 _crud = make_crud_router(
     store, KEY,
     schema_path=str(_DIR / "schema.yaml"),
@@ -113,6 +121,8 @@ _crud = make_crud_router(
     description_field="name",
     has_run_buttons=True,
     extra_page_actions_template=f"{KEY}/partials/page_actions.html",
+    extra_actions_template=f"{KEY}/partials/extra_actions.html",
+    running_fn=_running_fn,
 )
 
 # Eigene Routen werden ZUERST auf diesem Router registriert,
@@ -135,6 +145,7 @@ def _ctx():
         loading_id=f"{KEY}-loading",
         content_template=f"{KEY}/partials/card_body.html",
         extra_page_actions_template=f"{KEY}/partials/page_actions.html",
+        extra_actions_template=f"{KEY}/partials/extra_actions.html",
         running=running,
     )
 

@@ -1,18 +1,8 @@
 {% import 'partials/components/ui_macros.html' as ui %}
 {% call ui.modal_wrapper("docker-log-modal", max_width="780px", padding="24px 28px") %}
   {{ ui.modal_title(title="Build-Log – " ~ item_id, icon="log") }}
-  <pre style="
-    background: var(--bg-2, #1e1e1e);
-    color: var(--text-1, #d4d4d4);
-    font-size: 12px;
-    line-height: 1.5;
-    padding: 16px;
-    border-radius: 6px;
-    overflow: auto;
-    max-height: 60vh;
-    white-space: pre-wrap;
-    word-break: break-all;
-    margin: 12px 0 0;
-  ">{{ item_data.last_log or '(kein Log vorhanden)' }}</pre>
+  <div style="margin-top:12px;">
+    {% include "docker/partials/log_content.html" %}
+  </div>
   {{ ui.modal_footer_simple() }}
 {% endcall %}

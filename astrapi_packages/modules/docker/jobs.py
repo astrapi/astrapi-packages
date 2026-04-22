@@ -16,19 +16,41 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
-def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
-    """Führt ein Kommando aus und gibt (returncode, output) zurück."""
+def _run(cmd: list[str], timeout: int, on_progress=None) -> tuple[int, str]:
+    """Führt ein Kommando aus und gibt (returncode, output) zurück.
+
+    on_progress(output_so_far): optionaler Callback, wird alle ~20 Zeilen
+    oder alle 3 Sekunden mit dem bisherigen Output aufgerufen (für Live-Log).
+    """
+    import time
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=timeout,
+            bufsize=1,
         )
-        return result.returncode, result.stdout
-    except subprocess.TimeoutExpired as e:
-        return 1, f"Timeout nach {timeout}s\n{e.stdout or ''}"
+        chunks: list[str] = []
+        last_flush = time.time()
+        deadline   = time.time() + timeout
+
+        for line in proc.stdout:
+            chunks.append(line)
+            if time.time() > deadline:
+                proc.kill()
+                return 1, f"Timeout nach {timeout}s\n{''.join(chunks)}"
+            now = time.time()
+            if on_progress and (len(chunks) % 20 == 0 or now - last_flush >= 3):
+                on_progress("".join(chunks))
+                last_flush = now
+
+        proc.wait()
+        output = "".join(chunks)
+        if on_progress:
+            on_progress(output)
+        return proc.returncode, output
+
     except FileNotFoundError:
         return 1, f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
     except Exception as e:
@@ -48,7 +70,7 @@ def build_image(item_id: str) -> None:
     tag        = IMAGES[item_id].get("tag", "latest")
     dockerfile = _DOCKERFILES / f"{item_id}.dockerfile"
 
-    store.upsert(item_id, {"last_status": "building", "last_run": _now()})
+    store.upsert(item_id, {"last_status": "building", "last_run": _now(), "last_log": ""})
 
     import time as _time
     _t0 = _time.time()
@@ -62,7 +84,11 @@ def build_image(item_id: str) -> None:
 
     cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
     log.info("docker.build: %s", " ".join(cmd))
-    rc, output = _run(cmd, _TIMEOUT_BUILD)
+
+    def _flush(out: str) -> None:
+        store.upsert(item_id, {"last_log": out[-20_000:]})
+
+    rc, output = _run(cmd, _TIMEOUT_BUILD, on_progress=_flush)
 
     status = "ok" if rc == 0 else "error"
     log.info("docker.build: %s → %s (rc=%d)", item_id, status, rc)
