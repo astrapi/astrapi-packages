@@ -1,13 +1,13 @@
-# astrapi-packages – Claude Memory
+# astrapi-packages – Projektkontext für GitHub Copilot
 
-Projektkontext für Claude Code. Wird im Repo versioniert, damit es auf jedem PC verfügbar ist.
+Wird im Repo versioniert und von VS Code Copilot automatisch geladen.
 
 ---
 
 ## Was ist astrapi-packages?
 
 Web-UI zum Bauen von Arch-Linux-Paketen (AUR + custom PKGBUILDs) via Docker-Container.
-Basis: **astrapi-framework** (FastAPI + Flask via a2wsgi + HTMX).
+Basis: **astrapi-core** (FastAPI + HTMX + Jinja2).
 Langfristig erweiterbar auf Debian/Alpine.
 
 ---

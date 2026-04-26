@@ -1,6 +1,109 @@
-# packagectl
+# astrapi-packages
 
-Web-UI zum Bauen von Paketen für Arch Linux, Debian und Alpine über Docker-Container.
+Web-UI zum Bauen von Arch-Linux-Paketen (AUR + custom PKGBUILDs) via Docker-Container.
+Aufgebaut auf **astrapi-core** (FastAPI + HTMX + Jinja2).
+
+## Stack
+
+| Komponente | Details |
+|---|---|
+| Framework | astrapi-core (FastAPI + HTMX) |
+| Container | Docker (Arch Linux Bootstrap) |
+| Persistenz | SQLite (YamlStorage via astrapi-core) |
+| Scheduler | APScheduler |
+| Python | ≥ 3.11 |
+
+## Voraussetzungen
+
+### Systemabhängigkeiten
+
+```bash
+# Docker installieren (Debian/Ubuntu)
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+sudo usermod -aG docker $USER   # dann neu anmelden
+```
+
+## Setup (Entwicklung)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ../astrapi-core   # Schwesterprojekt
+pip install -e .
+```
+
+## Starten
+
+```bash
+astrapi-packages --work-dir data --port 5001
+```
+
+**Mit Auto-Reload (Entwicklung):**
+
+```bash
+astrapi-packages --work-dir data --port 5001 --reload
+```
+
+| Parameter | Standard | Beschreibung |
+|---|---|---|
+| `--work-dir` | (Pflicht) | Datenpfad für SQLite-DB und Laufzeitdaten |
+| `--port` | `5001` | HTTP-Port |
+| `--host` | `0.0.0.0` | Bind-Adresse |
+| `--reload` | – | Auto-Reload bei Dateiänderungen |
+
+Die Web-Oberfläche ist danach erreichbar unter: `http://localhost:5001`
+
+## Module
+
+### Docker
+Verwaltet Build-Container-Images. Images sind statisch in `images.yaml` definiert.
+
+- Image-Name: automatisch als `ctl/<name>:<tag>` zusammengesetzt
+- Aktionen: Image bauen, Build-Log anzeigen
+
+### Pakete
+Verwaltet Paketdefinitionen und startet Arch-Linux-Builds.
+
+- **AUR-Pakete:** `docker run <image> <name> <git-url>`
+- **Custom (GitLab):** PKGBUILD aus DB → Volume-Mount → Container baut lokal
+- Abhängigkeitsgraph mit topologischer Sortierung (Kahn-Algorithmus)
+
+## App-Einstellungen
+
+| Einstellung | Beschreibung | Beispiel |
+|---|---|---|
+| `default_image` | Standard-Build-Container | `ctl/arch-builder:latest` |
+| `repo_path` | Pfad zum lokalen Pacman-Repo | `/srv/pacman-repo` |
+| `repo_name` | Name der Repo-Datenbank | `pkgctl` |
+
+## Pacman-Repository
+
+Die gebauten Pakete werden über einen integrierten HTTP-Server bereitgestellt:
+
+```ini
+# /etc/pacman.conf
+[astrapi]
+Server = http://<host>/repo/arch
+```
+
+## Projektstruktur
+
+```
+astrapi_packages/
+├── _cli.py              # Einstiegspunkt (CLI)
+├── _app.py              # ASGI-App-Factory
+├── _paths.py            # Pfad-Utilities
+├── api/                 # FastAPI-Router + Repo-Server
+└── modules/
+    ├── docker/          # Docker-Image-Verwaltung (Referenz-Modul)
+    └── pakete/          # Paket-Build-Verwaltung
+```
+
+## Tests
+
+```bash
+pytest tests/
+```
 
 ## Voraussetzungen
 

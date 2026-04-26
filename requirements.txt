@@ -32,3 +32,6 @@ httpx>=0.27
 
 # ── Astrapi-Core ──────────────────────────────────────────────────
 astrapi-core @ git+ssh://git@gitlab.com/astrapi-os/ctl/astrapi-core.git@v26.4.2
+
+# ── Entwicklungstools ─────────────────────────────────────────────
+ruff>=0.4                # Linter + Formatter (ersetzt flake8, isort, black)
