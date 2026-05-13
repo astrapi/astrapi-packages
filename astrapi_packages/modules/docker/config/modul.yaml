@@ -1,0 +1,6 @@
+label:     Docker Images
+nav_group: Pakete
+
+card_actions:
+  - type: run
+  - type: log

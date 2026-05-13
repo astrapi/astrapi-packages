@@ -1,8 +1,0 @@
-{% import 'partials/components/ui_macros.html' as ui %}
-{% call ui.modal_wrapper("docker-log-modal", max_width="780px", padding="24px 28px") %}
-  {{ ui.modal_title(title="Build-Log – " ~ item_id, icon="log") }}
-  <div style="margin-top:12px;">
-    {% include "docker/partials/log_content.html" %}
-  </div>
-  {{ ui.modal_footer_simple() }}
-{% endcall %}

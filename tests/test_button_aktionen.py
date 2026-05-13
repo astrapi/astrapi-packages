@@ -83,12 +83,16 @@ def test_pakete_loeschen(client):
 
 
 def test_pakete_bauen(client):
-    """Bauen-Button startet den Paket-Build (202 Accepted)."""
+    """Run-Button startet den Paket-Build über den zentralen Run-Router."""
     _pakete_create(client)
     try:
-        resp = client.post(f"/api/pakete/{_TEST_ID}/build")
-        assert resp.status_code == 202
-        assert resp.json()["status"] == "building"
+        resp = client.post(f"/api/pakete/{_TEST_ID}/run")
+        assert resp.status_code == 200
+        assert "HX-Trigger" in resp.headers
+        import json
+
+        trigger = json.loads(resp.headers["HX-Trigger"])
+        assert trigger.get("openLogModal", {}).get("module") == "pakete"
     finally:
         _pakete_delete(client)
 
@@ -97,7 +101,11 @@ def test_pakete_bauen(client):
 
 
 def test_docker_bauen(client):
-    """Bauen-Button startet den Docker-Image-Build (202 Accepted)."""
-    resp = client.post("/api/docker/arch-builder/build")
-    assert resp.status_code == 202
-    assert resp.json()["status"] == "building"
+    """Run-Button startet den Docker-Image-Build über den zentralen Run-Router."""
+    resp = client.post("/api/docker/arch-builder/run")
+    assert resp.status_code == 200
+    assert "HX-Trigger" in resp.headers
+    import json
+
+    trigger = json.loads(resp.headers["HX-Trigger"])
+    assert trigger.get("openLogModal", {}).get("module") == "docker"

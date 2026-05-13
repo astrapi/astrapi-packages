@@ -1,6 +1,7 @@
 """astrapi_packages.api.fastapi_app – FastAPI-Factory."""
-from fastapi import FastAPI
+
 from astrapi_core.system.version import get_app_version
+from fastapi import FastAPI
 
 from astrapi_packages._paths import package_dir
 
@@ -23,11 +24,18 @@ def create(modules: list | None = None) -> FastAPI:
     )
 
     from astrapi_core.ui.module_registry import load_modules, register_fastapi_modules
+
     if modules is None:
         modules, _ = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)
 
     from astrapi_packages.api.repo import router as repo_router
+
     app.include_router(repo_router)
+
+    from astrapi_packages.api.run import make_run_router
+
+    for _mod_key in ["docker", "pakete"]:
+        app.include_router(make_run_router(_mod_key), prefix=f"/api/{_mod_key}")
 
     return app

@@ -1,22 +1,23 @@
-"""app/modules/pakete/ui.py – FastAPI-Router für das Pakete-Modul."""
+"""app/modules/pakete/ui/crud.py – FastAPI-Router für das Pakete-Modul."""
 
 from pathlib import Path
 
+from astrapi_core.ui.crud_blueprint import make_crud_router
+from astrapi_core.ui.render import render
+from astrapi_core.ui.schema_loader import load_schema
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from astrapi_core.ui.render import render
-from astrapi_core.ui.crud_blueprint import make_crud_router
-from astrapi_core.ui.schema_loader import load_schema
-from .storage import store, KEY
+from astrapi_packages.modules.pakete import KEY, store
 
-_DIR    = Path(__file__).parent
-_SCHEMA = load_schema(str(_DIR / "schema.yaml"))
+_DIR = Path(__file__).parent.parent  # modules/pakete/
+_SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
 
 
 def _pkgname(pkgbuild: str) -> str:
     """Liest pkgname= aus einem PKGBUILD-String."""
     import re
+
     for line in pkgbuild.splitlines():
         m = re.match(r'^\s*pkgname\s*=\s*["\']?([A-Za-z0-9@_+.-]+)', line)
         if m:
@@ -27,24 +28,28 @@ def _pkgname(pkgbuild: str) -> str:
 def _deps_from_pkgbuild(pkgbuild: str) -> list[str]:
     """Liest depends=(...) aus einem PKGBUILD und gibt bereinigte Namen zurück."""
     import re
+
     deps, in_block = [], False
     for line in pkgbuild.splitlines():
         stripped = line.strip()
-        if re.match(r'^depends\s*=\s*\(', stripped):
+        if re.match(r"^depends\s*=\s*\(", stripped):
             in_block = True
         if in_block:
             for d in re.findall(r"['\"]([^'\"]+)['\"]|(\b[A-Za-z0-9@_+.-]+\b)", stripped):
                 val = d[0] or d[1]
-                if val and val not in ('depends', '(', ')'):
-                    deps.append(re.sub(r'[<>=].*', '', val))
-            if ')' in stripped:
+                if val and val not in ("depends", "(", ")"):
+                    deps.append(re.sub(r"[<>=].*", "", val))
+            if ")" in stripped:
                 in_block = False
     return list(dict.fromkeys(deps))
 
 
 def _deps_from_aur(pkgname: str) -> list[str]:
     """Holt Runtime-Deps aus der AUR RPC API."""
-    import re, json, urllib.request
+    import json
+    import re
+    import urllib.request
+
     try:
         url = f"https://aur.archlinux.org/rpc/v5/info?arg[]={pkgname}"
         with urllib.request.urlopen(url, timeout=6) as r:
@@ -53,7 +58,7 @@ def _deps_from_aur(pkgname: str) -> list[str]:
         if results:
             r0 = results[0]
             all_deps = r0.get("Depends", []) + r0.get("MakeDepends", [])
-            return list(dict.fromkeys(re.sub(r'[<>=].*', '', d) for d in all_deps))
+            return list(dict.fromkeys(re.sub(r"[<>=].*", "", d) for d in all_deps))
     except Exception:
         pass
     return []
@@ -61,8 +66,9 @@ def _deps_from_aur(pkgname: str) -> list[str]:
 
 def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
     """Klassifiziert Abhängigkeiten: astrapi-packages | official | aur."""
-    import json, urllib.request
-    from urllib.parse import urlencode
+    import json
+    import urllib.parse
+    import urllib.request
 
     unknown = [d for d in deps if d not in existing]
     in_aur: set[str] = set()
@@ -89,17 +95,20 @@ def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
 
 
 # GitLab-Cache
-import importlib.util as _ilu, sys as _sys
+import importlib.util as _ilu
+import sys as _sys
+
 
 def _get_gitlab_cache():
     _key = "_pakete_gitlab_cache"
     if _key not in _sys.modules:
-        _spec = _ilu.spec_from_file_location(_key, _DIR / "gitlab_cache.py")
-        _mod  = _ilu.module_from_spec(_spec)
+        _spec = _ilu.spec_from_file_location(_key, _DIR / "utils" / "gitlab_cache.py")
+        _mod = _ilu.module_from_spec(_spec)
         _sys.modules[_key] = _mod
         _spec.loader.exec_module(_mod)
         _mod.start()
     return _sys.modules[_key]
+
 
 _get_gitlab_cache()
 
@@ -115,13 +124,12 @@ def _running_fn() -> dict:
 
 
 _crud = make_crud_router(
-    store, KEY,
-    schema_path=str(_DIR / "schema.yaml"),
+    store,
+    KEY,
+    schema_path=str(_DIR / "config" / "schema.yaml"),
     label="Paket",
     description_field="name",
     has_run_buttons=True,
-    extra_page_actions_template=f"{KEY}/partials/page_actions.html",
-    extra_actions_template=f"{KEY}/partials/extra_actions.html",
     running_fn=_running_fn,
 )
 
@@ -141,62 +149,68 @@ def _ctx():
     return dict(
         cfg=cfg,
         module=KEY,
-        container_id=f"tab-{KEY}",
+        container_id=f"mod-{KEY}",
         loading_id=f"{KEY}-loading",
-        content_template=f"{KEY}/partials/card_body.html",
-        extra_page_actions_template=f"{KEY}/partials/page_actions.html",
-        extra_actions_template=f"{KEY}/partials/extra_actions.html",
         running=running,
     )
 
 
 # ── Überschreibende Routen ────────────────────────────────────────────────────
 
+
 @router.get(f"/ui/{KEY}/status", response_class=HTMLResponse)
 def status(request: Request):
-    return render(request, "partials/list_wrapper_inner.html", _ctx())
+    return render(request, "partials/status_oob.html", _ctx())
 
 
 @router.get(f"/ui/{KEY}/create", response_class=HTMLResponse)
 def create_modal(request: Request):
-    return render(request, f"{KEY}/modals/edit.html", dict(
-        item_id=None,
-        item=None,
-        schema=_SCHEMA["fields"],
-    ))
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/modal.html",
+        dict(
+            item_id=None,
+            item=None,
+            schema=_SCHEMA["fields"],
+        ),
+    )
 
 
 @router.post(f"/ui/{KEY}/", response_class=HTMLResponse)
 async def create_apply(request: Request):
     form = await request.form()
     source_url = form.get("source_url", "").strip()
-    pkg_name   = form.get("pkg_name", "").strip()
-    item_id    = pkg_name or source_url.rstrip("/").split("/")[-1].removesuffix(".git")
+    pkg_name = form.get("pkg_name", "").strip()
+    item_id = pkg_name or source_url.rstrip("/").split("/")[-1].removesuffix(".git")
 
     if not item_id:
         return HTMLResponse("Paketname fehlt", status_code=400)
 
     if store.get(item_id) is not None:
         import json as _json
+
         return Response(
             content="",
             status_code=200,
             headers={
-                "HX-Reswap":   "none",
-                "HX-Trigger":  _json.dumps({"paketeModalError": f'"{item_id}" ist bereits vorhanden.'}),
+                "HX-Reswap": "none",
+                "HX-Trigger": _json.dumps(
+                    {"paketeModalError": f'"{item_id}" ist bereits vorhanden.'}
+                ),
             },
         )
 
     data = {
-        "source_url":    source_url,
+        "source_url": source_url,
         "source_subdir": form.get("source_subdir", "").strip(),
-        "aur_deps":      form.get("aur_deps", "").strip(),
-        "pkg_type":      form.get("pkg_type", "package").strip() or "package",
-        "enabled":       "enabled" in form,
+        "aur_deps": form.get("aur_deps", "").strip(),
+        "pkg_type": form.get("pkg_type", "package").strip() or "package",
+        "enabled": "enabled" in form,
     }
     store.create(item_id, data)
 
-    from .dep_graph import autocreate_deps
+    from ..utils.dep_graph import autocreate_deps
+
     autocreate_deps(item_id, data, store)
 
     return render(request, "content.html", _ctx())
@@ -207,11 +221,15 @@ def edit_modal(item_id: str, request: Request):
     item = store.get(item_id)
     if item is None:
         return HTMLResponse("Nicht gefunden", status_code=404)
-    return render(request, f"{KEY}/modals/edit.html", dict(
-        item_id=item_id,
-        item=item,
-        schema=_SCHEMA["fields"],
-    ))
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/modal.html",
+        dict(
+            item_id=item_id,
+            item=item,
+            schema=_SCHEMA["fields"],
+        ),
+    )
 
 
 @router.post(f"/ui/{KEY}/{{item_id}}/update", response_class=HTMLResponse)
@@ -219,22 +237,25 @@ async def edit_apply(item_id: str, request: Request):
     form = await request.form()
     if store.get(item_id) is not None:
         data = {
-            "source_url":    form.get("source_url", "").strip(),
+            "source_url": form.get("source_url", "").strip(),
             "source_subdir": form.get("source_subdir", "").strip(),
-            "aur_deps":      form.get("aur_deps", "").strip(),
-            "pkg_type":      form.get("pkg_type", "package").strip() or "package",
-            "enabled":       "enabled" in form,
+            "aur_deps": form.get("aur_deps", "").strip(),
+            "pkg_type": form.get("pkg_type", "package").strip() or "package",
+            "enabled": "enabled" in form,
         }
         store.update(item_id, data)
-        from .dep_graph import autocreate_deps
+        from ..utils.dep_graph import autocreate_deps
+
         autocreate_deps(item_id, data, store)
     return render(request, "content.html", _ctx())
 
 
 # ── Modulspezifische Routen ───────────────────────────────────────────────────
 
+
 def _parse_pkgbuild_deps(text: str) -> list[str]:
     import re
+
     deps: list[str] = []
     for key in ("depends", "makedepends"):
         m = re.search(rf"^{key}\s*=\s*\((.*?)\)", text, re.MULTILINE | re.DOTALL)
@@ -250,7 +271,9 @@ def _parse_pkgbuild_deps(text: str) -> list[str]:
 
 
 def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
-    import re, urllib.request
+    import re
+    import urllib.request
+
     base = source_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
         url = f"{base}/-/raw/{branch}/{source_subdir}/PKGBUILD"
@@ -271,18 +294,20 @@ def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str
 
 
 def _search_aur(term: str) -> list[dict]:
-    import json, urllib.request, re
+    import json
+    import urllib.request
+
     try:
         url = f"https://aur.archlinux.org/rpc/v5/search?arg={term}&by=name-desc"
         with urllib.request.urlopen(url, timeout=5) as r:
             data = json.loads(r.read())
         return [
             {
-                "name":    p["Name"],
-                "pkgver":  p.get("Version", ""),
+                "name": p["Name"],
+                "pkgver": p.get("Version", ""),
                 "pkgdesc": p.get("Description", "") or "",
                 "git_url": f"https://aur.archlinux.org/{p['Name']}.git",
-                "source":  "aur",
+                "source": "aur",
             }
             for p in data.get("results", [])[:12]
         ]
@@ -293,6 +318,7 @@ def _search_aur(term: str) -> list[dict]:
 @router.get(f"/ui/{KEY}/search", response_class=HTMLResponse)
 def search_packages(request: Request):
     import threading
+
     gitlab_cache = _get_gitlab_cache()
     term = request.query_params.get("q", "").strip()
     if len(term) < 2:
@@ -300,17 +326,22 @@ def search_packages(request: Request):
     if not gitlab_cache.get_all():
         threading.Thread(target=gitlab_cache.refresh, daemon=True).start()
     from concurrent.futures import ThreadPoolExecutor
+
     with ThreadPoolExecutor(max_workers=2) as ex:
-        f_gl  = ex.submit(gitlab_cache.search, term)
+        f_gl = ex.submit(gitlab_cache.search, term)
         f_aur = ex.submit(_search_aur, term)
-        gl_results  = f_gl.result()
+        gl_results = f_gl.result()
         aur_results = f_aur.result()
-    return render(request, f"{KEY}/partials/search_results.html", dict(
-        gitlab_results=gl_results,
-        aur_results=aur_results,
-        term=term,
-        cache_empty=not gitlab_cache.get_all(),
-    ))
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/search_results.html",
+        dict(
+            gitlab_results=gl_results,
+            aur_results=aur_results,
+            term=term,
+            cache_empty=not gitlab_cache.get_all(),
+        ),
+    )
 
 
 @router.get(f"/ui/{KEY}/aur-deps", response_class=HTMLResponse)
@@ -331,9 +362,9 @@ def aur_deps_for_pkg(request: Request):
 @router.post(f"/ui/{KEY}/deps", response_class=HTMLResponse)
 async def deps_preview(request: Request):
     """Gibt Runtime-Abhängigkeiten als HTML-Partial zurück."""
-    form       = await request.form()
+    form = await request.form()
     source_url = form.get("source_url", "").strip()
-    pkgbuild   = form.get("pkgbuild_content", "").strip()
+    pkgbuild = form.get("pkgbuild_content", "").strip()
 
     if source_url:
         pkgname = source_url.rstrip("/").split("/")[-1].removesuffix(".git")
@@ -345,28 +376,7 @@ async def deps_preview(request: Request):
 
     existing = set(store.list().keys())
     classified = _classify_deps(deps, existing)
-    return render(request, f"{KEY}/partials/deps_preview.html", {"deps": classified})
-
-
-@router.post(f"/ui/{KEY}/{{item_id}}/build", response_class=HTMLResponse)
-def build_item(item_id: str, request: Request):
-    if store.get(item_id) is None:
-        return HTMLResponse("Nicht gefunden", status_code=404)
-    store.update(item_id, {"last_status": "pending"})
-    from .jobs import build_package_with_deps_async
-    build_package_with_deps_async(item_id)
-    ctx = _ctx()
-    ctx["running"] = ctx["running"] or {f"{KEY}:{item_id}": "pending"}
-    return render(request, "partials/list_wrapper_inner.html", ctx)
-
-
-@router.get(f"/ui/{KEY}/{{item_id}}/log", response_class=HTMLResponse)
-def log_item(item_id: str, request: Request):
-    item = store.get(item_id) or {}
-    return render(request, f"{KEY}/modals/log.html", dict(
-        item_id=item_id,
-        item_data=item,
-    ))
+    return render(request, f"{KEY}/dialogs/edit/deps_preview.html", {"deps": classified})
 
 
 @router.get(f"/ui/{KEY}/exists", response_class=HTMLResponse)
@@ -384,7 +394,8 @@ def pkg_exists(request: Request):
 @router.post(f"/ui/{KEY}/check-updates", response_class=HTMLResponse)
 def check_updates(request: Request):
     """Prüft für alle Pakete ob eine neue Version verfügbar ist."""
-    import json, urllib.request
+    import json
+    import urllib.request
     from urllib.parse import quote
 
     try:
@@ -400,18 +411,14 @@ def check_updates(request: Request):
         if v.get("last_status") != "ok" and v.get("upstream_version"):
             store.update(k, {"upstream_version": ""})
 
-    all_ids = [
-        k for k, v in all_items.items() if v.get("last_status") == "ok"
-    ]
+    all_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
     if not all_ids:
         return render(request, "partials/list_wrapper_inner.html", _ctx())
 
     qs = "&".join(f"arg[]={quote(i)}" for i in all_ids)
     aur_versions: dict[str, str] = {}
     try:
-        with urllib.request.urlopen(
-            f"https://aur.archlinux.org/rpc/v5/info?{qs}", timeout=10
-        ) as r:
+        with urllib.request.urlopen(f"https://aur.archlinux.org/rpc/v5/info?{qs}", timeout=10) as r:
             data = json.loads(r.read())
         for result in data.get("results", []):
             aur_versions[result["Name"]] = result.get("Version", "")
@@ -425,16 +432,16 @@ def check_updates(request: Request):
         if item_id in aur_versions:
             store.update(item_id, {"upstream_version": aur_versions[item_id]})
         else:
-            item        = all_items[item_id]
-            source_url  = item.get("source_url", "")
-            source_sub  = item.get("source_subdir", "")
-            upstream    = ""
+            item = all_items[item_id]
+            source_url = item.get("source_url", "")
+            source_sub = item.get("source_subdir", "")
+            upstream = ""
             if "gitlab" in source_url and source_sub:
                 upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
             if not upstream and item_id in gl_entries:
-                entry    = gl_entries[item_id]
-                ver      = entry.get("pkgver") or entry.get("version") or ""
-                rel      = entry.get("pkgrel", "")
+                entry = gl_entries[item_id]
+                ver = entry.get("pkgver") or entry.get("version") or ""
+                rel = entry.get("pkgrel", "")
                 upstream = f"{ver}-{rel}" if rel else ver
             if upstream:
                 store.update(item_id, {"upstream_version": upstream})

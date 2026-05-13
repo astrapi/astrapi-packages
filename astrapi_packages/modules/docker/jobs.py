@@ -1,28 +1,22 @@
 """app/modules/docker/jobs.py – Build- und Update-Logik für Docker-Images."""
 
-import logging
 import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
 
-log = logging.getLogger(__name__)
+from astrapi_core.system.logger import log as _log
 
-_TIMEOUT_BUILD = 3600   # 1 Stunde max. für docker build
-_DOCKERFILES   = Path(__file__).parent / "dockerfiles"
+_TIMEOUT_BUILD = 3600  # 1 Stunde max. für docker build
+_DOCKERFILES = Path(__file__).parent / "dockerfiles"
 
 
 def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
-def _run(cmd: list[str], timeout: int, on_progress=None) -> tuple[int, str]:
-    """Führt ein Kommando aus und gibt (returncode, output) zurück.
-
-    on_progress(output_so_far): optionaler Callback, wird alle ~20 Zeilen
-    oder alle 3 Sekunden mit dem bisherigen Output aufgerufen (für Live-Log).
-    """
-    import time
+def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
+    """Führt ein Kommando aus, loggt jede Zeile via log() und gibt (returncode, output) zurück."""
     try:
         proc = subprocess.Popen(
             cmd,
@@ -32,88 +26,55 @@ def _run(cmd: list[str], timeout: int, on_progress=None) -> tuple[int, str]:
             bufsize=1,
         )
         chunks: list[str] = []
-        last_flush = time.time()
-        deadline   = time.time() + timeout
+        deadline = __import__("time").time() + timeout
 
         for line in proc.stdout:
+            stripped = line.rstrip("\n")
+            _log("INFO", stripped)
             chunks.append(line)
-            if time.time() > deadline:
+            if __import__("time").time() > deadline:
                 proc.kill()
-                return 1, f"Timeout nach {timeout}s\n{''.join(chunks)}"
-            now = time.time()
-            if on_progress and (len(chunks) % 20 == 0 or now - last_flush >= 3):
-                on_progress("".join(chunks))
-                last_flush = now
+                _log("ERROR", f"Timeout nach {timeout}s")
+                return 1, "".join(chunks)
 
         proc.wait()
-        output = "".join(chunks)
-        if on_progress:
-            on_progress(output)
-        return proc.returncode, output
+        return proc.returncode, "".join(chunks)
 
     except FileNotFoundError:
-        return 1, f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
+        msg = f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
+        _log("ERROR", msg)
+        return 1, msg
     except Exception as e:
+        _log("ERROR", str(e))
         return 1, str(e)
 
 
-def build_image(item_id: str) -> None:
-    """Baut ein Docker-Image synchron. Aktualisiert last_status/last_run/last_log im Store."""
-    from .storage import store
-    from .images import IMAGES
+def run_single(item_id: str) -> None:
+    """Baut ein Docker-Image. Ausgabe via log() → Activity-Log (SSE-fähig)."""
+    from astrapi_packages.modules.docker import IMAGES, store
 
     if item_id not in IMAGES:
-        log.warning("docker.build: Image '%s' nicht in IMAGES definiert", item_id)
+        _log("ERROR", f"Image '{item_id}' nicht in IMAGES definiert")
         return
 
-    image      = f"ctl/{item_id}"
-    tag        = IMAGES[item_id].get("tag", "latest")
+    image = f"ctl/{item_id}"
+    tag = IMAGES[item_id].get("tag", "latest")
     dockerfile = _DOCKERFILES / f"{item_id}.dockerfile"
 
-    store.upsert(item_id, {"last_status": "building", "last_run": _now(), "last_log": ""})
-
-    import time as _time
-    _t0 = _time.time()
-    _act_id = None
-    try:
-        from astrapi_core.system.activity_log import log_activity
-        _act_id = log_activity("job", "docker", f"Docker: {item_id} bauen",
-                               status="running", item_id=item_id)
-    except Exception:
-        pass
+    store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
     cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
-    log.info("docker.build: %s", " ".join(cmd))
+    _log("INFO", f"$ {' '.join(cmd)}")
 
-    def _flush(out: str) -> None:
-        store.upsert(item_id, {"last_log": out[-20_000:]})
-
-    rc, output = _run(cmd, _TIMEOUT_BUILD, on_progress=_flush)
+    rc, _ = _run(cmd, _TIMEOUT_BUILD)
 
     status = "ok" if rc == 0 else "error"
-    log.info("docker.build: %s → %s (rc=%d)", item_id, status, rc)
-
-    store.upsert(item_id, {
-        "last_status": status,
-        "last_run":  _now(),
-        "last_log":    output[-20_000:],
-    })
-
-    if _act_id:
-        try:
-            from astrapi_core.system.activity_log import update_activity_log
-            update_activity_log(
-                log_id=_act_id,
-                status=status,
-                duration_s=int(_time.time() - _t0),
-                full_log=output[-20_000:],
-                error_message=output[-500:] if status == "error" else None,
-            )
-        except Exception:
-            pass
+    store.upsert(item_id, {"last_status": status, "last_run": _now()})
+    _log("INFO" if status == "ok" else "ERROR", f"Build {status}: ctl/{item_id}:{tag}")
 
     try:
         from astrapi_core.modules.notify import engine as _notify
+
         if status == "ok":
             _notify.send(
                 title=f"Docker: {item_id} erfolgreich gebaut",
@@ -124,7 +85,7 @@ def build_image(item_id: str) -> None:
         else:
             _notify.send(
                 title=f"Docker: {item_id} – Fehler beim Bauen",
-                message=output[-400:].strip(),
+                message=f"Build fehlgeschlagen (rc={rc})",
                 event=_notify.ERROR,
                 source="docker",
             )
@@ -132,7 +93,45 @@ def build_image(item_id: str) -> None:
         pass
 
 
+def build_image(item_id: str) -> None:
+    """Baut ein Image mit eigenem Activity-Log-Kontext (für Scheduler-Aufrufe)."""
+    import time as _time
+
+    from astrapi_core.system.activity_log import (
+        get_log_lines,
+        history_finish,
+        history_start,
+    )
+    from astrapi_core.system.logger import (
+        clear_active_log_id,
+        clear_tee_context,
+        set_active_log_id,
+        set_tee_context,
+    )
+
+    hist_id = history_start("docker", item_id, f"Docker: {item_id} bauen", "run")
+    t0 = _time.time()
+    set_tee_context("docker", item_id)
+    set_active_log_id(hist_id)
+    status = "ok"
+    try:
+        run_single(item_id)
+    except Exception:
+        status = "error"
+    finally:
+        if status == "ok":
+            levels = {r["level"] for r in get_log_lines(hist_id)}
+            if "ERROR" in levels:
+                status = "error"
+            elif "WARNING" in levels:
+                status = "warning"
+        history_finish(hist_id, status, int(_time.time() - t0))
+        clear_active_log_id()
+        clear_tee_context()
+
+
 # ── Async-Wrapper ──────────────────────────────────────────────────────────────
+
 
 def build_image_async(item_id: str) -> None:
     threading.Thread(target=build_image, args=(item_id,), daemon=True).start()

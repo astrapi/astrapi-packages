@@ -1,9 +1,0 @@
-label:           Pakete
-nav_group:       Pakete
-settings_button: false
-
-card_actions:
-  - type: run
-    url:  /ui/pakete/{item}/build
-  - type: log
-    url:  /ui/pakete/{item}/log
