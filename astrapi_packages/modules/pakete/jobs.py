@@ -275,8 +275,9 @@ def delete_package(item_id: str, item: dict) -> None:
     """
     import glob as _glob
 
-    from .utils.dep_graph import find_orphan_deps
     from astrapi_packages.modules.pakete import store
+
+    from .utils.dep_graph import find_orphan_deps
 
     s = _settings()
     repo_path = _arch_repo_path()
@@ -325,8 +326,8 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
     import json
     import urllib.request
 
+    from .ui.crud import _version_from_pkgbuild_url
     from .utils.dep_graph import autocreate_deps
-    from .ui import _version_from_pkgbuild_url
 
     item = store.get(item_id) or {}
     source_url = item.get("source_url", "")
@@ -375,8 +376,9 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
 
 def build_package_with_deps(item_id: str) -> None:
     """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem Hauptpaket."""
-    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
     from astrapi_packages.modules.pakete import store
+
+    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
 
     _sync_pkgbuild_deps(item_id, store)
 
@@ -446,8 +448,9 @@ def mark_orphan_deps() -> None:
     Ein Dep-Eintrag gilt als verwaist wenn er von keinem Paket mehr in
     aur_deps referenziert wird.  Das Feld 'orphaned' wird entsprechend gesetzt.
     """
-    from .utils.dep_graph import find_all_orphan_deps
     from astrapi_packages.modules.pakete import store
+
+    from .utils.dep_graph import find_all_orphan_deps
 
     all_items = store.list()
     orphan_ids = set(find_all_orphan_deps(store))
@@ -553,7 +556,7 @@ def update_all_packages() -> None:
             pass
 
     # upstream_version speichern und veraltete Pakete bauen
-    from .ui import _version_from_pkgbuild_url
+    from .ui.crud import _version_from_pkgbuild_url
 
     built_count = 0
     errors = []
@@ -754,8 +757,9 @@ def run_single(item_id: str) -> None:
     """
     from astrapi_core.system.logger import log as _log
 
-    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
     from astrapi_packages.modules.pakete import store as _store
+
+    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
 
     item = _store.get(item_id)
     if not item:
