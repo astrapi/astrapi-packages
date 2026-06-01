@@ -1,0 +1,23 @@
+{% if cache_empty %}
+<p class="form-hint" style="margin-top:6px;">
+  Cache wird geladen – bitte in einigen Sekunden erneut suchen.
+</p>
+{% endif %}
+{% if results %}
+<div class="pkg-search-results">
+  <div class="pkg-search-group">Pakete</div>
+  {% for pkg in results %}
+  <div class="pkg-search-item"
+       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}')">
+    <div class="pkg-search-item-header">
+      <span class="pkg-search-name">{{ pkg.name }}</span>
+      {% if pkg.pkgver %}<span class="pkg-search-version">{{ pkg.pkgver }}</span>{% endif %}
+      {% if pkg.distribution %}<span class="pkg-search-version" style="color:var(--accent);">{{ pkg.distribution }}</span>{% endif %}
+    </div>
+    {% if pkg.pkgdesc %}<div class="pkg-search-desc">{{ pkg.pkgdesc }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% elif term %}
+<p class="form-hint" style="margin-top:6px;">Keine Ergebnisse für „{{ term }}".</p>
+{% endif %}

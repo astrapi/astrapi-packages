@@ -1,0 +1,41 @@
+id_field:
+  name:        name
+  label:       Paketname
+  placeholder: "z.B. mypackage"
+  max:         100
+
+fields:
+  - name:        source_url
+    label:       Git-URL
+    type:        text
+    placeholder: "https://github.com/example/mypackage.git"
+    max:         500
+
+  - name:        distribution
+    label:       Distribution
+    type:        text
+    placeholder: "bookworm"
+    default:     "bookworm"
+    max:         50
+
+  - name:        component
+    label:       Komponente
+    type:        select
+    options:
+      - value: main
+        label: main
+      - value: contrib
+        label: contrib
+      - value: non-free
+        label: non-free
+    default:     main
+
+  - name:        pkg_type
+    label:       Typ
+    type:        select
+    options:
+      - value: package
+        label: Paket
+      - value: dependency
+        label: Abhängigkeit
+    default:     package

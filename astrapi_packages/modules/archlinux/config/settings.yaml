@@ -1,0 +1,41 @@
+modal_width: 520
+
+fields:
+  - type:  section
+    label: Build
+    cols:  1
+
+  - key:         default_image
+    label:       Standard Build-Image
+    type:        text
+    placeholder: "ctl/arch-builder:latest"
+    default:     "ctl/arch-builder:latest"
+    description: "Docker-Image das zum Bauen der Pakete verwendet wird"
+
+  - type:  section
+    label: Pacman-Repository
+    cols:  1
+
+  - key:         repo_path
+    label:       Repository-Pfad (Host)
+    type:        text
+    placeholder: "<Arbeitsverzeichnis>/repo"
+    description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden (Standard: <Arbeitsverzeichnis>/repo)"
+
+  - key:         repo_name
+    label:       Repository-Name
+    type:        text
+    placeholder: "pkgctl"
+    default:     "pkgctl"
+    description: "Name der Pacman-Datenbank (z.B. pkgctl → pkgctl.db.tar.gz). Achtung: 'local' ist von pacman reserviert."
+
+  - type:  section
+    label: Paketquellen
+    cols:  1
+
+  - key:         gitlab_group
+    label:       Paket-Repos
+    type:        list
+    mono:        true
+    placeholder: "https://github.com/astrapi/packages_archlinux"
+    description: "URL oder Pfad zu Repos mit packages.json (GitHub: https://github.com/owner/repo, GitLab: owner/group). Wird alle 5 Min. aktualisiert."

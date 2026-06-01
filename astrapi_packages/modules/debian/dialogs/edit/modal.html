@@ -1,0 +1,293 @@
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer %}
+{% set _source_url = (item or {}).get('source_url') or '' %}
+{% set _pkg_name   = (item or {}).get('name') or item_id or '' %}
+<div id="create-edit-modal"
+     class="ds-modal-backdrop"
+     x-on:keydown.escape.window="$el.remove()">
+  <div class="ds-modal"
+       style="max-width:540px; padding:20px 24px; width:92vw;">
+
+    {% if item_id %}
+      {{ modal_title(title="Paket bearbeiten – " ~ item_id, icon="edit") }}
+      {% set submit_url = "/ui/debian/" ~ item_id ~ "/update" %}
+    {% else %}
+      {{ modal_title(is_edit=false, title="Neues Debian-Paket") }}
+      {% set submit_url = "/ui/debian/" %}
+    {% endif %}
+
+    <div id="modal-error-container">
+      {% if error %}
+        <div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                    background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
+          {{ error }}
+        </div>
+      {% endif %}
+    </div>
+
+    <form id="create-edit-form"
+          hx-post="{{ submit_url }}"
+          hx-target="#main-content"
+          hx-swap="innerHTML"
+          class="form-stack"
+          style="gap:12px; margin-top:8px;">
+
+      {# ── Paket-Suche (nur im Create-Modus) ────────────────────────────── #}
+      {% if not item_id %}
+      <div>
+        {# Bereits ausgewählt #}
+        <div id="pkg-selected" style="{% if not _source_url %}display:none;{% endif %}margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; background:var(--bg-2); border:1px solid var(--border);
+                        border-radius:6px; padding:8px 10px; font-size:13px;">
+              <span id="pkg-selected-name" style="font-weight:600;">{{ _pkg_name }}</span>
+              <span id="pkg-selected-url" style="color:var(--text-3); font-size:11px; margin-left:6px;">{{ _source_url }}</span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="pkgClear()">Ändern</button>
+          </div>
+        </div>
+
+        {# Suchfeld #}
+        <div id="pkg-search-box" style="{% if _source_url %}display:none;{% endif %}">
+          <label class="form-label" style="margin-bottom:6px;">
+            Paket suchen <span style="color:var(--error)">*</span>
+          </label>
+          <input type="text"
+                 id="pkg-search-input"
+                 class="form-input"
+                 placeholder="Paketname oder Beschreibung …"
+                 autocomplete="off"
+                 hx-get="/ui/debian/search"
+                 hx-trigger="input changed delay:350ms"
+                 hx-target="#pkg-search-results"
+                 hx-include="this"
+                 name="q">
+          <div id="pkg-search-results" style="margin-top:4px;"></div>
+        </div>
+
+        <input type="hidden" name="name"       id="field-pkg-name"   value="{{ _pkg_name }}">
+        <input type="hidden" name="source_url" id="field-source-url" value="{{ _source_url }}">
+        <span class="form-error" id="source-url-error"></span>
+      </div>
+      {% endif %}
+
+      {# ── Edit-Modus: Felder direkt bearbeitbar ────────────────────────── #}
+      {% if item_id %}
+      <div>
+        <label class="form-label">Paketname</label>
+        <input type="text" name="name" class="form-input"
+               value="{{ item_id }}" readonly
+               style="opacity:.6; cursor:not-allowed;" />
+      </div>
+      <div>
+        <label class="form-label">Git-URL</label>
+        <input type="text" name="source_url" class="form-input"
+               value="{{ (item or {}).get('source_url') or '' }}"
+               placeholder="https://github.com/example/mypackage.git" />
+      </div>
+      {% endif %}
+
+      {# ── Distribution & Komponente ──────────────────────────────────────── #}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="form-label">Distribution</label>
+          <input type="text" name="distribution" class="form-input"
+                 value="{{ (item or {}).get('distribution') or 'bookworm' }}"
+                 placeholder="bookworm" />
+        </div>
+        <div>
+          <label class="form-label">Komponente</label>
+          <select name="component" class="form-input">
+            {% for opt in [("main","main"),("contrib","contrib"),("non-free","non-free")] %}
+              <option value="{{ opt[0] }}"
+                {% if ((item or {}).get('component') or 'main') == opt[0] %}selected{% endif %}>
+                {{ opt[1] }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# ── Typ ────────────────────────────────────────────────────────────── #}
+      <div>
+        <label class="form-label">Typ</label>
+        <select name="pkg_type" class="form-input">
+          <option value="package"
+            {% if ((item or {}).get('pkg_type') or 'package') == 'package' %}selected{% endif %}>
+            Paket
+          </option>
+          <option value="dependency"
+            {% if (item or {}).get('pkg_type') == 'dependency' %}selected{% endif %}>
+            Abhängigkeit
+          </option>
+        </select>
+      </div>
+
+      {{ modal_footer(enabled=(item or {}).get('enabled', True),
+                      save_label='Speichern' if item_id else 'Erstellen',
+                      has_toggle=true, save_id='create-edit-submit',
+                      save_type='button') }}
+    </form>
+  </div>
+</div>
+
+<style>
+.pkg-search-results { border:1px solid var(--border); border-radius:6px; overflow:hidden; margin-top:4px; }
+.pkg-search-group   { padding:4px 10px; font-size:11px; font-weight:600; text-transform:uppercase;
+                      letter-spacing:.05em; color:var(--text-3); background:var(--bg-2); }
+.pkg-search-item    { padding:8px 10px; cursor:pointer; border-top:1px solid var(--border); }
+.pkg-search-item:hover { background:var(--bg-2); }
+.pkg-search-item-header { display:flex; align-items:baseline; gap:8px; }
+.pkg-search-name    { font-weight:600; font-size:13px; }
+.pkg-search-version { font-size:11px; color:var(--text-3); font-family:var(--font-mono, monospace); }
+.pkg-search-desc    { font-size:12px; color:var(--text-2); margin-top:2px;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
+
+<script>
+function pkgSelect(name, url) {
+  document.getElementById('field-pkg-name').value   = name;
+  document.getElementById('field-source-url').value = url;
+  document.getElementById('pkg-selected-name').textContent = name;
+  document.getElementById('pkg-selected-url').textContent  = url;
+  document.getElementById('pkg-selected').style.display    = '';
+  document.getElementById('pkg-search-box').style.display  = 'none';
+  document.getElementById('pkg-search-results').innerHTML  = '';
+}
+
+function pkgClear() {
+  document.getElementById('field-pkg-name').value        = '';
+  document.getElementById('field-source-url').value      = '';
+  document.getElementById('pkg-selected').style.display  = 'none';
+  document.getElementById('pkg-search-box').style.display = '';
+  document.getElementById('pkg-search-input').focus();
+}
+
+(function () {
+  const form      = document.getElementById('create-edit-form');
+  const submitBtn = document.getElementById('create-edit-submit');
+  if (!submitBtn) return;
+
+  submitBtn.addEventListener('click', function () {
+    const name = document.getElementById('field-pkg-name')?.value?.trim();
+    if (!name) {
+      const err = document.getElementById('source-url-error');
+      if (err) { err.textContent = 'Bitte ein Paket auswählen.'; err.classList.add('visible'); }
+      return;
+    }
+    htmx.trigger(form, 'submit');
+    form.addEventListener('htmx:afterRequest', function handler(e) {
+      if (e.detail.successful) document.getElementById('create-edit-modal')?.remove();
+      form.removeEventListener('htmx:afterRequest', handler);
+    });
+  });
+})();
+
+document.body.addEventListener('debianModalError', function(e) {
+  document.getElementById('modal-error-container').innerHTML =
+    `<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                 background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
+       ${e.detail}
+     </div>`;
+});
+</script>
+
+    <div id="modal-error-container">
+      {% if error %}
+        <div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                    background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
+          {{ error }}
+        </div>
+      {% endif %}
+    </div>
+
+    <form id="create-edit-form"
+          hx-post="{{ submit_url }}"
+          hx-target="#main-content"
+          hx-swap="innerHTML"
+          class="form-stack"
+          style="gap:12px; margin-top:8px;">
+
+      {# ── Paketname ──────────────────────────────────────────────────────── #}
+      <div>
+        <label class="form-label">Paketname <span style="color:var(--error)">*</span></label>
+        <input type="text"
+               name="name"
+               class="form-input"
+               value="{{ (item or {}).get('name') or item_id or '' }}"
+               placeholder="z.B. mypackage"
+               {% if item_id %}readonly{% endif %}
+               required
+               style="{% if item_id %}opacity:.6;cursor:not-allowed;{% endif %}" />
+      </div>
+
+      {# ── Git-URL ────────────────────────────────────────────────────────── #}
+      <div>
+        <label class="form-label">Git-URL</label>
+        <input type="text"
+               name="source_url"
+               class="form-input"
+               value="{{ (item or {}).get('source_url') or '' }}"
+               placeholder="https://github.com/example/mypackage.git" />
+        <div class="form-hint">Git-Repository das den debian/-Ordner enthält</div>
+      </div>
+
+      {# ── Distribution & Komponente ──────────────────────────────────────── #}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label class="form-label">Distribution</label>
+          <input type="text"
+                 name="distribution"
+                 class="form-input"
+                 value="{{ (item or {}).get('distribution') or 'bookworm' }}"
+                 placeholder="bookworm" />
+        </div>
+        <div>
+          <label class="form-label">Komponente</label>
+          <select name="component" class="form-input">
+            {% for opt in [("main","main"),("contrib","contrib"),("non-free","non-free")] %}
+              <option value="{{ opt[0] }}"
+                {% if ((item or {}).get('component') or 'main') == opt[0] %}selected{% endif %}>
+                {{ opt[1] }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# ── Typ ────────────────────────────────────────────────────────────── #}
+      <div>
+        <label class="form-label">Typ</label>
+        <select name="pkg_type" class="form-input">
+          <option value="package"
+            {% if ((item or {}).get('pkg_type') or 'package') == 'package' %}selected{% endif %}>
+            Paket
+          </option>
+          <option value="dependency"
+            {% if (item or {}).get('pkg_type') == 'dependency' %}selected{% endif %}>
+            Abhängigkeit
+          </option>
+        </select>
+      </div>
+
+      {# ── Aktiv ──────────────────────────────────────────────────────────── #}
+      <label class="form-toggle" style="margin-top:4px;">
+        <input type="checkbox"
+               name="enabled"
+               {% if (item or {}).get('enabled', true) %}checked{% endif %} />
+        <span>Aktiv</span>
+      </label>
+
+      {{ modal_footer(save_label="Speichern") }}
+    </form>
+  </div>
+</div>
+
+<script>
+  document.body.addEventListener("debianModalError", function(e) {
+    document.getElementById("modal-error-container").innerHTML =
+      `<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                   background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
+         ${e.detail}
+       </div>`;
+  });
+</script>

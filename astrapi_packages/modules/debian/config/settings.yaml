@@ -1,0 +1,48 @@
+modal_width: 520
+
+fields:
+  - type:  section
+    label: Build
+    cols:  1
+
+  - key:         default_image
+    label:       Standard Build-Image
+    type:        text
+    placeholder: "ctl/debian-builder:latest"
+    default:     "ctl/debian-builder:latest"
+    description: "Docker-Image das zum Bauen der Debian-Pakete verwendet wird"
+
+  - type:  section
+    label: APT-Repository
+    cols:  1
+
+  - key:         repo_path
+    label:       Repository-Basispfad (Host)
+    type:        text
+    placeholder: "/storage"
+    description: "Basispfad auf dem Host – das Modul legt .deb-Dateien automatisch unter {repo_path}/debian/ ab"
+
+  - key:         distribution
+    label:       Standard-Distribution
+    type:        text
+    placeholder: "bookworm"
+    default:     "bookworm"
+    description: "Debian-Zieldistribution (z.B. bookworm, bullseye, trixie)"
+
+  - key:         component
+    label:       Standard-Komponente
+    type:        text
+    placeholder: "main"
+    default:     "main"
+    description: "APT-Komponente (main, contrib, non-free)"
+
+  - type:  section
+    label: GitHub-Paketquelle
+    cols:  1
+
+  - key:         github_repo
+    label:       GitHub-Paket-Repos
+    type:        list
+    mono:        true
+    placeholder: "astrapi/packages_debian"
+    description: "GitHub-Repositories mit PKGBUILD-Paketdefinitionen (Format: owner/repo)"

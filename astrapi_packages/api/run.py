@@ -4,7 +4,7 @@ Analogie zu astrapi_backup.api.routers.run, aber für astrapi-packages.
 
 Einbinden in fastapi_app.py:
     from astrapi_packages.api.run import make_run_router
-    for mod in ["docker", "pakete"]:
+    for mod in ["builder", "archlinux"]:
         app.include_router(make_run_router(mod), prefix=f"/api/{mod}")
 """
 

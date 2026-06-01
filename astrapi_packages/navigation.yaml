@@ -4,8 +4,13 @@
 # label und icon sind optional – Defaults kommen aus der modul.yaml des Moduls.
 # Core-Module (notify, scheduler, sysinfo, settings) stehen in core/navigation.yaml.
 
-- key:   docker
+- key:   builder
   group: Build
 
-- key:   pakete
+- key:   archlinux
+  label: Arch Linux
+  group: Build
+
+- key:   debian
+  label: Debian
   group: Build
