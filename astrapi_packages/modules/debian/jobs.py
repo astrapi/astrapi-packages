@@ -52,6 +52,7 @@ def _repo_path() -> Path:
     else:
         base = (_repo_dir() / "debian").resolve()
     base.mkdir(parents=True, exist_ok=True)
+    base.chmod(0o777)
     return base
 
 
