@@ -151,20 +151,35 @@ def debian_listing(request: Request):
         if candidates:
             keyring_deb = candidates[0].name
 
-    dl_url = f"{base_url}/repo/debian/{keyring_deb or 'simpsons-keyring_1.0.0-1_all.deb'}"
+    dl_url = f"{base_url}/repo/debian/{keyring_deb or 'simpsons-keyring_1.0.0-2_all.deb'}"
     sources_url = f"{base_url}/repo/debian/"
     keyring_available = "✓ verfügbar" if keyring_deb else "⚠ noch nicht gebaut"
 
+    # Signed-By-Zeile nur wenn GPG-Key konfiguriert ist
+    try:
+        from astrapi_core.ui.settings_registry import get_module as _get_setting
+        _signing_key = _get_setting("debian", "signing_key_id", "").strip()
+    except Exception:
+        _signing_key = ""
+    signed_by_line = (
+        "\nSigned-By: /usr/share/keyrings/simpsons-packages.gpg" if _signing_key
+        else "\nTrusted: yes"
+    )
+    signed_by_note = (
+        "" if _signing_key
+        else "\n  <p style='color:#f0a500;font-size:0.8rem'>⚠ GPG-Key noch nicht konfiguriert – <code>Trusted: yes</code> als Übergangslösung</p>"
+    )
+
     setup_html = f"""<div class="setup">
   <h2>Einrichtung</h2>
-  <p class="step">1 · CA-Zertifikat einmalig installieren (simpsons-keyring) {keyring_available}</p>
+  <p class="step">1 · CA-Zertifikat und APT-Schlüssel einmalig installieren (simpsons-keyring) {keyring_available}</p>
   <pre>curl -k {dl_url} -o /tmp/simpsons-keyring.deb
 sudo dpkg -i /tmp/simpsons-keyring.deb</pre>
-  <p class="step">2 · APT-Quelle einrichten</p>
+  <p class="step">2 · APT-Quelle einrichten</p>{signed_by_note}
   <pre>sudo tee /etc/apt/sources.list.d/simpsons.sources &lt;&lt;'EOF'
 Types: deb
 URIs: {sources_url}
-Suites: ./
+Suites: ./{signed_by_line}
 EOF</pre>
   <p class="step">3 · Pakete installieren</p>
   <pre>sudo apt update

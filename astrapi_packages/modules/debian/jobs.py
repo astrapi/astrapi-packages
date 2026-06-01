@@ -226,6 +226,68 @@ def _write_release_file(repo_path: Path) -> None:
     log.info("debian: Release-Datei geschrieben")
 
 
+def _sign_release(repo_path: Path) -> None:
+    """Signiert Release → InRelease + Release.gpg, falls signing_key_id konfiguriert."""
+    s = _settings()
+    key_id = s("signing_key_id", "").strip()
+    if not key_id:
+        return
+    release_file = repo_path / "Release"
+    if not release_file.exists():
+        return
+    # InRelease (clearsigned – primär für apt)
+    try:
+        r = subprocess.run(
+            [
+                "gpg",
+                "--batch",
+                "--yes",
+                "--clearsign",
+                "-u",
+                key_id,
+                "--output",
+                str(repo_path / "InRelease"),
+                str(release_file),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+        )
+        if r.returncode != 0:
+            log.warning("debian: gpg --clearsign fehlgeschlagen (Key: %s):\n%s", key_id, r.stdout)
+            return
+        log.info("debian: InRelease signiert (Key: %s)", key_id)
+    except FileNotFoundError:
+        log.warning("debian: gpg nicht gefunden – Release-Signierung übersprungen")
+        return
+    except Exception as e:
+        log.warning("debian: InRelease-Signierung fehlgeschlagen: %s", e)
+        return
+    # Release.gpg (detached – Kompatibilität mit älteren Clients)
+    try:
+        r = subprocess.run(
+            [
+                "gpg",
+                "--batch",
+                "--yes",
+                "--armor",
+                "--detach-sign",
+                "-u",
+                key_id,
+                str(release_file),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+        )
+        if r.returncode != 0:
+            log.warning("debian: gpg --detach-sign fehlgeschlagen:\n%s", r.stdout)
+    except Exception as e:
+        log.warning("debian: Release.gpg fehlgeschlagen: %s", e)
+
+
 def _update_packages_index(repo_path: Path) -> None:
     """Aktualisiert den APT-Packages-Index (läuft im debian-builder Container)."""
     s = _settings()
@@ -251,13 +313,16 @@ def _update_packages_index(repo_path: Path) -> None:
         )
         if result.returncode == 0:
             log.info("debian: Packages-Index aktualisiert")
+            _sign_release(repo_path)
         else:
             log.warning("debian: dpkg-scanpackages fehlgeschlagen:\n%s", result.stdout)
             # Fallback: Python-basierte Release-Datei
             _write_release_file(repo_path)
+            _sign_release(repo_path)
     except Exception as e:
         log.warning("debian: Index-Aktualisierung fehlgeschlagen: %s", e)
         _write_release_file(repo_path)
+        _sign_release(repo_path)
 
 
 def _extract_version(repo_path: Path, item_id: str) -> str | None:

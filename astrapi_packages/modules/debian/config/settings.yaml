@@ -37,6 +37,16 @@ fields:
     description: "APT-Komponente (main, contrib, non-free)"
 
   - type:  section
+    label: GPG-Signierung
+    cols:  1
+
+  - key:         signing_key_id
+    label:       GPG-Key-ID (Signierung)
+    type:        text
+    placeholder: "packages@simpsons.lan"
+    description: "GPG-Key-ID zum Signieren des APT-Repositorys. Leer lassen = kein InRelease/Release.gpg. Schlüssel muss im GPG-Keyring des Dienst-Benutzers vorhanden sein."
+
+  - type:  section
     label: GitHub-Paketquelle
     cols:  1
 
