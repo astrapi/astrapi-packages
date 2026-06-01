@@ -45,11 +45,10 @@ def _repo_path() -> Path:
     from astrapi_packages._paths import repo_dir as _repo_dir
 
     s = _settings()
-    raw = s("repo_path", "").strip()
-    # Konfigurierter Pfad wird direkt verwendet (z.B. {mirror_path}/packages)
-    # Kein Pfad → internes repo/debian/ Verzeichnis
+    raw = s("repo_path", "")
+    # Immer in einem debian/-Unterordner ablegen, damit der Pfad sauber bleibt
     if raw:
-        base = Path(raw).resolve()
+        base = (Path(raw) / "debian").resolve()
     else:
         base = (_repo_dir() / "debian").resolve()
     base.mkdir(parents=True, exist_ok=True)

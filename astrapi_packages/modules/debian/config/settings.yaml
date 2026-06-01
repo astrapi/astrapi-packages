@@ -17,10 +17,10 @@ fields:
     cols:  1
 
   - key:         repo_path
-    label:       Repository-Pfad (Host)
+    label:       Repository-Basispfad (Host)
     type:        text
-    placeholder: "/storage/mirror/packages"
-    description: "Vollständiger Pfad des APT-Repositorys auf dem Host. Wird direkt verwendet – kein Unterordner wird ergänzt. Für Mirror-Integration: {mirror_path}/packages eintragen."
+    placeholder: "/storage"
+    description: "Basispfad auf dem Host – das Modul legt .deb-Dateien automatisch unter {repo_path}/debian/ ab"
 
   - key:         distribution
     label:       Standard-Distribution
