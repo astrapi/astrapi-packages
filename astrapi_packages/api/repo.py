@@ -158,15 +158,18 @@ def debian_listing(request: Request):
     # Signed-By-Zeile nur wenn GPG-Key konfiguriert ist
     try:
         from astrapi_core.ui.settings_registry import get_module as _get_setting
+
         _signing_key = _get_setting("debian", "signing_key_id", "").strip()
     except Exception:
         _signing_key = ""
     signed_by_line = (
-        "\nSigned-By: /usr/share/keyrings/simpsons-packages.gpg" if _signing_key
+        "\nSigned-By: /usr/share/keyrings/simpsons-packages.gpg"
+        if _signing_key
         else "\nTrusted: yes"
     )
     signed_by_note = (
-        "" if _signing_key
+        ""
+        if _signing_key
         else "\n  <p style='color:#f0a500;font-size:0.8rem'>⚠ GPG-Key noch nicht konfiguriert – <code>Trusted: yes</code> als Übergangslösung</p>"
     )
 
