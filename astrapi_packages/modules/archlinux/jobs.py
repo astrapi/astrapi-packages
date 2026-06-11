@@ -17,6 +17,28 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+_ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
+
+
+def _pipe_to_activity_log(cmd_repr: str, raw_output: str, rc: int) -> None:
+    """Schreibt Subprocess-Output ins aktive activity_log (für Log-Modal)."""
+    try:
+        from astrapi_core.system.logger import log as _alog
+
+        _alog("INFO", cmd_repr)
+        for line in raw_output.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            lower = stripped.lower()
+            lvl = "ERROR" if any(k in lower for k in _ERR_KEYWORDS) else "INFO"
+            _alog(lvl, stripped)
+        if rc != 0:
+            _alog("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
+    except Exception:
+        pass
+
+
 def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
     try:
         result = subprocess.run(
@@ -169,8 +191,9 @@ def build_package(item_id: str) -> None:
             ]
 
         log.info("archlinux.build: %s", " ".join(cmd))
-        rc, output = _run(cmd)
-        output = f"$ {' '.join(cmd)}\n\n{output}"
+        rc, raw_output = _run(cmd)
+        _pipe_to_activity_log(f"$ {' '.join(cmd)}", raw_output, rc)
+        output = f"$ {' '.join(cmd)}\n\n{raw_output}"
     finally:
         if tmpdir:
             import shutil

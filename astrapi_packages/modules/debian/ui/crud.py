@@ -112,6 +112,9 @@ async def create_apply(request: Request):
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
     }
+    upstream_version = form.get("upstream_version", "").strip()
+    if upstream_version:
+        data["upstream_version"] = upstream_version
     store.create(item_id, data)
     return render(request, "content.html", _ctx())
 
@@ -162,6 +165,107 @@ def search_packages(request: Request):
         f"{KEY}/dialogs/edit/search_results.html",
         dict(results=results, term=term, cache_empty=pkg_cache and not pkg_cache.get_all()),
     )
+
+
+# ── PKGBUILD-Info (Version + Distribution) ───────────────────────────────────
+
+
+def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
+    """Liest Version und optionale _distribution-Variable aus dem PKGBUILD."""
+    import re
+    import urllib.request
+
+    base = source_url.rstrip("/").removesuffix(".git")
+    for branch in ("main", "master"):
+        url = f"{base}/-/raw/{branch}/{pkg_name}/PKGBUILD"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                text = r.read().decode("utf-8", errors="replace")
+            m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
+            m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
+            m_dist = re.search(r"^_?distribution\s*=\s*['\"]?([a-zA-Z0-9]+)", text, re.MULTILINE)
+            version = ""
+            if m_ver:
+                ver = m_ver.group(1).strip().strip("'\"")
+                rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
+                version = f"{ver}-{rel}" if rel else ver
+            return {
+                "version": version,
+                "distribution": m_dist.group(1).strip() if m_dist else "",
+            }
+        except Exception:
+            continue
+    return {"version": "", "distribution": ""}
+
+
+@router.get(f"/ui/{KEY}/pkgbuild-info")
+def pkgbuild_info(request: Request):
+    """Liest Version und Distribution aus dem PKGBUILD der angegebenen URL."""
+    from fastapi.responses import JSONResponse
+
+    url = request.query_params.get("url", "").strip()
+    pkg = request.query_params.get("pkg", "").strip()
+    if not url or not pkg:
+        return JSONResponse({"version": "", "distribution": ""})
+    return JSONResponse(_pkgbuild_info(url, pkg))
+
+
+# ── Auf Updates prüfen ───────────────────────────────────────────────────────
+
+
+@router.post(f"/ui/{KEY}/check-updates", response_class=HTMLResponse)
+def check_updates(request: Request):
+    """Prüft für alle Pakete ob eine neue Version verfügbar ist."""
+    import re
+    import urllib.request
+
+    pkg_cache = _sys.modules.get(_cache_key)
+    try:
+        if pkg_cache:
+            pkg_cache.refresh()
+    except Exception:
+        pass
+
+    all_items = store.list()
+    if not all_items:
+        return render(request, "content.html", _ctx())
+
+    for k, v in all_items.items():
+        if v.get("last_status") != "ok" and v.get("upstream_version"):
+            store.update(k, {"upstream_version": ""})
+
+    cache_entries = {e["name"]: e for e in (pkg_cache.get_all() if pkg_cache else []) if e.get("name")}
+
+    def _version_from_pkgbuild(source_url: str, subdir: str) -> str:
+        base = source_url.rstrip("/").removesuffix(".git")
+        for branch in ("main", "master"):
+            url = f"{base}/-/raw/{branch}/{subdir}/PKGBUILD"
+            try:
+                with urllib.request.urlopen(url, timeout=5) as r:
+                    text = r.read().decode("utf-8", errors="replace")
+                m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
+                m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
+                if m_ver:
+                    ver = m_ver.group(1).strip().strip("'\"")
+                    rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
+                    return f"{ver}-{rel}" if rel else ver
+            except Exception:
+                continue
+        return ""
+
+    for item_id, item in all_items.items():
+        _entry = cache_entries.get(item_id, {})
+        _ver = _entry.get("pkgver", "")
+        _rel = _entry.get("pkgrel", "")
+        upstream = f"{_ver}-{_rel}" if _ver and _rel else _ver
+        if not upstream:
+            source_url = item.get("source_url", "").strip()
+            if source_url:
+                upstream = _version_from_pkgbuild(source_url, item_id)
+        if upstream:
+            store.update(item_id, {"upstream_version": upstream})
+
+    return render(request, "content.html", _ctx())
 
 
 # ── Alle bauen ────────────────────────────────────────────────────────────────

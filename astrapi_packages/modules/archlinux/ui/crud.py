@@ -207,6 +207,9 @@ async def create_apply(request: Request):
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
     }
+    upstream_version = form.get("upstream_version", "").strip()
+    if upstream_version:
+        data["upstream_version"] = upstream_version
     store.create(item_id, data)
 
     from ..utils.dep_graph import autocreate_deps
@@ -391,6 +394,19 @@ def pkg_exists(request: Request):
     return HTMLResponse('<div id="modal-error-container"></div>')
 
 
+@router.get(f"/ui/{KEY}/pkgbuild-info")
+def pkgbuild_info(request: Request):
+    """Liest Version aus dem PKGBUILD der angegebenen URL."""
+    from fastapi.responses import JSONResponse
+
+    url = request.query_params.get("url", "").strip()
+    subdir = request.query_params.get("subdir", "").strip()
+    if not url:
+        return JSONResponse({"version": ""})
+    version, _ = _version_from_pkgbuild_url(url, subdir)
+    return JSONResponse({"version": version})
+
+
 @router.post(f"/ui/{KEY}/check-updates", response_class=HTMLResponse)
 def check_updates(request: Request):
     """Prüft für alle Pakete ob eine neue Version verfügbar ist."""
@@ -446,7 +462,7 @@ def check_updates(request: Request):
             if upstream:
                 store.update(item_id, {"upstream_version": upstream})
 
-    return render(request, "partials/list_wrapper_inner.html", _ctx())
+    return render(request, "content.html", _ctx())
 
 
 # CRUD-Router am Ende einbinden – eigene Routen oben haben Vorrang (first-match)

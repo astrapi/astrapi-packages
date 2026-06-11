@@ -40,6 +40,7 @@
             <div style="flex:1; background:var(--bg-2); border:1px solid var(--border);
                         border-radius:6px; padding:8px 10px; font-size:13px;">
               <span id="pkg-selected-name" style="font-weight:600;">{{ _pkg_name }}</span>
+              <span id="pkgbuild-version-hint" style="color:var(--text-3);font-size:11px;font-family:var(--mono,monospace);margin-left:6px;"></span>
               <span id="pkg-selected-url" style="color:var(--text-3); font-size:11px; margin-left:6px;">{{ _source_url }}</span>
             </div>
             <button type="button" class="btn btn-ghost btn-sm" onclick="pkgClear()">Ändern</button>
@@ -64,8 +65,9 @@
           <div id="pkg-search-results" style="margin-top:4px;"></div>
         </div>
 
-        <input type="hidden" name="name"       id="field-pkg-name"   value="{{ _pkg_name }}">
-        <input type="hidden" name="source_url" id="field-source-url" value="{{ _source_url }}">
+        <input type="hidden" name="name"            id="field-pkg-name"         value="{{ _pkg_name }}">
+        <input type="hidden" name="source_url"     id="field-source-url"       value="{{ _source_url }}">
+        <input type="hidden" name="upstream_version" id="field-upstream-version" value="">
         <span class="form-error" id="source-url-error"></span>
       </div>
       {% endif %}
@@ -144,7 +146,7 @@
 </style>
 
 <script>
-function pkgSelect(name, url) {
+function pkgSelect(name, url, version, distribution) {
   document.getElementById('field-pkg-name').value   = name;
   document.getElementById('field-source-url').value = url;
   document.getElementById('pkg-selected-name').textContent = name;
@@ -152,6 +154,26 @@ function pkgSelect(name, url) {
   document.getElementById('pkg-selected').style.display    = '';
   document.getElementById('pkg-search-box').style.display  = 'none';
   document.getElementById('pkg-search-results').innerHTML  = '';
+
+  const versionHint  = document.getElementById('pkgbuild-version-hint');
+  const versionField = document.getElementById('field-upstream-version');
+  const distField    = document.querySelector('[name="distribution"]');
+
+  if (version)      { if (versionHint) versionHint.textContent = version; if (versionField) versionField.value = version; }
+  if (distribution) { if (distField) distField.value = distribution; }
+
+  if (!version || !distribution) {
+    fetch(`/ui/debian/pkgbuild-info?url=${encodeURIComponent(url)}&pkg=${encodeURIComponent(name)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.version && !version) {
+          if (versionHint)  versionHint.textContent = data.version;
+          if (versionField) versionField.value = data.version;
+        }
+        if (data.distribution && !distribution && distField) distField.value = data.distribution;
+      })
+      .catch(() => {});
+  }
 }
 
 function pkgClear() {

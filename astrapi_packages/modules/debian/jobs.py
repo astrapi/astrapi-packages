@@ -14,6 +14,28 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+_ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
+
+
+def _pipe_to_activity_log(cmd_repr: str, raw_output: str, rc: int) -> None:
+    """Schreibt Subprocess-Output ins aktive activity_log (für Log-Modal)."""
+    try:
+        from astrapi_core.system.logger import log as _alog
+
+        _alog("INFO", cmd_repr)
+        for line in raw_output.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            lower = stripped.lower()
+            lvl = "ERROR" if any(k in lower for k in _ERR_KEYWORDS) else "INFO"
+            _alog(lvl, stripped)
+        if rc != 0:
+            _alog("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
+    except Exception:
+        pass
+
+
 def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
     try:
         result = subprocess.run(
@@ -146,8 +168,10 @@ echo "Gebaut: $DEB_FILE"
         build_script,
     ]
     log.info("debian.build: %s", " ".join(cmd))
-    rc, output = _run(cmd)
-    output = f"$ {' '.join(cmd)}\n\n{output}"
+    rc, raw_output = _run(cmd)
+    cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
+    _pipe_to_activity_log(cmd_repr, raw_output, rc)
+    output = f"{cmd_repr}\n\n{raw_output}"
 
     if rc == 0:
         _update_packages_index(repo_path)
@@ -345,15 +369,89 @@ def run_single(item_id: str) -> None:
 
 
 def update_all_packages() -> None:
-    """Baut alle aktiven Debian-Pakete."""
+    """Prüft auf neue Versionen und baut veraltete Debian-Pakete neu."""
+    import sys
+    import time as _time
+
     from astrapi_packages.modules.debian import store
 
-    for item_id, item in store.list().items():
-        if item.get("enabled", True):
+    _t0 = _time.time()
+    _act_id = None
+    try:
+        from astrapi_core.system.activity_log import log_activity
+
+        _act_id = log_activity("job", "debian", "Debian: Aktualisieren", status="running")
+    except Exception:
+        pass
+
+    def _finish(status: str, built: int = 0, error: str | None = None) -> None:
+        if _act_id:
             try:
-                build_package(item_id)
-            except Exception as e:
-                log.error("debian.update_all: Fehler bei %s: %s", item_id, e)
+                from astrapi_core.system.activity_log import update_activity_log
+
+                update_activity_log(
+                    log_id=_act_id,
+                    status=status,
+                    duration_s=int(_time.time() - _t0),
+                    changed_count=built,
+                    error_message=error,
+                )
+            except Exception:
+                pass
+
+    all_items = store.list()
+    built_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
+    if not built_ids:
+        _finish("ok")
+        return
+
+    # pkg_cache aktualisieren
+    pkg_cache = sys.modules.get("_debian_pkg_cache")
+    try:
+        if pkg_cache:
+            pkg_cache.refresh()
+    except Exception as e:
+        log.warning("debian.update_all: pkg_cache-Refresh fehlgeschlagen: %s", e)
+
+    cache_entries: dict[str, dict] = {}
+    if pkg_cache:
+        try:
+            cache_entries = {e["name"]: e for e in pkg_cache.get_all() if e.get("name")}
+        except Exception:
+            pass
+
+    from .ui.crud import _pkgbuild_info
+
+    built_count = 0
+    errors: list[str] = []
+    for item_id in built_ids:
+        entry = cache_entries.get(item_id, {})
+        pkgver = entry.get("pkgver", "")
+        pkgrel = entry.get("pkgrel", "")
+        upstream = f"{pkgver}-{pkgrel}" if pkgver and pkgrel else pkgver
+
+        if not upstream:
+            source_url = all_items[item_id].get("source_url", "").strip()
+            if source_url:
+                upstream = _pkgbuild_info(source_url, item_id).get("version", "")
+
+        if upstream:
+            store.update(item_id, {"upstream_version": upstream})
+
+        current = (store.get(item_id) or {}).get("last_version", "")
+        if upstream and upstream == current:
+            log.info("debian.update_all: %s ist aktuell (%s)", item_id, current)
+            continue
+
+        log.info("debian.update_all: %s veraltet (%s → %s), baue …", item_id, current, upstream)
+        try:
+            build_package(item_id)
+            built_count += 1
+        except Exception as e:
+            log.error("debian.update_all: Fehler bei %s: %s", item_id, e)
+            errors.append(str(e))
+
+    _finish("error" if errors else "ok", built=built_count, error="\n".join(errors) or None)
 
 
 def delete_package(item_id: str, item: dict) -> None:

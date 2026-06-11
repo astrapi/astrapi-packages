@@ -7,6 +7,7 @@ RUN apt-get update && \
         devscripts \
         debhelper \
         git \
+        curl \
         fakeroot && \
     rm -rf /var/lib/apt/lists/*
 

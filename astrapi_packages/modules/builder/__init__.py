@@ -82,5 +82,12 @@ try:
         source=_KEY,
         source_label="Builder",
     )
+    register_action(
+        f"{_KEY}.build_debian_builder",
+        "debian-builder: Aktualisieren",
+        lambda: build_image("debian-builder"),
+        source=_KEY,
+        source_label="Builder",
+    )
 except Exception:
     pass

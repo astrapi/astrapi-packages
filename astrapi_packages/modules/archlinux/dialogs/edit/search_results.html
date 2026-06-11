@@ -10,7 +10,7 @@
   <div class="pkg-search-group">GitLab</div>
   {% for pkg in gitlab_results %}
   <div class="pkg-search-item"
-       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '{{ pkg.subdir | default(pkg.name) | e }}')">
+       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '{{ pkg.subdir | default(pkg.name) | e }}', '{{ pkg.pkgver | default('') | e }}')">
     <div class="pkg-search-item-header">
       <span class="pkg-search-name">{{ pkg.name }}</span>
       {% if pkg.pkgver %}<span class="pkg-search-version">{{ pkg.pkgver }}</span>{% endif %}
@@ -24,7 +24,7 @@
   <div class="pkg-search-group">AUR</div>
   {% for pkg in aur_results %}
   <div class="pkg-search-item"
-       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}')">
+       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '', '{{ pkg.pkgver | default('') | e }}')">
     <div class="pkg-search-item-header">
       <span class="pkg-search-name">{{ pkg.name }}</span>
       {% if pkg.pkgver %}<span class="pkg-search-version">{{ pkg.pkgver }}</span>{% endif %}

@@ -33,6 +33,7 @@ class="form-stack" style="gap:12px; margin-top:8px;">
             <div style="flex:1; background:var(--bg-2); border:1px solid var(--border);
                         border-radius:6px; padding:8px 10px; font-size:13px;">
               <span id="pkg-selected-name" style="font-weight:600;">{{ _pkg_name }}</span>
+              <span id="pkgbuild-version-hint" style="color:var(--text-3);font-size:11px;font-family:var(--mono,monospace);margin-left:6px;"></span>
               <span id="pkg-selected-url" style="color:var(--text-3); font-size:11px; margin-left:6px;">{{ _source_url }}</span>
             </div>
             <button type="button" class="btn btn-ghost btn-sm"
@@ -62,10 +63,11 @@ class="form-stack" style="gap:12px; margin-top:8px;">
         </div>
 
         {# Versteckte Felder #}
-        <input type="hidden" name="source_url"    id="field-source-url"    value="{{ _source_url }}">
-        <input type="hidden" name="pkg_name"      id="field-pkg-name-aur"  value="{{ _pkg_name }}">
-        <input type="hidden" name="source_subdir" id="field-source-subdir" value="{{ (item or {}).get('source_subdir', '') }}">
-        <input type="hidden" name="pkg_type"      value="{{ (item or {}).get('pkg_type', 'package') }}">
+        <input type="hidden" name="source_url"       id="field-source-url"       value="{{ _source_url }}">
+        <input type="hidden" name="pkg_name"         id="field-pkg-name-aur"     value="{{ _pkg_name }}">
+        <input type="hidden" name="source_subdir"    id="field-source-subdir"    value="{{ (item or {}).get('source_subdir', '') }}">
+        <input type="hidden" name="pkg_type"         value="{{ (item or {}).get('pkg_type', 'package') }}">
+        <input type="hidden" name="upstream_version" id="field-upstream-version" value="">
         <span class="form-error" id="source-url-error"></span>
 
       </div>
@@ -109,7 +111,7 @@ class="form-stack" style="gap:12px; margin-top:8px;">
 </style>
 
 <script>
-function pkgSelect(name, url, subdir) {
+function pkgSelect(name, url, subdir, version) {
   document.getElementById('field-source-url').value    = url;
   document.getElementById('field-pkg-name-aur').value  = name;
   document.getElementById('field-source-subdir').value = subdir || '';
@@ -120,6 +122,24 @@ function pkgSelect(name, url, subdir) {
   document.getElementById('pkg-search-results').innerHTML  = '';
   document.getElementById('source-url-error').textContent  = '';
   document.getElementById('source-url-error').classList.remove('visible');
+
+  // Version-Hint befüllen
+  const versionHint  = document.getElementById('pkgbuild-version-hint');
+  const versionField = document.getElementById('field-upstream-version');
+  if (version) {
+    if (versionHint)  versionHint.textContent = version;
+    if (versionField) versionField.value = version;
+  } else if (url) {
+    fetch(`/ui/archlinux/pkgbuild-info?url=${encodeURIComponent(url)}&subdir=${encodeURIComponent(subdir||'')}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.version) {
+          if (versionHint)  versionHint.textContent = data.version;
+          if (versionField) versionField.value = data.version;
+        }
+      })
+      .catch(() => {});
+  }
 
   // Duplikat-Prüfung
   fetch(`/ui/archlinux/exists?id=${encodeURIComponent(name)}`)
