@@ -63,7 +63,7 @@ def run_single(item_id: str) -> None:
 
     store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
-    cmd = ["docker", "build", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
+    cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
     _log("INFO", f"$ {' '.join(cmd)}")
 
     rc, _ = _run(cmd, _TIMEOUT_BUILD)
