@@ -37,6 +37,7 @@ from .ui import router as ui_router  # noqa: E402  # ui/ package
 
 _ui_content = ContentTable(
     columns=[
+        Col.version_badge("last_version", "Version"),
         Col.badge_enum(
             "pkg_type",
             "Typ",
@@ -45,7 +46,6 @@ _ui_content = ContentTable(
                 "dependency": {"label": "Abhängigkeit", "cls": "badge-muted"},
             },
         ),
-        Col.version_badge("last_version", "Version"),
     ],
     last_run_label="Letzter Build",
 )
