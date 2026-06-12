@@ -2,17 +2,13 @@
 
 import subprocess
 import threading
-from datetime import datetime
 from pathlib import Path
 
+from astrapi_core.system.format import fmt_now as _now
 from astrapi_core.system.logger import log as _log
 
 _TIMEOUT_BUILD = 3600  # 1 Stunde max. für docker build
 _DOCKERFILES = Path(__file__).parent / "dockerfiles"
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:

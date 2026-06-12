@@ -2,16 +2,13 @@
 
 import logging
 import subprocess
-from datetime import datetime
 from pathlib import Path
+
+from astrapi_core.system.format import fmt_now as _now
 
 log = logging.getLogger(__name__)
 
 _TIMEOUT = 3600
-
-
-def _now() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 _ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
