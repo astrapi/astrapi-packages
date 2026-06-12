@@ -61,6 +61,7 @@ _ui_content = ContentTable(
     has_edit=False,
     has_delete=False,
     has_toggle=False,
+    last_run_label="Letzter Build",
 )
 
 module = load_modul(_DIR, _KEY, router, ui_router, ui_content=_ui_content)
