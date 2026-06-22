@@ -55,7 +55,7 @@ def _db():
 class DebianPackageStore:
     """SQLite-backed Store mit eigener Tabelle `debian_packages`.
 
-    Interface kompatibel mit YamlStorage/SqliteStorage für CRUD-Router und Jobs.
+    Interface kompatibel mit SqliteStorage für CRUD-Router und Jobs.
     Primary Key ist der Paketname (TEXT).
     """
 

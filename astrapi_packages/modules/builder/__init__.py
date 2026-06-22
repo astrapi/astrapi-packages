@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 from astrapi_core.ui.controls import ContentTable
 from astrapi_core.ui.module_loader import load_modul
-from astrapi_core.ui.storage import YamlStorage
+from astrapi_core.ui.storage import SqliteStorage
 from fastapi import APIRouter
 
 _KEY = Path(__file__).parent.name
@@ -21,7 +21,7 @@ IMAGES: dict[str, dict] = _load_images()
 
 # ── Store ─────────────────────────────────────────────────────────────────────
 
-store = YamlStorage(_KEY)
+store = SqliteStorage(_KEY)
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 

@@ -57,7 +57,7 @@ def _db():
 class ArchlinuxPackageStore:
     """SQLite-backed Store mit eigener Tabelle `archlinux_packages`.
 
-    Interface kompatibel mit YamlStorage/SqliteStorage für CRUD-Router und Jobs.
+    Interface kompatibel mit SqliteStorage für CRUD-Router und Jobs.
     Primary Key ist der Paketname (TEXT).
     """
 
