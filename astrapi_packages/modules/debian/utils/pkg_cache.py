@@ -1,4 +1,4 @@
-"""debian/utils/pkg_cache.py – Cached packages.json für die Suchfunktion."""
+"""debian/utils/pkg_cache.py – Gecachte packages.json für die Suchfunktion."""
 
 import json
 import logging
@@ -21,7 +21,7 @@ def _repo_paths() -> list[str]:
     try:
         from astrapi_core.ui.settings_registry import get_module
 
-        raw = get_module("debian", "github_repo", []) or []
+        raw = get_module("debian", "pkg_repos", []) or []
         if isinstance(raw, str):
             lines = [raw]
         else:
@@ -59,7 +59,7 @@ def _raw_url(entry: str) -> str:
 
 def _fetch(repo: str) -> list[dict]:
     url = _raw_url(repo)
-    log.info("pkg_cache(debian): Lade %s", url)
+    log.info("pkg_cache(debian): lade %s", url)
     try:
         req = Request(url, headers={"Accept": "application/json"})
         with urlopen(req, timeout=10) as r:
@@ -68,7 +68,7 @@ def _fetch(repo: str) -> list[dict]:
             log.warning("pkg_cache(debian): packages.json ist kein Array.")
             return []
         for entry in data:
-            entry.setdefault("source", "remote")
+            entry.setdefault("source", "git")
         return data
     except Exception as e:
         log.warning("pkg_cache(debian): Fetch fehlgeschlagen (%s): %s", repo, e)
@@ -88,7 +88,7 @@ def refresh() -> None:
     with _lock:
         global _cache
         _cache = entries
-    log.info("pkg_cache(debian): %d Debian-Pakete gecacht.", len(entries))
+    log.info("pkg_cache(debian): %d Pakete gecacht.", len(entries))
 
 
 def get_all() -> list[dict]:
@@ -114,4 +114,4 @@ def start() -> None:
             time.sleep(_REFRESH_SEC)
             refresh()
 
-    threading.Thread(target=_loop, daemon=True, name="debian-pkg-cache").start()
+    threading.Thread(target=_loop, daemon=True, name="pkg-cache-debian").start()

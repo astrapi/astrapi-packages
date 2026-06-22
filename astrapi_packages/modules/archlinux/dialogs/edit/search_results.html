@@ -1,14 +1,14 @@
 {% if cache_empty %}
 <p class="form-hint" style="margin-top:6px;">
-  GitLab-Cache wird geladen – bitte in einigen Sekunden erneut suchen.
+  Cache wird geladen – bitte in einigen Sekunden erneut suchen.
 </p>
 {% endif %}
-{% if gitlab_results or aur_results %}
+{% if pkg_results or aur_results %}
 <div class="pkg-search-results">
 
-  {% if gitlab_results %}
-  <div class="pkg-search-group">GitLab</div>
-  {% for pkg in gitlab_results %}
+  {% if pkg_results %}
+  <div class="pkg-search-group">Repos</div>
+  {% for pkg in pkg_results %}
   <div class="pkg-search-item"
        onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '{{ pkg.subdir | default(pkg.name) | e }}', '{{ pkg.pkgver | default('') | e }}')">
     <div class="pkg-search-item-header">

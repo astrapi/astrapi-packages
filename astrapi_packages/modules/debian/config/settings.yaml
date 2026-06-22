@@ -16,12 +16,6 @@ fields:
     label: APT-Repository
     cols:  1
 
-  - key:         repo_path
-    label:       Repository-Basispfad (Host)
-    type:        text
-    placeholder: "/storage"
-    description: "Basispfad auf dem Host – das Modul legt .deb-Dateien automatisch unter {repo_path}/debian/ ab"
-
   - key:         distribution
     label:       Standard-Distribution
     type:        text
@@ -47,12 +41,12 @@ fields:
     description: "GPG-Key-ID zum Signieren des APT-Repositorys. Leer lassen = kein InRelease/Release.gpg. Schlüssel muss im GPG-Keyring des Dienst-Benutzers vorhanden sein."
 
   - type:  section
-    label: GitHub-Paketquelle
+    label: Paketquellen
     cols:  1
 
-  - key:         github_repo
-    label:       GitHub-Paket-Repos
+  - key:         pkg_repos
+    label:       Paket-Repos
     type:        list
     mono:        true
-    placeholder: "astrapi/packages_debian"
-    description: "GitHub-Repositories mit PKGBUILD-Paketdefinitionen (Format: owner/repo)"
+    placeholder: "https://github.com/astrapi/packages_debian"
+    description: "URLs zu Repos mit packages.json (GitHub, GitLab, Gitea/Forgejo – oder direkte .json-URL). Wird alle 5 Min. aktualisiert."

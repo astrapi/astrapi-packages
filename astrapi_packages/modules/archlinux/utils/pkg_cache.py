@@ -1,4 +1,4 @@
-"""archlinux/gitlab_cache.py – Cached packages.json für die Suchfunktion."""
+"""archlinux/utils/pkg_cache.py – Gecachte packages.json für die Suchfunktion."""
 
 import json
 import logging
@@ -21,7 +21,7 @@ def _repo_paths() -> list[str]:
     try:
         from astrapi_core.ui.settings_registry import get_module
 
-        raw = get_module("archlinux", "gitlab_group", []) or []
+        raw = get_module("archlinux", "pkg_repos", []) or []
         if isinstance(raw, str):
             lines = [raw]
         else:
@@ -59,19 +59,19 @@ def _raw_url(entry: str) -> str:
 
 def _fetch(repo: str) -> list[dict]:
     url = _raw_url(repo)
-    log.info("gitlab_cache: Lade %s", url)
+    log.info("pkg_cache(archlinux): Lade %s", url)
     try:
         req = Request(url, headers={"Accept": "application/json"})
         with urlopen(req, timeout=10) as r:
             data = json.loads(r.read())
         if not isinstance(data, list):
-            log.warning("gitlab_cache: packages.json ist kein Array.")
+            log.warning("pkg_cache(archlinux): packages.json ist kein Array.")
             return []
         for entry in data:
-            entry.setdefault("source", "gitlab")
+            entry.setdefault("source", "git")
         return data
     except Exception as e:
-        log.warning("gitlab_cache: Fetch fehlgeschlagen (%s): %s", repo, e)
+        log.warning("pkg_cache(archlinux): Fetch fehlgeschlagen (%s): %s", repo, e)
         return []
 
 
@@ -88,7 +88,7 @@ def refresh() -> None:
     with _lock:
         global _cache
         _cache = entries
-    log.info("gitlab_cache: %d Arch-Linux-Pakete gecacht.", len(entries))
+    log.info("pkg_cache(archlinux): %d Pakete gecacht.", len(entries))
 
 
 def get_all() -> list[dict]:
@@ -114,4 +114,4 @@ def start() -> None:
             time.sleep(_REFRESH_SEC)
             refresh()
 
-    threading.Thread(target=_loop, daemon=True, name="gitlab-cache").start()
+    threading.Thread(target=_loop, daemon=True, name="pkg-cache-archlinux").start()

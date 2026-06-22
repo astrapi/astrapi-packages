@@ -1,6 +1,5 @@
 """astrapi_packages.modules.debian.ui.crud – FastAPI-UI-Router für das Debian-Modul."""
 
-import threading
 from pathlib import Path
 
 from astrapi_core.ui.crud_blueprint import make_crud_router
@@ -146,9 +145,6 @@ async def edit_apply(item_id: str, request: Request):
     return render(request, "content.html", _ctx())
 
 
-# ── Alle bauen ────────────────────────────────────────────────────────────────
-
-
 @router.get(f"/ui/{KEY}/search", response_class=HTMLResponse)
 def search_packages(request: Request):
     term = request.query_params.get("q", "").strip()
@@ -170,6 +166,18 @@ def search_packages(request: Request):
 # ── PKGBUILD-Info (Version + Distribution) ───────────────────────────────────
 
 
+def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
+    from urllib.parse import urlparse
+
+    p = urlparse(base_url)
+    path = p.path.strip("/")
+    if p.netloc == "github.com":
+        return f"https://raw.githubusercontent.com/{path}/{branch}/{subdir}/PKGBUILD"
+    if "gitlab" in p.netloc:
+        return f"{p.scheme}://{p.netloc}/{path}/-/raw/{branch}/{subdir}/PKGBUILD"
+    return f"{p.scheme}://{p.netloc}/{path}/raw/branch/{branch}/{subdir}/PKGBUILD"
+
+
 def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
     """Liest Version und optionale _distribution-Variable aus dem PKGBUILD."""
     import re
@@ -177,7 +185,7 @@ def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
 
     base = source_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
-        url = f"{base}/-/raw/{branch}/{pkg_name}/PKGBUILD"
+        url = _pkgbuild_raw_url(base, branch, pkg_name)
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
                 text = r.read().decode("utf-8", errors="replace")
@@ -239,7 +247,7 @@ def check_updates(request: Request):
     def _version_from_pkgbuild(source_url: str, subdir: str) -> str:
         base = source_url.rstrip("/").removesuffix(".git")
         for branch in ("main", "master"):
-            url = f"{base}/-/raw/{branch}/{subdir}/PKGBUILD"
+            url = _pkgbuild_raw_url(base, branch, subdir)
             try:
                 with urllib.request.urlopen(url, timeout=5) as r:
                     text = r.read().decode("utf-8", errors="replace")
@@ -265,17 +273,6 @@ def check_updates(request: Request):
         if upstream:
             store.update(item_id, {"upstream_version": upstream})
 
-    return render(request, "content.html", _ctx())
-
-
-# ── Alle bauen ────────────────────────────────────────────────────────────────
-
-
-@router.post(f"/ui/{KEY}/build-all", response_class=HTMLResponse)
-def build_all(request: Request):
-    from astrapi_packages.modules.debian.jobs import update_all_packages
-
-    threading.Thread(target=update_all_packages, daemon=True).start()
     return render(request, "content.html", _ctx())
 
 

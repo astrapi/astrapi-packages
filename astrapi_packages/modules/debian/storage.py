@@ -44,6 +44,22 @@ _BOOL_COLS = frozenset({"enabled"})
 _log = __import__("logging").getLogger(__name__)
 
 
+def _browse_url(source_url: str, name: str) -> str:
+    from urllib.parse import urlparse
+
+    if not source_url:
+        return ""
+    p = urlparse(source_url)
+    if not p.scheme:
+        return ""
+    path = p.path.strip("/").removesuffix(".git")
+    if p.netloc == "github.com":
+        return f"https://github.com/{path}/tree/main/{name}"
+    if "gitlab" in p.netloc:
+        return f"{p.scheme}://{p.netloc}/{path}/-/tree/main/{name}"
+    return f"{p.scheme}://{p.netloc}/{path}/src/branch/main/{name}"
+
+
 def _db():
     from astrapi_core.system.db import _conn
 
@@ -109,6 +125,11 @@ class DebianPackageStore:
                 f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name"
             ).fetchall()
         result = {r[0]: self._row_to_dict(r) for r in rows}
+        for item_id, item in result.items():
+            url = item.get("source_url", "")
+            item["browse_url"] = _browse_url(url, item_id)
+            item["source_type_label"] = "Repo" if url else ""
+            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
         if offset:

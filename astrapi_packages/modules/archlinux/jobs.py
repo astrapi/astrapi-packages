@@ -64,12 +64,12 @@ def _settings():
 
 
 def _arch_repo_path() -> str:
-    """Gibt <repo_path>/arch/x86_64/ zurück, legt das Verzeichnis an und migriert ggf. flache Struktur."""
-    from astrapi_packages._paths import repo_dir as _repo_dir
+    """Gibt <repo_base>/arch/x86_64/ zurück, legt das Verzeichnis an und migriert ggf. flache Struktur."""
+    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
 
-    s = _settings()
-    base = Path(s("repo_path", "") or str(_repo_dir())).resolve()
-    path = base / "arch" / "x86_64"
+    disk = _extra_disk()
+    base = (Path(disk).resolve() / "arch") if disk else (_repo_dir().resolve() / "arch")
+    path = base / "x86_64"
     path.mkdir(parents=True, exist_ok=True)
     path.chmod(0o777)
     _migrate_flat_repo(base, path)
@@ -556,15 +556,15 @@ def update_all_packages() -> None:
         _finish("ok")
         return
 
-    # GitLab-Cache aktualisieren
+    # Pkg-Cache aktualisieren
     try:
-        from .ui import _get_gitlab_cache
+        from .ui import _get_pkg_cache
 
-        gitlab_cache = _get_gitlab_cache()
-        gitlab_cache.refresh()
+        pkg_cache = _get_pkg_cache()
+        pkg_cache.refresh()
     except Exception as e:
-        log.warning("update_all_packages: GitLab-Cache-Refresh fehlgeschlagen: %s", e)
-        gitlab_cache = None
+        log.warning("update_all_packages: Cache-Refresh fehlgeschlagen: %s", e)
+        pkg_cache = None
 
     # AUR: Batch-Abfrage für alle item_ids
     qs = "&".join(f"arg[]={quote(i)}" for i in built_ids)
@@ -577,11 +577,11 @@ def update_all_packages() -> None:
     except Exception as e:
         log.warning("update_all_packages: AUR-Abfrage fehlgeschlagen: %s", e)
 
-    # GitLab-Versionen
-    gl_entries: dict[str, dict] = {}
-    if gitlab_cache:
+    # Repo-Versionen aus pkg_cache
+    pkg_entries: dict[str, dict] = {}
+    if pkg_cache:
         try:
-            gl_entries = {e.get("name"): e for e in gitlab_cache.get_all() if e.get("name")}
+            pkg_entries = {e.get("name"): e for e in pkg_cache.get_all() if e.get("name")}
         except Exception:
             pass
 
@@ -595,16 +595,15 @@ def update_all_packages() -> None:
         if item_id in aur_versions:
             upstream = aur_versions[item_id]
         else:
-            # GitLab: PKGBUILD direkt lesen, packages.json als Fallback
             item = all_items[item_id]
             source_url = item.get("source_url", "")
             source_sub = item.get("source_subdir", "")
-            if "gitlab" in source_url and source_sub:
+            if source_url and source_sub:
                 upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
                 _sync_pkgbuild_deps(item_id, store)
 
-        if not upstream and item_id in gl_entries:
-            entry = gl_entries[item_id]
+        if not upstream and item_id in pkg_entries:
+            entry = pkg_entries[item_id]
             ver = entry.get("pkgver") or entry.get("version") or ""
             rel = entry.get("pkgrel", "")
             upstream = f"{ver}-{rel}" if rel else ver

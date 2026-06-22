@@ -1,12 +1,9 @@
-label:           Arch Linux
+label:           Archlinux
 nav_group:       Build
-settings_button: false
 
 card_actions:
   - type: run
   - type: log
   - type: open_url
-    url: "https://aur.archlinux.org/packages/{item}"
-    hide_if_field_value:
-      field: typ
-      value: custom
+    url: "{browse_url}"
+    show_if_field: browse_url

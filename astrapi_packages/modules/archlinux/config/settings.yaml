@@ -16,12 +16,6 @@ fields:
     label: Pacman-Repository
     cols:  1
 
-  - key:         repo_path
-    label:       Repository-Pfad (Host)
-    type:        text
-    placeholder: "<Arbeitsverzeichnis>/repo"
-    description: "Verzeichnis auf dem Host in das die fertigen Pakete abgelegt werden (Standard: <Arbeitsverzeichnis>/repo)"
-
   - key:         repo_name
     label:       Repository-Name
     type:        text
@@ -33,9 +27,9 @@ fields:
     label: Paketquellen
     cols:  1
 
-  - key:         gitlab_group
+  - key:         pkg_repos
     label:       Paket-Repos
     type:        list
     mono:        true
     placeholder: "https://github.com/astrapi/packages_archlinux"
-    description: "URL oder Pfad zu Repos mit packages.json (GitHub: https://github.com/owner/repo, GitLab: owner/group). Wird alle 5 Min. aktualisiert."
+    description: "URLs zu Repos mit packages.json (GitHub, GitLab, Gitea/Forgejo – oder direkte .json-URL). Wird alle 5 Min. aktualisiert."

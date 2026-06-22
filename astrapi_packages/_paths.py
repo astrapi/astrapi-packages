@@ -10,5 +10,17 @@ def package_dir() -> Path:
 
 
 def repo_dir() -> Path:
-    """Lokales Pacman-Repository direkt im Projektordner (= work_dir)."""
+    """Lokales Repository-Basisverzeichnis (= work_dir/repo)."""
     return work_dir().resolve() / "repo"
+
+
+def _extra_disk() -> str:
+    """Gibt den ersten konfigurierten Zusatzspeicher zurück, oder ''."""
+    from astrapi_core.ui.settings_registry import get_module
+
+    raw = get_module("system", "extra_disks", default="") or ""
+    for part in raw.split(","):
+        path = part.strip()
+        if path:
+            return path
+    return ""

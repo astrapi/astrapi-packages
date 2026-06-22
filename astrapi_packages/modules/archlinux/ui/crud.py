@@ -94,15 +94,14 @@ def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
     return result
 
 
-# GitLab-Cache
 import importlib.util as _ilu
 import sys as _sys
 
 
-def _get_gitlab_cache():
-    _key = "_archlinux_gitlab_cache"
+def _get_pkg_cache():
+    _key = "_archlinux_pkg_cache"
     if _key not in _sys.modules:
-        _spec = _ilu.spec_from_file_location(_key, _DIR / "utils" / "gitlab_cache.py")
+        _spec = _ilu.spec_from_file_location(_key, _DIR / "utils" / "pkg_cache.py")
         _mod = _ilu.module_from_spec(_spec)
         _sys.modules[_key] = _mod
         _spec.loader.exec_module(_mod)
@@ -110,7 +109,7 @@ def _get_gitlab_cache():
     return _sys.modules[_key]
 
 
-_get_gitlab_cache()
+_get_pkg_cache()
 
 
 # ── CRUD-Router für delete + toggle (Standard-Verhalten) ─────────────────────
@@ -273,13 +272,25 @@ def _parse_pkgbuild_deps(text: str) -> list[str]:
     return [d for d in deps if not (d in seen or seen.add(d))]  # type: ignore[func-returns-value]
 
 
+def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
+    from urllib.parse import urlparse
+
+    p = urlparse(base_url)
+    path = p.path.strip("/")
+    if p.netloc == "github.com":
+        return f"https://raw.githubusercontent.com/{path}/{branch}/{subdir}/PKGBUILD"
+    if "gitlab" in p.netloc:
+        return f"{p.scheme}://{p.netloc}/{path}/-/raw/{branch}/{subdir}/PKGBUILD"
+    return f"{p.scheme}://{p.netloc}/{path}/raw/branch/{branch}/{subdir}/PKGBUILD"
+
+
 def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
     import re
     import urllib.request
 
     base = source_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
-        url = f"{base}/-/raw/{branch}/{source_subdir}/PKGBUILD"
+        url = _pkgbuild_raw_url(base, branch, source_subdir)
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
                 text = r.read().decode("utf-8", errors="replace")
@@ -322,27 +333,27 @@ def _search_aur(term: str) -> list[dict]:
 def search_packages(request: Request):
     import threading
 
-    gitlab_cache = _get_gitlab_cache()
+    pkg_cache = _get_pkg_cache()
     term = request.query_params.get("q", "").strip()
     if len(term) < 2:
         return HTMLResponse("")
-    if not gitlab_cache.get_all():
-        threading.Thread(target=gitlab_cache.refresh, daemon=True).start()
+    if not pkg_cache.get_all():
+        threading.Thread(target=pkg_cache.refresh, daemon=True).start()
     from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=2) as ex:
-        f_gl = ex.submit(gitlab_cache.search, term)
+        f_pkg = ex.submit(pkg_cache.search, term)
         f_aur = ex.submit(_search_aur, term)
-        gl_results = f_gl.result()
+        pkg_results = f_pkg.result()
         aur_results = f_aur.result()
     return render(
         request,
         f"{KEY}/dialogs/edit/search_results.html",
         dict(
-            gitlab_results=gl_results,
+            pkg_results=pkg_results,
             aur_results=aur_results,
             term=term,
-            cache_empty=not gitlab_cache.get_all(),
+            cache_empty=not pkg_cache.get_all(),
         ),
     )
 
@@ -415,7 +426,7 @@ def check_updates(request: Request):
     from urllib.parse import quote
 
     try:
-        _get_gitlab_cache().refresh()
+        _get_pkg_cache().refresh()
     except Exception:
         pass
 
@@ -441,8 +452,8 @@ def check_updates(request: Request):
     except Exception:
         pass
 
-    gitlab_cache = _get_gitlab_cache()
-    gl_entries = {e.get("name"): e for e in gitlab_cache.get_all() if e.get("name")}
+    pkg_cache = _get_pkg_cache()
+    pkg_entries = {e.get("name"): e for e in pkg_cache.get_all() if e.get("name")}
 
     for item_id in all_ids:
         if item_id in aur_versions:
@@ -452,10 +463,10 @@ def check_updates(request: Request):
             source_url = item.get("source_url", "")
             source_sub = item.get("source_subdir", "")
             upstream = ""
-            if "gitlab" in source_url and source_sub:
+            if source_url and source_sub:
                 upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
-            if not upstream and item_id in gl_entries:
-                entry = gl_entries[item_id]
+            if not upstream and item_id in pkg_entries:
+                entry = pkg_entries[item_id]
                 ver = entry.get("pkgver") or entry.get("version") or ""
                 rel = entry.get("pkgrel", "")
                 upstream = f"{ver}-{rel}" if rel else ver

@@ -38,14 +38,8 @@ from .ui import router as ui_router  # noqa: E402  # ui/ package
 _ui_content = ContentTable(
     columns=[
         Col.version_badge("last_version", "Version"),
-        Col.badge_enum(
-            "pkg_type",
-            "Typ",
-            {
-                "package": {"label": "Paket", "cls": "badge-muted"},
-                "dependency": {"label": "Abhängigkeit", "cls": "badge-muted"},
-            },
-        ),
+        Col.text("pkg_type_label", "Typ", css="col-type"),
+        Col.text("source_type_label", "Quelle", css="col-type"),
     ],
     last_run_label="Letzter Build",
 )
