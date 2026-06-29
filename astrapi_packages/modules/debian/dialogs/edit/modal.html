@@ -1,5 +1,5 @@
 {% extends "partials/pkg_edit_modal_base.html" %}
-{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn %}
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn, form_select, form_input %}
 
 {% block modal_max_width %}540{% endblock %}
 
@@ -36,14 +36,14 @@
     <label class="form-label" style="margin-bottom:6px;">
       Paket suchen <span style="color:var(--error)">*</span>
     </label>
-    <input type="text" id="pkg-search-input" class="form-input"
-           placeholder="Paketname oder Beschreibung …"
-           autocomplete="off"
-           hx-get="/ui/debian/search"
-           hx-trigger="input changed delay:350ms"
-           hx-target="#pkg-search-results"
-           hx-include="this"
-           name="q">
+    {%- set _search_attrs -%}
+    id="pkg-search-input" autocomplete="off"
+    hx-get="/ui/debian/search"
+    hx-trigger="input changed delay:350ms"
+    hx-target="#pkg-search-results"
+    hx-include="this"
+    {%- endset -%}
+    {{ form_input('q', placeholder='Paketname oder Beschreibung …', attrs=_search_attrs) }}
     <div id="pkg-search-results" style="margin-top:4px;"></div>
   </div>
 
@@ -58,15 +58,12 @@
 {% if item_id %}
 <div>
   <label class="form-label">Paketname</label>
-  <input type="text" name="name" class="form-input"
-         value="{{ item_id }}" readonly
-         style="opacity:.6; cursor:not-allowed;" />
+  {{ form_input('name', item_id, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
 </div>
 <div>
   <label class="form-label">Git-URL</label>
-  <input type="text" name="source_url" class="form-input"
-         value="{{ (item or {}).get('source_url') or '' }}"
-         placeholder="https://github.com/example/mypackage.git" />
+  {{ form_input('source_url', (item or {}).get('source_url') or '',
+               placeholder='https://github.com/example/mypackage.git') }}
 </div>
 {% endif %}
 
@@ -74,36 +71,24 @@
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
   <div>
     <label class="form-label">Distribution</label>
-    <input type="text" name="distribution" class="form-input"
-           value="{{ (item or {}).get('distribution') or 'bookworm' }}"
-           placeholder="bookworm" />
+    {{ form_input('distribution', (item or {}).get('distribution') or 'bookworm', placeholder='bookworm') }}
   </div>
   <div>
     <label class="form-label">Komponente</label>
-    <select name="component" class="form-input">
-      {% for opt in [("main","main"),("contrib","contrib"),("non-free","non-free")] %}
-        <option value="{{ opt[0] }}"
-          {% if ((item or {}).get('component') or 'main') == opt[0] %}selected{% endif %}>
-          {{ opt[1] }}
-        </option>
-      {% endfor %}
-    </select>
+    {{ form_select('component',
+                   [{'value':'main','label':'main'},{'value':'contrib','label':'contrib'},{'value':'non-free','label':'non-free'}],
+                   (item or {}).get('component') or 'main',
+                   placeholder='') }}
   </div>
 </div>
 
 {# ── Typ ────────────────────────────────────────────────────────────── #}
 <div>
   <label class="form-label">Typ</label>
-  <select name="pkg_type" class="form-input">
-    <option value="package"
-      {% if ((item or {}).get('pkg_type') or 'package') == 'package' %}selected{% endif %}>
-      Paket
-    </option>
-    <option value="dependency"
-      {% if (item or {}).get('pkg_type') == 'dependency' %}selected{% endif %}>
-      Abhängigkeit
-    </option>
-  </select>
+  {{ form_select('pkg_type',
+                 [{'value':'package','label':'Paket'},{'value':'dependency','label':'Abhängigkeit'}],
+                 (item or {}).get('pkg_type') or 'package',
+                 placeholder='') }}
 </div>
 {% endblock %}
 

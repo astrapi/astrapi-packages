@@ -1,5 +1,5 @@
 {% extends "partials/pkg_edit_modal_base.html" %}
-{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn %}
+{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn, form_input %}
 
 {% block modal_max_width %}560{% endblock %}
 
@@ -36,14 +36,14 @@
       <label class="form-label" style="margin:0;">Paket suchen <span class="required-mark">*</span></label>
       <span class="form-hint" id="pkg-search-hint" style="font-size:11px;"></span>
     </div>
-    <input type="text" id="pkg-search-input" class="form-input"
-           placeholder="Paketname oder Beschreibung ..."
-           autocomplete="off"
-           hx-get="/ui/archlinux/search"
-           hx-trigger="input changed delay:350ms"
-           hx-target="#pkg-search-results"
-           hx-include="this"
-           name="q">
+    {%- set _search_attrs -%}
+    id="pkg-search-input" autocomplete="off"
+    hx-get="/ui/archlinux/search"
+    hx-trigger="input changed delay:350ms"
+    hx-target="#pkg-search-results"
+    hx-include="this"
+    {%- endset -%}
+    {{ form_input('q', placeholder='Paketname oder Beschreibung ...', attrs=_search_attrs) }}
     <div id="pkg-search-results" style="margin-top:4px;"></div>
   </div>
 
@@ -61,9 +61,8 @@
     AUR-Abhängigkeiten
     <span class="form-hint" style="font-weight:normal;margin-left:4px;">kommagetrennte Paketnamen</span>
   </label>
-  <input type="text" id="field-aur-deps" name="aur_deps" class="form-input"
-         placeholder="pkg-a, pkg-b"
-         value="{{ (item or {}).get('aur_deps', '') }}">
+  {{ form_input('aur_deps', (item or {}).get('aur_deps', ''), placeholder='pkg-a, pkg-b',
+               attrs='id="field-aur-deps"') }}
   <span class="form-hint" style="font-size:11px;margin-top:3px;display:block;">
     Abhängigkeiten die nicht in den offiziellen Repos sind. Werden automatisch als Einträge angelegt und vor diesem Paket gebaut.
   </span>
