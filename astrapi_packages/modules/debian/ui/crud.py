@@ -41,6 +41,7 @@ _crud = make_crud_router(
     label="Paket",
     description_field="name",
     has_run_buttons=True,
+    has_toggle=False,
     running_fn=_running_fn,
 )
 
