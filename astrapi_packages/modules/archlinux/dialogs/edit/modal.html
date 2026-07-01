@@ -1,19 +1,14 @@
 {% extends "partials/pkg_edit_modal_base.html" %}
-{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn, form_input %}
+{% from "partials/components/ui_macros.html" import btn, form_input %}
 
-{% block modal_max_width %}560{% endblock %}
+{% block dialog_width %}560{% endblock %}
+{% block dialog_title %}{{ 'Paket bearbeiten – ' ~ item_id if item_id else 'Neues Arch-Linux-Paket' }}{% endblock %}
+{% block form_action %}{% if item_id %}/ui/archlinux/{{ item_id }}/update{% else %}/ui/archlinux/{% endif %}{% endblock %}
+{% block form_attrs %}onsubmit="return archPkgValidate(this)"{% endblock %}
 
-{% block title %}
-  {% if item_id %}
-    {{ modal_title(title="Paket bearbeiten – " ~ item_id, icon="edit") }}
-  {% else %}
-    {{ modal_title(is_edit=false, title="Neues Arch-Linux-Paket") }}
-  {% endif %}
-{% endblock %}
+{% block dialog_body %}
+<div id="modal-error-container"></div>
 
-{% block submit_url %}{% if item_id %}/ui/archlinux/{{ item_id }}/update{% else %}/ui/archlinux/{% endif %}{% endblock %}
-
-{% block form_content %}
 {% set _source_url = (item or {}).get('source_url') or '' %}
 {% set _pkg_name = _source_url.rstrip('/').split('/')[-1].removesuffix('.git') if _source_url else '' %}
 
@@ -69,31 +64,41 @@
 </div>
 {% endblock %}
 
-{% block footer %}
-  {{ modal_footer(enabled=(item or {}).get('enabled', True), enabled_id='modal-enabled',
-                  save_label='Speichern' if item_id else 'Erstellen',
-                  has_toggle=true, save_id='create-edit-submit', save_type='button') }}
+{% block dialog_footer %}
+<div class="ds-modal-footer">
+  <label class="toggle-field">
+    <input type="hidden" name="enabled" value="0">
+    <input type="checkbox" name="enabled" value="1" id="modal-enabled"
+           style="display:none;" {{ 'checked' if (item or {}).get('enabled', True) else '' }}>
+    <button type="button"
+            class="toggle-switch {{ 'toggle-on' if (item or {}).get('enabled', True) else 'toggle-off' }}"
+            onclick="var cb=document.getElementById('modal-enabled');cb.checked=!cb.checked;this.classList.toggle('toggle-on',cb.checked);this.classList.toggle('toggle-off',!cb.checked);this.nextElementSibling.textContent=cb.checked?'Aktiviert':'Deaktiviert';">
+      <span class="toggle-knob"></span>
+    </button>
+    <span class="toggle-field-label">{{ 'Aktiviert' if (item or {}).get('enabled', True) else 'Deaktiviert' }}</span>
+  </label>
+  <div class="modal-actions">
+    <button type="button" class="btn btn-sm btn-ghost" onclick="closeModal(this)">Abbrechen</button>
+    <button type="submit" class="btn btn-sm btn-primary" id="create-edit-submit">
+      {{ 'Speichern' if item_id else 'Erstellen' }}
+    </button>
+  </div>
+</div>
 {% endblock %}
 
-{% block submit_validation %}
-const typ = form.querySelector('select[name="typ"]')?.value || 'aur';
-if (typ === 'aur') {
+{% block dialog_scripts %}
+{{ super() }}
+<script>
+function archPkgValidate(form) {
   const url = document.getElementById('field-source-url')?.value?.trim();
   if (!url) {
     const err = document.getElementById('source-url-error');
     if (err) { err.textContent = 'Bitte ein Paket auswählen.'; err.classList.add('visible'); }
-    return;
+    return false;
   }
-} else {
-  const nameField = document.getElementById('field-pkg-name');
-  if (nameField && !nameField.readOnly && !nameField.value.trim()) {
-    nameField.classList.add('is-invalid');
-    return;
-  }
+  return true;
 }
-{% endblock %}
 
-{% block module_scripts %}
 function pkgSelect(name, url, subdir, version) {
   document.getElementById('field-source-url').value    = url;
   document.getElementById('field-pkg-name-aur').value  = name;
@@ -126,7 +131,8 @@ function pkgSelect(name, url, subdir, version) {
   fetch(`/ui/archlinux/exists?id=${encodeURIComponent(name)}`)
     .then(r => r.text())
     .then(html => {
-      document.getElementById('modal-error-container').outerHTML = html;
+      const c = document.getElementById('modal-error-container');
+      if (c) c.outerHTML = html;
       const hasError = html.includes('bereits vorhanden');
       const btn = document.querySelector('#create-edit-form button[type=submit]');
       if (btn) btn.disabled = hasError;
@@ -150,4 +156,5 @@ function pkgClear() {
   document.getElementById('pkg-search-box').style.display = '';
   document.getElementById('pkg-search-input').focus();
 }
+</script>
 {% endblock %}

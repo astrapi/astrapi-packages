@@ -1,19 +1,14 @@
 {% extends "partials/pkg_edit_modal_base.html" %}
-{% from "partials/components/ui_macros.html" import modal_title, modal_footer, btn, form_select, form_input %}
+{% from "partials/components/ui_macros.html" import btn, form_select, form_input %}
 
-{% block modal_max_width %}540{% endblock %}
+{% block dialog_width %}540{% endblock %}
+{% block dialog_title %}{{ 'Paket bearbeiten – ' ~ item_id if item_id else 'Neues Debian-Paket' }}{% endblock %}
+{% block form_action %}{% if item_id %}/ui/debian/{{ item_id }}/update{% else %}/ui/debian/{% endif %}{% endblock %}
+{% block form_attrs %}onsubmit="return debianPkgValidate(this)"{% endblock %}
 
-{% block title %}
-  {% if item_id %}
-    {{ modal_title(title="Paket bearbeiten – " ~ item_id, icon="edit") }}
-  {% else %}
-    {{ modal_title(is_edit=false, title="Neues Debian-Paket") }}
-  {% endif %}
-{% endblock %}
+{% block dialog_body %}
+<div id="modal-error-container"></div>
 
-{% block submit_url %}{% if item_id %}/ui/debian/{{ item_id }}/update{% else %}/ui/debian/{% endif %}{% endblock %}
-
-{% block form_content %}
 {% set _source_url = (item or {}).get('source_url') or '' %}
 {% set _pkg_name   = (item or {}).get('name') or item_id or '' %}
 
@@ -92,22 +87,41 @@
 </div>
 {% endblock %}
 
-{% block footer %}
-  {{ modal_footer(enabled=(item or {}).get('enabled', True), enabled_id='modal-enabled',
-                  save_label='Speichern' if item_id else 'Erstellen',
-                  has_toggle=true, save_id='create-edit-submit', save_type='button') }}
+{% block dialog_footer %}
+<div class="ds-modal-footer">
+  <label class="toggle-field">
+    <input type="hidden" name="enabled" value="0">
+    <input type="checkbox" name="enabled" value="1" id="modal-enabled"
+           style="display:none;" {{ 'checked' if (item or {}).get('enabled', True) else '' }}>
+    <button type="button"
+            class="toggle-switch {{ 'toggle-on' if (item or {}).get('enabled', True) else 'toggle-off' }}"
+            onclick="var cb=document.getElementById('modal-enabled');cb.checked=!cb.checked;this.classList.toggle('toggle-on',cb.checked);this.classList.toggle('toggle-off',!cb.checked);this.nextElementSibling.textContent=cb.checked?'Aktiviert':'Deaktiviert';">
+      <span class="toggle-knob"></span>
+    </button>
+    <span class="toggle-field-label">{{ 'Aktiviert' if (item or {}).get('enabled', True) else 'Deaktiviert' }}</span>
+  </label>
+  <div class="modal-actions">
+    <button type="button" class="btn btn-sm btn-ghost" onclick="closeModal(this)">Abbrechen</button>
+    <button type="submit" class="btn btn-sm btn-primary" id="create-edit-submit">
+      {{ 'Speichern' if item_id else 'Erstellen' }}
+    </button>
+  </div>
+</div>
 {% endblock %}
 
-{% block submit_validation %}
-const name = document.getElementById('field-pkg-name')?.value?.trim();
-if (!name) {
-  const err = document.getElementById('source-url-error');
-  if (err) { err.textContent = 'Bitte ein Paket auswählen.'; err.classList.add('visible'); }
-  return;
+{% block dialog_scripts %}
+{{ super() }}
+<script>
+function debianPkgValidate(form) {
+  const name = document.getElementById('field-pkg-name')?.value?.trim();
+  if (!name) {
+    const err = document.getElementById('source-url-error');
+    if (err) { err.textContent = 'Bitte ein Paket auswählen.'; err.classList.add('visible'); }
+    return false;
+  }
+  return true;
 }
-{% endblock %}
 
-{% block module_scripts %}
 function pkgSelect(name, url, version, distribution) {
   document.getElementById('field-pkg-name').value   = name;
   document.getElementById('field-source-url').value = url;
@@ -147,10 +161,12 @@ function pkgClear() {
 }
 
 document.body.addEventListener('debianModalError', function(e) {
-  document.getElementById('modal-error-container').innerHTML =
+  const c = document.getElementById('modal-error-container');
+  if (c) c.innerHTML =
     `<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
                  background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
        ${e.detail}
      </div>`;
 });
+</script>
 {% endblock %}
