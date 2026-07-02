@@ -64,7 +64,7 @@ def _ctx():
 
 @router.get(f"/ui/{KEY}/status", response_class=HTMLResponse)
 def status(request: Request):
-    return render(request, "partials/status_oob.html", _ctx())
+    return render(request, "partials/oob/status_oob.html", _ctx())
 
 
 # ── Create/Edit-Modals ────────────────────────────────────────────────────────

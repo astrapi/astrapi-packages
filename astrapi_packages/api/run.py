@@ -161,7 +161,7 @@ def make_run_router(module: str) -> APIRouter:
         item_data = load_config(module).get(item_id) or {}
         row_html = render(
             request,
-            "partials/row_single.html",
+            "partials/lists/row_single.html",
             {
                 "item_name": item_id,
                 "item_data": item_data,
@@ -247,6 +247,6 @@ def make_run_router(module: str) -> APIRouter:
     @router.get("/{item_id}/logs/{log_id}", response_class=HTMLResponse)
     def get_log_by_id(item_id: str, log_id: str, request: Request):
         lines = [r["line"] for r in get_log_lines(int(log_id))] if log_id.isdigit() else []
-        return render(request, "partials/log_content.html", {"lines": lines, "date": log_id})
+        return render(request, "partials/dialogs/log_content.html", {"lines": lines, "date": log_id})
 
     return router

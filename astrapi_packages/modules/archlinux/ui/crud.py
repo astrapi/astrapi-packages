@@ -160,7 +160,7 @@ def _ctx():
 
 @router.get(f"/ui/{KEY}/status", response_class=HTMLResponse)
 def status(request: Request):
-    return render(request, "partials/status_oob.html", _ctx())
+    return render(request, "partials/oob/status_oob.html", _ctx())
 
 
 @router.get(f"/ui/{KEY}/create", response_class=HTMLResponse)
@@ -433,7 +433,7 @@ def check_updates(request: Request):
 
     all_items = store.list()
     if not all_items:
-        return render(request, "partials/list_wrapper_inner.html", _ctx())
+        return render(request, "partials/lists/list_wrapper_inner.html", _ctx())
 
     for k, v in all_items.items():
         if v.get("last_status") != "ok" and v.get("upstream_version"):
@@ -441,7 +441,7 @@ def check_updates(request: Request):
 
     all_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
     if not all_ids:
-        return render(request, "partials/list_wrapper_inner.html", _ctx())
+        return render(request, "partials/lists/list_wrapper_inner.html", _ctx())
 
     qs = "&".join(f"arg[]={quote(i)}" for i in all_ids)
     aur_versions: dict[str, str] = {}
