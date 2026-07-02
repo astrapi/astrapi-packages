@@ -232,7 +232,7 @@ def make_run_router(module: str) -> APIRouter:
         selected = str(act_log_id) if act_log_id else None
         return render(
             request,
-            "partials/log_modal.html",
+            "dialog_log.html",
             {
                 "module": module,
                 "item_id": item_id,

@@ -1,12 +1,10 @@
-{% extends "partials/modal_base_info.html" %}
-{% import 'partials/components/ui_macros.html' as ui %}
+{% extends "dialog_info.html" %}
 
-{% block modal_id %}archlinux-log-modal{% endblock %}
-{% block modal_max_width %}780{% endblock %}
+{% block dialog_id %}archlinux-log-modal{% endblock %}
+{% block dialog_width %}780{% endblock %}
+{% block dialog_title %}Build-Log – {{ item_id }}{% endblock %}
 
-{% block title %}{{ ui.modal_title(title="Build-Log – " ~ item_id) }}{% endblock %}
-
-{% block body %}
+{% block dialog_body %}
   <pre style="background:var(--bg-2,#1e1e1e); color:var(--text-1,#d4d4d4);
               font-size:12px; line-height:1.5; padding:16px; border-radius:6px;
               overflow:auto; max-height:60vh; white-space:pre-wrap;
