@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import yaml
-from astrapi_core.ui.controls import ContentTable
+from astrapi_core.ui.controls import ContentTable, Header
 from astrapi_core.ui.module_loader import load_modul
 from astrapi_core.ui.storage import SqliteStorage
 from fastapi import APIRouter
@@ -64,7 +64,7 @@ _ui_content = ContentTable(
     last_run_label="Letzter Build",
 )
 
-module = load_modul(_DIR, _KEY, router, ui_router, ui_content=_ui_content)
+module = load_modul(_DIR, _KEY, router, ui_router, ui_header=Header([]), ui_content=_ui_content)
 
 # Config-Loader registrieren
 from astrapi_packages.api.run import register_config_loader
