@@ -379,15 +379,12 @@ async def deps_preview(request: Request):
     """Gibt Runtime-Abhängigkeiten als HTML-Partial zurück."""
     form = await request.form()
     source_url = form.get("source_url", "").strip()
-    pkgbuild = form.get("pkgbuild_content", "").strip()
 
-    if source_url:
-        pkgname = source_url.rstrip("/").split("/")[-1].removesuffix(".git")
-        deps = _deps_from_aur(pkgname)
-    elif pkgbuild:
-        deps = _deps_from_pkgbuild(pkgbuild)
-    else:
+    if not source_url:
         return HTMLResponse("")
+
+    pkgname = source_url.rstrip("/").split("/")[-1].removesuffix(".git")
+    deps = _deps_from_aur(pkgname)
 
     existing = set(store.list().keys())
     classified = _classify_deps(deps, existing)

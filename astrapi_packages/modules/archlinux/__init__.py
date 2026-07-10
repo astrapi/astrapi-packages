@@ -40,6 +40,12 @@ _ui_content = ContentTable(
         Col.version_badge("last_version", "Version"),
         Col.text("pkg_type_label", "Typ", css="col-type"),
         Col.text("source_type_label", "Quelle", css="col-type"),
+        Col.badge_enum(
+            "orphaned_label",
+            "",
+            {"verwaist": {"label": "verwaist", "cls": "badge-status-warn"}},
+            css="col-type",
+        ),
     ],
     last_run_label="Letzter Build",
 )

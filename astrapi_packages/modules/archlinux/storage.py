@@ -165,6 +165,7 @@ class ArchlinuxPackageStore:
             item["browse_url"] = _browse_url(url, item.get("source_subdir", ""), item_id)
             item["source_type_label"] = "AUR" if "aur.archlinux.org" in url else ("Repo" if url else "")
             item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
+            item["orphaned_label"] = "verwaist" if item.get("orphaned") else ""
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
         if offset:
