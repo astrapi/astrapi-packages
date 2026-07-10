@@ -82,6 +82,8 @@ def build_package(item_id: str) -> None:
     s = _settings()
     image = s("default_image", "ctl/debian-builder:latest")
     source_url = (item.get("source_url") or "").strip()
+    source_subdir = (item.get("source_subdir") or "").strip()
+    subdir = source_subdir or item_id
 
     if not source_url:
         store.update(
@@ -103,7 +105,7 @@ set -e
 git clone --depth=1 '{source_url}' /build/src
 
 # In das Paket-Unterverzeichnis wechseln
-cd /build/src/{item_id}
+cd /build/src/{subdir}
 [[ ! -f PKGBUILD ]] && {{ echo "FEHLER: PKGBUILD nicht gefunden in $(pwd)"; exit 1; }}
 
 # PKGBUILD einlesen
@@ -146,7 +148,7 @@ echo "---"
 DEB_FILE="/repo/${{pkgname}}_${{pkgver}}-${{pkgrel}}_${{DEB_ARCH}}.deb"
 fakeroot dpkg-deb --build "$STAGING" "$DEB_FILE"
 echo "Gebaut: $DEB_FILE"
-""".format(source_url=source_url, item_id=item_id)
+""".format(source_url=source_url, item_id=item_id, subdir=subdir)
 
     cmd = [
         "docker",

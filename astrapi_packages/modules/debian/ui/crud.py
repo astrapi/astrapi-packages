@@ -107,6 +107,7 @@ async def create_apply(request: Request):
 
     data = {
         "source_url": form.get("source_url", "").strip(),
+        "source_subdir": form.get("source_subdir", "").strip(),
         "distribution": form.get("distribution", "bookworm").strip() or "bookworm",
         "component": form.get("component", "main").strip() or "main",
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
@@ -137,6 +138,7 @@ async def edit_apply(item_id: str, request: Request):
     if store.get(item_id) is not None:
         data = {
             "source_url": form.get("source_url", "").strip(),
+            "source_subdir": form.get("source_subdir", "").strip(),
             "distribution": form.get("distribution", "bookworm").strip() or "bookworm",
             "component": form.get("component", "main").strip() or "main",
             "pkg_type": form.get("pkg_type", "package").strip() or "package",

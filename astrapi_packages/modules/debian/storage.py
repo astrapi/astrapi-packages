@@ -15,6 +15,7 @@ _DDL = """
 CREATE TABLE IF NOT EXISTS debian_packages (
     name             TEXT PRIMARY KEY,
     source_url       TEXT NOT NULL DEFAULT '',
+    source_subdir    TEXT NOT NULL DEFAULT '',
     distribution     TEXT NOT NULL DEFAULT 'bookworm',
     component        TEXT NOT NULL DEFAULT 'main',
     pkg_type         TEXT NOT NULL DEFAULT 'package',
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS debian_packages (
 _COLS = (
     "name",
     "source_url",
+    "source_subdir",
     "distribution",
     "component",
     "pkg_type",
@@ -85,6 +87,10 @@ class DebianPackageStore:
         try:
             db = _db()
             db.execute(_DDL)
+            try:
+                db.execute("ALTER TABLE debian_packages ADD COLUMN source_subdir TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
             db.commit()
             self._table_ready = True
             return True
