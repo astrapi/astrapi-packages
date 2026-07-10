@@ -8,7 +8,7 @@ from astrapi_core.system.format import fmt_now as _now
 from astrapi_core.system.logger import log as _log
 
 _TIMEOUT_BUILD = 3600  # 1 Stunde max. für docker build
-_DOCKERFILES = Path(__file__).parent / "dockerfiles"
+_BUILDER_DIR = Path(__file__).parent
 
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
@@ -55,14 +55,19 @@ def run_single(item_id: str) -> None:
 
     image = f"ctl/{item_id}"
     tag = IMAGES[item_id].get("tag", "latest")
-    dockerfile = _DOCKERFILES / f"{item_id}.dockerfile"
+    _dd = IMAGES[item_id].get("dockerfile_dir", "dockerfiles")
+    dockerfile_dir = Path(_dd) if Path(_dd).is_absolute() else (_BUILDER_DIR / _dd).resolve()
+    dockerfile = dockerfile_dir / f"{item_id}.dockerfile"
 
     store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
-    cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(_DOCKERFILES)]
+    cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(dockerfile_dir)]
     _log("INFO", f"$ {' '.join(cmd)}")
 
     rc, _ = _run(cmd, _TIMEOUT_BUILD)
+
+    if rc == 0:
+        _run(["docker", "image", "prune", "-f"], timeout=60)
 
     status = "ok" if rc == 0 else "error"
     store.upsert(item_id, {"last_status": status, "last_run": _now()})

@@ -1,5 +1,7 @@
 arch-builder:
   tag: latest
+  dockerfile_dir: "../archlinux/dockerfiles"
 
 debian-builder:
   tag: latest
+  dockerfile_dir: "../debian/dockerfiles"

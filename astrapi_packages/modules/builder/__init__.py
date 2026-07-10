@@ -14,7 +14,13 @@ _DIR = Path(__file__).parent
 
 def _load_images() -> dict[str, dict]:
     meta = yaml.safe_load((_DIR / "config" / "images.yaml").read_text(encoding="utf-8")) or {}
-    return {img_id: {"tag": cfg.get("tag", "latest")} for img_id, cfg in meta.items()}
+    return {
+        img_id: {
+            "tag": cfg.get("tag", "latest"),
+            "dockerfile_dir": cfg.get("dockerfile_dir", "dockerfiles"),
+        }
+        for img_id, cfg in meta.items()
+    }
 
 
 IMAGES: dict[str, dict] = _load_images()
