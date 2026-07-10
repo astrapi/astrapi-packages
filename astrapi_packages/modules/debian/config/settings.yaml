@@ -16,20 +16,6 @@ fields:
     label: APT-Repository
     cols:  1
 
-  - key:         distribution
-    label:       Standard-Distribution
-    type:        text
-    placeholder: "bookworm"
-    default:     "bookworm"
-    description: "Debian-Zieldistribution (z.B. bookworm, bullseye, trixie)"
-
-  - key:         component
-    label:       Standard-Komponente
-    type:        text
-    placeholder: "main"
-    default:     "main"
-    description: "APT-Komponente (main, contrib, non-free)"
-
   - type:  section
     label: GPG-Signierung
     cols:  1
@@ -50,3 +36,13 @@ fields:
     mono:        true
     placeholder: "https://github.com/astrapi/packages_debian"
     description: "URLs zu Repos mit packages.json (GitHub, GitLab, Gitea/Forgejo – oder direkte .json-URL). Wird alle 5 Min. aktualisiert."
+
+  - type:  section
+    label: Mirror-Sync
+    cols:  1
+
+  - key:         mirror_trigger_url
+    label:       Mirror-Sync-URL
+    type:        text
+    placeholder: "http://mirror-host:8000/debian/my-repo/sync"
+    description: "URL des Mirror-Endpunkts der nach erfolgreichem Paketbau per POST aufgerufen wird. Leer lassen = kein automatischer Sync."

@@ -111,6 +111,10 @@ cd /build/src/{subdir}
 # PKGBUILD einlesen
 source ./PKGBUILD
 
+# Umgebungsvariablen analog zu makepkg
+export srcdir="$(pwd)"
+export startdir="$(pwd)"
+
 # Architektur: PKGBUILD 'any' → Debian 'all'
 DEB_ARCH="${{arch[0]:-all}}"
 [[ "$DEB_ARCH" == "any" ]] && DEB_ARCH="all"
@@ -123,8 +127,26 @@ rm -rf "$STAGING"
 mkdir -p "$STAGING/DEBIAN"
 export pkgdir="$STAGING"
 
+if declare -f prepare &>/dev/null; then
+    echo "=== Starte prepare() ==="
+    prepare
+    echo "=== prepare() abgeschlossen ==="
+fi
+
+if declare -f build &>/dev/null; then
+    echo "=== Starte build() ==="
+    build
+    echo "=== build() abgeschlossen ==="
+fi
+
+if declare -f check &>/dev/null; then
+    echo "=== Starte check() ==="
+    check
+    echo "=== check() abgeschlossen ==="
+fi
+
 echo "=== Starte package() ==="
-fakeroot -- bash -c "$(declare -p pkgname pkgver pkgrel pkgdesc arch maintainer pkgdir 2>/dev/null || true); $(declare -f package); package"
+fakeroot -- bash -c "$(declare -p pkgname pkgver pkgrel pkgdesc arch maintainer pkgdir srcdir startdir 2>/dev/null || true); $(declare -f package); package"
 echo "=== package() abgeschlossen ==="
 
 # DEBIAN/control erzeugen
@@ -169,6 +191,7 @@ echo "Gebaut: $DEB_FILE"
 
     if rc == 0:
         _update_packages_index(repo_path)
+        _trigger_mirror_sync(item_id)
 
     version = _extract_version(repo_path, item_id) if rc == 0 else None
     status = "ok" if rc == 0 else "error"
@@ -464,3 +487,18 @@ def delete_package(item_id: str, item: dict) -> None:
             _update_packages_index(repo_path)
     except Exception as e:
         log.warning("debian.delete: %s", e)
+
+
+def _trigger_mirror_sync(item_id: str) -> None:
+    try:
+        from astrapi_core.ui.settings_registry import get_module as _gm
+        url = (_gm("debian", "mirror_trigger_url", default="") or "").strip()
+        if not url:
+            return
+        import urllib.request
+        req = urllib.request.Request(url, data=b"", method="POST")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        log.info("debian.build: mirror-sync ausgelöst → %s", url)
+    except Exception as e:
+        log.warning("debian.build: mirror-sync fehlgeschlagen (%s): %s", item_id, e)

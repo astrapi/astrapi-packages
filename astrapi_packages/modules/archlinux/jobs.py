@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-import tempfile
 import threading
 from pathlib import Path
 
@@ -64,7 +63,7 @@ def _settings():
 
 
 def _arch_repo_path() -> str:
-    """Gibt <repo_base>/arch/x86_64/ zurück, legt das Verzeichnis an und migriert ggf. flache Struktur."""
+    """Gibt <repo_base>/arch/x86_64/ zurück und legt das Verzeichnis an."""
     from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
 
     disk = _extra_disk()
@@ -72,38 +71,7 @@ def _arch_repo_path() -> str:
     path = base / "x86_64"
     path.mkdir(parents=True, exist_ok=True)
     path.chmod(0o777)
-    _migrate_flat_repo(base, path)
     return str(path)
-
-
-_MIGRATE_PATTERNS = ("*.pkg.tar.*", "*.db", "*.db.tar.*", "*.files", "*.files.tar.*")
-_migrated_bases: set[Path] = set()
-
-
-def _migrate_flat_repo(base: Path, target: Path) -> None:
-    """Verschiebt Paket- und DB-Dateien aus base/ nach target/ (einmalig pro Prozess)."""
-    import glob as _glob
-    import shutil
-
-    if base in _migrated_bases:
-        return
-    _migrated_bases.add(base)
-
-    candidates = []
-    for pattern in _MIGRATE_PATTERNS:
-        candidates.extend(Path(p) for p in _glob.glob(str(base / pattern)))
-
-    if not candidates:
-        return
-
-    log.info("_migrate_flat_repo: %d Datei(en) von %s → %s", len(candidates), base, target)
-    for src in candidates:
-        dst = target / src.name
-        try:
-            shutil.move(str(src), str(dst))
-            log.info("_migrate_flat_repo: verschoben %s", src.name)
-        except Exception as e:
-            log.warning("_migrate_flat_repo: Fehler bei %s: %s", src.name, e)
 
 
 def build_package(item_id: str) -> None:
@@ -120,15 +88,13 @@ def build_package(item_id: str) -> None:
     repo_name = s("repo_name", "pkgctl")
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
-    pkgbuild = item.get("pkgbuild_content") or ""
-
-    if not source_url and not pkgbuild.strip():
+    if not source_url:
         store.update(
             item_id,
             {
                 "last_status": "error",
                 "last_run": _now(),
-                "last_log": "Keine Git-URL und kein PKGBUILD-Inhalt vorhanden.",
+                "last_log": "Keine Git-URL angegeben.",
             },
         )
         return
@@ -152,54 +118,31 @@ def build_package(item_id: str) -> None:
     except Exception:
         pass
 
-    tmpdir = None
-    try:
-        repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
-        env_args = ["-e", f"REPO_NAME={repo_name}"]
-        if source_subdir:
-            env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
+    repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
+    env_args = ["-e", f"REPO_NAME={repo_name}"]
+    if source_subdir:
+        env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
 
-        if source_url:
-            cmd = [
-                "docker",
-                "run",
-                "--rm",
-                *repo_vol,
-                *env_args,
-                image,
-                item_id,
-                source_url,
-            ]
-        else:
-            # Custom PKGBUILD als Volume mounten
-            tmpdir = tempfile.mkdtemp(prefix=f"pkgbuild-{item_id}-")
-            with open(os.path.join(tmpdir, "PKGBUILD"), "w") as f:
-                f.write(pkgbuild)
-            cmd = [
-                "docker",
-                "run",
-                "--rm",
-                *repo_vol,
-                *env_args,
-                "-v",
-                f"{tmpdir}:/home/makepkg/source",
-                image,
-                item_id,
-            ]
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        *repo_vol,
+        *env_args,
+        image,
+        item_id,
+        source_url,
+    ]
 
-        log.info("archlinux.build: %s", " ".join(cmd))
-        rc, raw_output = _run(cmd)
-        _pipe_to_activity_log(f"$ {' '.join(cmd)}", raw_output, rc)
-        output = f"$ {' '.join(cmd)}\n\n{raw_output}"
-    finally:
-        if tmpdir:
-            import shutil
-
-            shutil.rmtree(tmpdir, ignore_errors=True)
+    log.info("archlinux.build: %s", " ".join(cmd))
+    rc, raw_output = _run(cmd)
+    _pipe_to_activity_log(f"$ {' '.join(cmd)}", raw_output, rc)
+    output = f"$ {' '.join(cmd)}\n\n{raw_output}"
 
     version = None
     if rc == 0:
         version = _repo_add(repo_path, repo_name, item_id)
+        _trigger_mirror_sync(item_id)
 
     status = "ok" if rc == 0 else "error"
     log.info("archlinux.build: %s → %s (rc=%d)", item_id, status, rc)
@@ -691,63 +634,37 @@ def _build_single_streaming(item_id: str, s, repo_path: str, store_obj) -> None:
     repo_name = s("repo_name", "pkgctl")
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
-    pkgbuild = item.get("pkgbuild_content") or ""
+    if not source_url:
+        store_obj.update(item_id, {"last_status": "error"})
+        _log("ERROR", "Keine Git-URL angegeben")
+        return
 
     store_obj.update(item_id, {"last_status": "building", "last_run": _now()})
-
-    if not source_url and not pkgbuild.strip():
-        store_obj.update(item_id, {"last_status": "error"})
-        _log("ERROR", "Keine Git-URL und kein PKGBUILD-Inhalt vorhanden")
-        return
 
     repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
     env_args = ["-e", f"REPO_NAME={repo_name}"]
     if source_subdir:
         env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
 
-    tmpdir = None
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        *repo_vol,
+        *env_args,
+        image,
+        item_id,
+        source_url,
+    ]
+
     rc = 1
-    try:
-        if source_url:
-            cmd = [
-                "docker",
-                "run",
-                "--rm",
-                *repo_vol,
-                *env_args,
-                image,
-                item_id,
-                source_url,
-            ]
-        else:
-            import tempfile
-
-            tmpdir = tempfile.mkdtemp(prefix=f"pkgbuild-{item_id}-")
-            with open(os.path.join(tmpdir, "PKGBUILD"), "w") as f:
-                f.write(pkgbuild)
-            cmd = [
-                "docker",
-                "run",
-                "--rm",
-                *repo_vol,
-                *env_args,
-                "-v",
-                f"{tmpdir}:/home/makepkg/source",
-                image,
-                item_id,
-            ]
-
-        _log("INFO", f"$ {' '.join(cmd)}")
-        rc = _run_log(cmd)
-    finally:
-        if tmpdir:
-            import shutil
-
-            shutil.rmtree(tmpdir, ignore_errors=True)
+    _log("INFO", f"$ {' '.join(cmd)}")
+    rc = _run_log(cmd)
 
     version = None
     if rc == 0:
         version = _repo_add(repo_path, repo_name, item_id)
+        _trigger_mirror_sync(item_id)
 
     status = "ok" if rc == 0 else "error"
     update: dict = {"last_status": status, "last_run": _now()}
@@ -829,3 +746,18 @@ def run_single(item_id: str) -> None:
 
     _log("INFO", f"Baue: {item_id}")
     _build_single_streaming(item_id, s, repo_path, _store)
+
+
+def _trigger_mirror_sync(item_id: str) -> None:
+    try:
+        from astrapi_core.ui.settings_registry import get_module as _gm
+        url = (_gm("archlinux", "mirror_trigger_url", default="") or "").strip()
+        if not url:
+            return
+        import urllib.request
+        req = urllib.request.Request(url, data=b"", method="POST")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        log.info("archlinux.build: mirror-sync ausgelöst → %s", url)
+    except Exception as e:
+        log.warning("archlinux.build: mirror-sync fehlgeschlagen (%s): %s", item_id, e)
