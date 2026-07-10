@@ -108,8 +108,6 @@ async def create_apply(request: Request):
     data = {
         "source_url": form.get("source_url", "").strip(),
         "source_subdir": form.get("source_subdir", "").strip(),
-        "distribution": form.get("distribution", "bookworm").strip() or "bookworm",
-        "component": form.get("component", "main").strip() or "main",
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
     }
@@ -139,8 +137,6 @@ async def edit_apply(item_id: str, request: Request):
         data = {
             "source_url": form.get("source_url", "").strip(),
             "source_subdir": form.get("source_subdir", "").strip(),
-            "distribution": form.get("distribution", "bookworm").strip() or "bookworm",
-            "component": form.get("component", "main").strip() or "main",
             "pkg_type": form.get("pkg_type", "package").strip() or "package",
             "enabled": "enabled" in form,
         }
@@ -182,7 +178,7 @@ def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
 
 
 def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
-    """Liest Version und optionale _distribution-Variable aus dem PKGBUILD."""
+    """Liest Version aus dem PKGBUILD."""
     import re
     import urllib.request
 
@@ -194,19 +190,15 @@ def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
                 text = r.read().decode("utf-8", errors="replace")
             m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
             m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
-            m_dist = re.search(r"^_?distribution\s*=\s*['\"]?([a-zA-Z0-9]+)", text, re.MULTILINE)
             version = ""
             if m_ver:
                 ver = m_ver.group(1).strip().strip("'\"")
                 rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
                 version = f"{ver}-{rel}" if rel else ver
-            return {
-                "version": version,
-                "distribution": m_dist.group(1).strip() if m_dist else "",
-            }
+            return {"version": version}
         except Exception:
             continue
-    return {"version": "", "distribution": ""}
+    return {"version": ""}
 
 
 @router.get(f"/ui/{KEY}/pkgbuild-info")
@@ -217,7 +209,7 @@ def pkgbuild_info(request: Request):
     url = request.query_params.get("url", "").strip()
     pkg = request.query_params.get("pkg", "").strip()
     if not url or not pkg:
-        return JSONResponse({"version": "", "distribution": ""})
+        return JSONResponse({"version": ""})
     return JSONResponse(_pkgbuild_info(url, pkg))
 
 

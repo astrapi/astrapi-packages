@@ -22,8 +22,6 @@ store = DebianPackageStore()
 class ItemIn(BaseModel):
     name: Optional[str] = ""
     source_url: Optional[str] = ""
-    distribution: Optional[str] = "bookworm"
-    component: Optional[str] = "main"
     pkg_type: Optional[str] = "package"
     enabled: bool = True
 

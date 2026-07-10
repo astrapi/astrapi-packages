@@ -8,11 +8,10 @@
   <div class="pkg-search-group">Pakete</div>
   {% for pkg in results %}
   <div class="pkg-search-item"
-       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '{{ ((pkg.pkgver ~ '-' ~ pkg.pkgrel) if (pkg.pkgver and pkg.pkgrel) else pkg.pkgver) | default('') | e }}', '{{ pkg.distribution | default('') | e }}')">
+       onclick="pkgSelect('{{ pkg.name | e }}', '{{ pkg.git_url | e }}', '{{ ((pkg.pkgver ~ '-' ~ pkg.pkgrel) if (pkg.pkgver and pkg.pkgrel) else pkg.pkgver) | default('') | e }}')">
     <div class="pkg-search-item-header">
       <span class="pkg-search-name">{{ pkg.name }}</span>
       {% if pkg.pkgver %}<span class="pkg-search-version">{{ pkg.pkgver }}</span>{% endif %}
-      {% if pkg.distribution %}<span class="pkg-search-version" style="color:var(--accent);">{{ pkg.distribution }}</span>{% endif %}
     </div>
     {% if pkg.pkgdesc %}<div class="pkg-search-desc">{{ pkg.pkgdesc }}</div>{% endif %}
   </div>
