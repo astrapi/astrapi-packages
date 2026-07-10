@@ -122,7 +122,7 @@ mkdir -p "$STAGING/DEBIAN"
 export pkgdir="$STAGING"
 
 echo "=== Starte package() ==="
-package
+fakeroot -- bash -c "$(declare -p pkgname pkgver pkgrel pkgdesc arch maintainer pkgdir 2>/dev/null || true); $(declare -f package); package"
 echo "=== package() abgeschlossen ==="
 
 # DEBIAN/control erzeugen
