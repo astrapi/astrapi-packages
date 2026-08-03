@@ -6,7 +6,6 @@ Primary Key ist der Paketname (TEXT).
 
 from __future__ import annotations
 
-import json
 import threading
 
 _TABLE = "debian_packages"

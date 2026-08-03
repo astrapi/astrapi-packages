@@ -355,7 +355,6 @@ def build_package_with_deps(item_id: str) -> None:
 
     _sync_pkgbuild_deps(item_id, store)
 
-    s = _settings()
     repo_path = _arch_repo_path()
 
     try:

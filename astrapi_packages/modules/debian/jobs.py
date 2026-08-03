@@ -248,7 +248,8 @@ def _write_release_file(repo_path: Path) -> None:
             len(data),
         )
 
-    entries = [(f, _sums(f)) for f in candidates if _sums(f)]
+    # Einmal hashen und wiederverwenden – _sums() liest die ganze Datei ein
+    sums = {f: s for f in candidates if (s := _sums(f)) is not None}
 
     lines = [
         "Origin: Simpsons",
@@ -259,9 +260,8 @@ def _write_release_file(repo_path: Path) -> None:
     ]
     for algo, idx in [("MD5Sum", 0), ("SHA1", 1), ("SHA256", 2)]:
         lines.append(f"{algo}:")
-        for fname, s in [(f, _sums(f)) for f in candidates]:
-            if s:
-                lines.append(f" {s[idx]}  {s[3]}  {fname}")
+        for fname, s in sums.items():
+            lines.append(f" {s[idx]}  {s[3]}  {fname}")
 
     (repo_path / "Release").write_text("\n".join(lines) + "\n")
     log.info("debian: Release-Datei geschrieben")
