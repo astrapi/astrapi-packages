@@ -2,6 +2,7 @@
 
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 from astrapi_core.system.format import fmt_now as _now
@@ -13,23 +14,28 @@ _BUILDER_DIR = Path(__file__).parent
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
     """Führt ein Kommando aus, loggt jede Zeile via log() und gibt (returncode, output) zurück."""
+    proc = None
     try:
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            # Build-Ausgabe ist nicht garantiert UTF-8: Docker reicht durch, was
+            # die Tools im Container schreiben. Ein einzelnes ungültiges Byte
+            # darf den Build nicht als fehlgeschlagen melden.
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
         )
         chunks: list[str] = []
-        deadline = __import__("time").time() + timeout
+        deadline = time.time() + timeout
 
         for line in proc.stdout:
             stripped = line.rstrip("\n")
             _log("INFO", stripped)
             chunks.append(line)
-            if __import__("time").time() > deadline:
-                proc.kill()
+            if time.time() > deadline:
                 _log("ERROR", f"Timeout nach {timeout}s")
                 return 1, "".join(chunks)
 
@@ -43,6 +49,12 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
     except Exception as e:
         _log("ERROR", str(e))
         return 1, str(e)
+    finally:
+        # Bricht das Mitlesen ab (Timeout, Decode-Fehler, …), läuft der Build
+        # sonst als verwaister Prozess weiter, während die UI "error" meldet.
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
 
 
 def run_single(item_id: str) -> None:

@@ -42,6 +42,8 @@ def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # makepkg/pacman-Ausgabe ist nicht garantiert UTF-8
             timeout=timeout,
         )
         return result.returncode, result.stdout
@@ -598,7 +600,14 @@ def _run_log(cmd: list[str], timeout: int = _TIMEOUT) -> int:
     from astrapi_core.system.logger import log as _log
 
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",  # makepkg/pacman-Ausgabe ist nicht garantiert UTF-8
+        )
         for line in proc.stdout:
             _log("INFO", line.rstrip())
         proc.wait(timeout=timeout)

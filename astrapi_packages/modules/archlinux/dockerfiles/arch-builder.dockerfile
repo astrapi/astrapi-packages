@@ -3,7 +3,7 @@ FROM archlinux:latest
 # Simpsons-Mirror: core/extra/multilib via $repo-Variable, SSL für interne CA deaktiviert
 RUN echo 'Server = https://mirror.simpsons.lan/files/archlinux/$repo/os/$arch' \
         > /etc/pacman.d/mirrorlist && \
-    sed -i '/^\[options\]/a XferCommand = /usr/bin/curl -k -C - -f %u > %o' /etc/pacman.conf && \
+    sed -i '/^\[options\]/a XferCommand = /usr/bin/curl -k -L -C - -f -o %o %u' /etc/pacman.conf && \
     printf '\n[simpsons]\nSigLevel = Optional TrustAll\nServer = https://mirror.simpsons.lan/files/archlinux/simpsons/os/$arch\n' \
         >> /etc/pacman.conf
 
