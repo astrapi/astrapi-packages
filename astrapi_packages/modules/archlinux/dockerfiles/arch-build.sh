@@ -101,6 +101,12 @@ echo "==> Starte makepkg ..."
 PKGDEST="$LOCAL_REPO" makepkg --nodeps --noconfirm --noprogressbar --force
 
 echo "==> Aktualisiere Repo-Datenbank '${REPO_NAME}' ..."
-repo-add --new --remove "${LOCAL_REPO}/${REPO_NAME}.db.tar.gz" "${LOCAL_REPO}"/*.pkg.tar.*
+# Kein --new: das fügt nur Pakete hinzu, die noch nicht in der Datenbank sind.
+# Zusammen mit "makepkg --force" oben führt das zu veralteten Einträgen – wird
+# dieselbe Version neu gebaut, ersetzt makepkg die .pkg.tar.zst, repo-add
+# überspringt den vorhandenen Eintrag und die DB behält die alte Prüfsumme.
+# Pacman quittiert das beim Installieren mit
+# "invalid or corrupted package (checksum)".
+repo-add --remove "${LOCAL_REPO}/${REPO_NAME}.db.tar.gz" "${LOCAL_REPO}"/*.pkg.tar.*
 
 echo "==> Fertig."
