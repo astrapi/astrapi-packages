@@ -30,6 +30,19 @@ if [ -n "$_repo_db" ] && [ "${_pkg_count}" -gt 0 ]; then
     # Pacman benötigt <name>.db als echte Datei (kein Symlink) und lesbaren Zugriff
     cp "${_repo_tmp}/${_repo_name}.db.tar.gz" "${_repo_tmp}/${_repo_name}.db"
     chmod 644 "${_repo_tmp}"/*
+    # Gleichnamigen Abschnitt aus pacman.conf entfernen. Das Image bringt für
+    # dieses Repo bereits einen [<name>]-Eintrag auf den HTTPS-Mirror mit;
+    # zwei Abschnitte gleichen Namens quittiert pacman mit
+    # "database already registered" und später mit einem harten
+    # "Database should be null: failed to register sync database".
+    # Die lokale file://-Quelle gewinnt, sie enthält auch die Pakete aus
+    # diesem Lauf, die es auf dem Mirror noch nicht gibt.
+    awk -v name="[${_repo_name}]" '
+        $0 == name { skip = 1; next }
+        /^\[/      { skip = 0 }
+        !skip
+    ' /etc/pacman.conf | sudo tee /etc/pacman.conf.new > /dev/null
+    sudo mv /etc/pacman.conf.new /etc/pacman.conf
     sudo tee -a /etc/pacman.conf > /dev/null <<EOF
 
 [${_repo_name}]
