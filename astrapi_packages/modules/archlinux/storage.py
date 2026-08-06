@@ -2,16 +2,13 @@
 
 Eigene SQLite-Tabelle `archlinux_packages` statt kvstore-JSON-Blobs.
 Primary Key ist der Paketname (TEXT), identisch zum bisherigen kvstore-Key.
-Beim ersten Start werden vorhandene kvstore-Daten automatisch migriert.
 """
 
 from __future__ import annotations
 
-import json
 import threading
 
 _TABLE = "archlinux_packages"
-_KV_COLLECTION = "archlinux"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS archlinux_packages (
@@ -44,8 +41,6 @@ _COLS = (
     "orphaned",
 )
 _BOOL_COLS = frozenset({"enabled", "orphaned"})
-
-_log = __import__("logging").getLogger(__name__)
 
 
 def _browse_url(source_url: str, subdir: str, name: str) -> str:
@@ -93,38 +88,10 @@ class ArchlinuxPackageStore:
             db = _db()
             db.execute(_DDL)
             db.commit()
-            self._migrate_kvstore(db)
             self._table_ready = True
             return True
         except Exception:
             return False
-
-    def _migrate_kvstore(self, db) -> None:
-        """Migriert vorhandene Daten aus dem kvstore in die eigene Tabelle."""
-        count = db.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()[0]
-        if count > 0:
-            return
-        from astrapi_core.system.db import kv_clear, kv_list
-
-        kv_data = kv_list(_KV_COLLECTION)
-        if not kv_data:
-            return
-        for name, raw in kv_data.items():
-            try:
-                data = json.loads(raw)
-                data["name"] = name
-                row = self._to_db(data, include_pk=True)
-                cols = list(row.keys())
-                db.execute(
-                    f"INSERT OR IGNORE INTO {_TABLE} ({','.join(cols)})"
-                    f" VALUES ({','.join(['?'] * len(cols))})",
-                    [row[c] for c in cols],
-                )
-            except Exception as e:
-                _log.warning("Migration %s: %s", name, e)
-        db.commit()
-        kv_clear(_KV_COLLECTION)
-        _log.info("Migriert: %s (%d Einträge) → %s", _KV_COLLECTION, len(kv_data), _TABLE)
 
     def _get_row(self, item_id: str):
         """Direkte DB-Abfrage ohne Lock – nur innerhalb von Lock-Blöcken verwenden."""
