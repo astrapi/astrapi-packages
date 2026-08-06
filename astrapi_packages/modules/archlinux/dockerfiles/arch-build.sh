@@ -16,20 +16,22 @@ REPO_NAME="${REPO_NAME:-pkgctl}"
 BUILD_DIR="/tmp/build-${ITEM_ID}"
 
 # Lokales Repo als pacman-Quelle registrieren (nur wenn Pakete vorhanden)
-_repo_db=$(ls "${LOCAL_REPO}"/*.db.tar.gz 2>/dev/null | head -1) || true
+_repo_db="${LOCAL_REPO}/${REPO_NAME}.db.tar.gz"
 _pkg_count=$(ls "${LOCAL_REPO}"/*.pkg.tar.* 2>/dev/null | wc -l) || true
-if [ -n "$_repo_db" ] && [ "${_pkg_count}" -gt 0 ]; then
-    _repo_name=$(basename "$_repo_db" .db.tar.gz)
-    echo "==> Registriere lokales Repo '${_repo_name}' (${LOCAL_REPO}) ..."
-    # Repo ist read-only gemountet – beschreibbare Kopie anlegen damit pacman
-    # den benötigten <name>.db Symlink vorfindet
-    _repo_tmp=$(mktemp -d)
-    chmod 755 "${_repo_tmp}"
-    cp "${LOCAL_REPO}"/*.db.tar.gz "${_repo_tmp}/"
-    cp "${LOCAL_REPO}"/*.pkg.tar.* "${_repo_tmp}/"
-    # Pacman benötigt <name>.db als echte Datei (kein Symlink) und lesbaren Zugriff
-    cp "${_repo_tmp}/${_repo_name}.db.tar.gz" "${_repo_tmp}/${_repo_name}.db"
-    chmod 644 "${_repo_tmp}"/*
+if [ -f "$_repo_db" ] && [ "${_pkg_count}" -gt 0 ]; then
+    echo "==> Registriere lokales Repo '${REPO_NAME}' (${LOCAL_REPO}) ..."
+    # pacman liest die Datenbank direkt aus dem Mount: repo-add legt
+    # <name>.db als Symlink auf <name>.db.tar.gz an, und die Pakete liegen im
+    # selben Verzeichnis. Eine beschreibbare Kopie ist dafür nicht nötig – der
+    # Mount ist ohnehin beschreibbar, makepkg und repo-add schreiben unten
+    # direkt hinein.
+    #
+    # Nötig ist aber eins: pacman 7 lädt mit "DownloadUser = alpm", also als
+    # unprivilegierter Benutzer. Der Mount liegt unter /home/makepkg, und ein
+    # per useradd angelegtes Home ist 0700 – alpm kommt dort nicht durch und
+    # quittiert die file://-Quelle mit "curl: (37) Could not open file",
+    # obwohl das Repo-Verzeichnis selbst für alle lesbar ist.
+    sudo chmod 755 /home/makepkg
     # Gleichnamigen Abschnitt aus pacman.conf entfernen. Das Image bringt für
     # dieses Repo bereits einen [<name>]-Eintrag auf den HTTPS-Mirror mit;
     # zwei Abschnitte gleichen Namens quittiert pacman mit
@@ -37,7 +39,7 @@ if [ -n "$_repo_db" ] && [ "${_pkg_count}" -gt 0 ]; then
     # "Database should be null: failed to register sync database".
     # Die lokale file://-Quelle gewinnt, sie enthält auch die Pakete aus
     # diesem Lauf, die es auf dem Mirror noch nicht gibt.
-    awk -v name="[${_repo_name}]" '
+    awk -v name="[${REPO_NAME}]" '
         $0 == name { skip = 1; next }
         /^\[/      { skip = 0 }
         !skip
@@ -45,9 +47,9 @@ if [ -n "$_repo_db" ] && [ "${_pkg_count}" -gt 0 ]; then
     sudo mv /etc/pacman.conf.new /etc/pacman.conf
     sudo tee -a /etc/pacman.conf > /dev/null <<EOF
 
-[${_repo_name}]
+[${REPO_NAME}]
 SigLevel = Optional TrustAll
-Server = file://${_repo_tmp}
+Server = file://${LOCAL_REPO}
 EOF
 else
     echo "==> Lokales Repo leer oder nicht vorhanden – wird übersprungen."
