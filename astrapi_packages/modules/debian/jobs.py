@@ -458,7 +458,19 @@ def update_all_packages() -> None:
             store.update(item_id, {"upstream_version": upstream})
 
         current = (store.get(item_id) or {}).get("last_version", "")
-        if upstream and upstream == current:
+        if not upstream:
+            # Weder pkg_cache noch PKGBUILD liefern eine Version. Ein Neubau
+            # kann daran nichts aendern -- beim naechsten Lauf ist die Lage
+            # identisch. Frueher fiel der Code hier durch und baute jedes Mal
+            # neu. Das Paket ist wegen last_status == "ok" nachweislich schon
+            # einmal gebaut worden; von Hand bauen bleibt moeglich.
+            log.warning(
+                "debian.update_all: %s uebersprungen - keine Versionsinfo "
+                "(weder pkg_cache noch PKGBUILD)",
+                item_id,
+            )
+            continue
+        if upstream == current:
             log.info("debian.update_all: %s ist aktuell (%s)", item_id, current)
             continue
 
