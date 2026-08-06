@@ -22,7 +22,6 @@ from astrapi_core.ui.settings_registry import init as settings_init
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from astrapi_packages._migration import migrate_archlinux_module_state, migrate_builder_module_state
 from astrapi_packages._paths import db_path, package_dir, work_dir
 from astrapi_packages.api.fastapi_app import create as create_api
 
@@ -101,8 +100,6 @@ def create_app() -> FastAPI:
     create_all_registered_tables()
 
     settings_init(work_dir())
-    migrate_builder_module_state()
-    migrate_archlinux_module_state()
 
     modules, _ = load_modules(_pkg)
     _reset_stale_status()
