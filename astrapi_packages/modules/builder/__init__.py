@@ -39,16 +39,6 @@ def _docker_items() -> dict:
     }
 
 
-def _reset_stale_status() -> None:
-    """Setzt 'building'-Status zurück, der durch einen Neustart veraltet ist."""
-    for item_id, item in store.list().items():
-        if item.get("last_status") == "building":
-            store.upsert(item_id, {"last_status": "error"})
-
-
-_reset_stale_status()
-
-
 from .ui import router as ui_router  # ui/ package
 
 # ── Minimaler API-Router: nur JSON-Liste ──────────────────────────────────────

@@ -4,6 +4,7 @@ Wird von astrapi_packages._cli (Console-Script) und direkt von uvicorn importier
     uvicorn astrapi_packages._app:app
 """
 
+import logging
 import time
 
 from astrapi_core.system.paths import configure as _configure_paths
@@ -26,6 +27,56 @@ from astrapi_packages._paths import db_path, package_dir, work_dir
 from astrapi_packages.api.fastapi_app import create as create_api
 
 _START_TIME = time.time()
+_log = logging.getLogger(__name__)
+
+# Laufzeit-Status, die nur waehrend eines Baus gesetzt sind
+_STALE_STATUS = ("building", "pending")
+
+
+def _reset_stale_status() -> None:
+    """Setzt haengengebliebene Lauf-Status beim Start zurueck.
+
+    Beim Start kann per Definition nichts laufen: was noch auf "building" oder
+    "pending" steht, stammt aus einem abgebrochenen Lauf (Neustart, Absturz,
+    Update). Ohne das Zuruecksetzen zeigt die Liste dauerhaft einen Spinner
+    und das Status-Polling laeuft endlos weiter.
+
+    `core.system.db.reset_stale_status()` greift hier nicht: die Funktion geht
+    ueber die per `register_table()` registrierten Tabellen. archlinux und
+    debian bringen ihre Tabellen selbst mit und sind dort nicht registriert,
+    builder liegt als JSON im kvstore.
+    """
+    from astrapi_core.system.db import _conn
+
+    gesamt = 0
+    con = _conn()
+    for tabelle in ("archlinux_packages", "debian_packages"):
+        try:
+            spalten = [r[1] for r in con.execute(f'PRAGMA table_info("{tabelle}")')]
+            if "last_status" not in spalten:
+                continue  # Tabelle wird erst beim ersten Store-Zugriff angelegt
+            cur = con.execute(
+                f'UPDATE "{tabelle}" SET last_status = ? WHERE last_status IN (?, ?)',
+                ("error", *_STALE_STATUS),
+            )
+            gesamt += cur.rowcount or 0
+        except Exception as e:
+            _log.warning("reset_stale_status: Tabelle %s: %s", tabelle, e)
+    if gesamt:
+        con.commit()
+
+    try:
+        from astrapi_packages.modules.builder import store as builder_store
+
+        for item_id, item in builder_store.list().items():
+            if item.get("last_status") in _STALE_STATUS:
+                builder_store.upsert(item_id, {"last_status": "error"})
+                gesamt += 1
+    except Exception as e:
+        _log.warning("reset_stale_status: builder: %s", e)
+
+    if gesamt:
+        _log.info("reset_stale_status: %d abgebrochene Laeufe zurueckgesetzt", gesamt)
 
 
 def _db_check() -> tuple[bool, dict]:
@@ -54,6 +105,7 @@ def create_app() -> FastAPI:
     migrate_archlinux_module_state()
 
     modules, _ = load_modules(_pkg)
+    _reset_stale_status()
     api = create_api(modules=modules)
 
     from pathlib import Path
