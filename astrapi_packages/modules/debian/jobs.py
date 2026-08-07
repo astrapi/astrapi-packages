@@ -72,8 +72,15 @@ def _repo_path() -> Path:
     return base
 
 
-def build_package(item_id: str) -> None:
-    """Baut ein Debian-Paket im Docker-Container und legt die .deb-Datei ins Repository."""
+def build_package(item_id: str, notify: bool = True) -> None:
+    """Baut ein Debian-Paket im Docker-Container und legt die .deb-Datei ins Repository.
+
+    notify=False fuer Aufrufer, die selbst eine Sammel-Benachrichtigung
+    verschicken (update_all_packages(), T-117) -- sonst kaeme zusaetzlich zur
+    Sammel-Nachricht noch eine Einzelnachricht je Paket, die dieselbe
+    Information nur nochmal enthaelt. Der manuelle Bau-Weg (run_single(), ein
+    Klick auf ein einzelnes Paket) behaelt den Default True.
+    """
     from astrapi_packages.modules.debian import store
 
     item = store.get(item_id)
@@ -211,7 +218,9 @@ echo "Gebaut: $DEB_FILE"
     try:
         from astrapi_core.modules.notify import engine as _notify
 
-        if status == "ok":
+        if not notify:
+            pass
+        elif status == "ok":
             ver_info = f" ({version})" if version else ""
             _notify.send(
                 title=f"Debian: {item_id} erfolgreich gebaut{ver_info}",
@@ -495,13 +504,39 @@ def update_all_packages() -> None:
 
         log.info("debian.update_all: %s veraltet (%s → %s), baue …", item_id, current, upstream)
         try:
-            build_package(item_id)
-            built_count += 1
+            build_package(item_id, notify=False)
+            if (store.get(item_id) or {}).get("last_status") == "ok":
+                built_count += 1
+            else:
+                errors.append(item_id)
         except Exception as e:
             log.error("debian.update_all: Fehler bei %s: %s", item_id, e)
-            errors.append(str(e))
+            errors.append(item_id)
 
     _finish("error" if errors else "ok", built=built_count, error="\n".join(errors) or None)
+
+    # Eine Sammel-Benachrichtigung statt einer je Paket (T-117): nennt bereits
+    # alle betroffenen Pakete, redundante Einzelnachrichten aus build_package()
+    # sind dafuer mit notify=False oben unterdrueckt.
+    try:
+        from astrapi_core.modules.notify import engine as _notify
+
+        if errors:
+            _notify.send(
+                title="Debian: Aktualisieren – Fehler",
+                message=f"{built_count} gebaut, Fehler bei: {', '.join(errors)}",
+                event=_notify.ERROR,
+                source="debian",
+            )
+        elif built_count:
+            _notify.send(
+                title=f"Debian: {built_count} Paket(e) aktualisiert",
+                message=f"{built_count} von {len(built_ids)} geprüften Paketen wurden neu gebaut.",
+                event=_notify.SUCCESS,
+                source="debian",
+            )
+    except Exception:
+        pass
 
 
 def delete_package(item_id: str, item: dict) -> None:

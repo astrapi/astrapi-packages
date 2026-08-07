@@ -193,26 +193,15 @@ def build_package(item_id: str) -> None:
             except Exception:
                 pass
 
-    try:
-        from astrapi_core.modules.notify import engine as _notify
-
-        if status == "ok":
-            ver_info = f" ({version})" if version else ""
-            _notify.send(
-                title=f"Paket {item_id} erfolgreich gebaut{ver_info}",
-                message="Status: ok",
-                event=_notify.SUCCESS,
-                source="archlinux",
-            )
-        else:
-            _notify.send(
-                title=f"Paket {item_id} – Fehler beim Bauen",
-                message=output[-400:].strip(),
-                event=_notify.ERROR,
-                source="archlinux",
-            )
-    except Exception:
-        pass
+    # Keine Einzelbenachrichtigung hier (T-117): build_package() wird im
+    # gesamten Repo ausschliesslich aus update_all_packages() heraus
+    # aufgerufen (ueber build_package_with_deps(), je Paket). Dessen
+    # Sammel-Benachrichtigung am Ende nennt bereits alle betroffenen Pakete --
+    # eine zusaetzliche Nachricht je Paket waere bei jedem automatischen Lauf
+    # redundant, nicht nur bei einem Kaskadenfehler mit vielen Fehlschlaegen
+    # auf einmal. Der manuelle Bau-Weg (run_single(), ueber den Run-Router)
+    # ruft build_package() nicht auf und ist von dieser Aenderung nicht
+    # betroffen.
 
 
 def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
