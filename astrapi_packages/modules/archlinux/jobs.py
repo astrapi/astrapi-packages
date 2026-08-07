@@ -494,8 +494,26 @@ def update_all_packages() -> None:
         _finish("ok")
         return
 
-    # Nur erfolgreich gebaute Pakete berücksichtigen
-    built_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
+    from astrapi_packages.api import status as _status
+
+    built_ids = [k for k, v in all_items.items() if v.get("last_status") in _status.AUTO_UPDATE]
+
+    # Wer nicht mitmacht, und warum -- frueher fiel beides stillschweigend
+    # unter den Tisch (T-132).
+    nie_gebaut = [k for k, v in all_items.items() if _status.ist_nie_gebaut(v.get("last_status"))]
+    fehlerhaft = [k for k, v in all_items.items() if v.get("last_status") == _status.ERROR]
+    if nie_gebaut:
+        # G-017: der erste Bau wird von Hand angestossen und beobachtet.
+        log.info(
+            "update_all_packages: %d Paket(e) noch nie gebaut, erster Bau von Hand (G-017): %s",
+            len(nie_gebaut), ", ".join(sorted(nie_gebaut)),
+        )
+    if fehlerhaft:
+        log.warning(
+            "update_all_packages: %d Paket(e) im Fehlerzustand, nicht automatisch erneut gebaut: %s",
+            len(fehlerhaft), ", ".join(sorted(fehlerhaft)),
+        )
+
     if not built_ids:
         _finish("ok")
         return

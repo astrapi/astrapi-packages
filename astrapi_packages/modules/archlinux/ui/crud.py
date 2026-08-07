@@ -8,6 +8,7 @@ from astrapi_core.ui.schema_loader import load_schema
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
+from astrapi_packages.api import status as _status
 from astrapi_packages.modules.archlinux import KEY, store
 
 _DIR = Path(__file__).parent.parent  # modules/archlinux/
@@ -118,7 +119,7 @@ def _running_fn() -> dict:
     return {
         f"{KEY}:{k}": v["last_status"]
         for k, v in store.list().items()
-        if v.get("last_status") in ("building", "pending")
+        if v.get("last_status") in _status.LAEUFT
     }
 
 
@@ -144,7 +145,7 @@ def _ctx():
     running = {
         f"{KEY}:{k}": v["last_status"]
         for k, v in cfg.items()
-        if v.get("last_status") in ("building", "pending")
+        if v.get("last_status") in _status.LAEUFT
     }
     return dict(
         cfg=cfg,
@@ -206,6 +207,9 @@ async def create_apply(request: Request):
         "aur_deps": form.get("aur_deps", "").strip(),
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
+        # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
+        # dort noch '' (T-134), SQLite aendert den Default nicht nachtraeglich.
+        "last_status": _status.NEU,
     }
     upstream_version = form.get("upstream_version", "").strip()
     if upstream_version:
@@ -433,10 +437,10 @@ def check_updates(request: Request):
         return render(request, "partials/lists/list_wrapper_inner.html", _ctx())
 
     for k, v in all_items.items():
-        if v.get("last_status") != "ok" and v.get("upstream_version"):
+        if v.get("last_status") not in _status.AUTO_UPDATE and v.get("upstream_version"):
             store.update(k, {"upstream_version": ""})
 
-    all_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
+    all_ids = [k for k, v in all_items.items() if v.get("last_status") in _status.AUTO_UPDATE]
     if not all_ids:
         return render(request, "partials/lists/list_wrapper_inner.html", _ctx())
 

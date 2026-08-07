@@ -114,12 +114,17 @@ def autocreate_deps(item_id: str, item: dict, store) -> list[str]:
             continue  # Bereits vorhanden, nicht überschreiben
         aur_url = f"https://aur.archlinux.org/{dep_name}.git"
         try:
+            from astrapi_packages.api import status as _status
+
             store.create(
                 dep_name,
                 {
                     "source_url": aur_url,
                     "pkg_type": "dependency",
                     "enabled": True,
+                    # G-017 gilt auch fuer automatisch angelegte Abhaengigkeiten:
+                    # angelegt, aber nicht gebaut.
+                    "last_status": _status.NEU,
                 },
             )
             created.append(dep_name)

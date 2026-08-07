@@ -28,17 +28,29 @@ from astrapi_packages.api.fastapi_app import create as create_api
 _START_TIME = time.time()
 _log = logging.getLogger(__name__)
 
-# Laufzeit-Status, die nur waehrend eines Baus gesetzt sind
-_STALE_STATUS = ("building", "pending")
+_TABELLEN = ("archlinux_packages", "debian_packages")
+
+
+def _spalte_vorhanden(con, tabelle: str, spalte: str) -> bool:
+    """False auch dann, wenn es die Tabelle noch gar nicht gibt.
+
+    Die Modul-Stores legen ihre Tabelle erst beim ersten Zugriff an.
+    """
+    return spalte in [r[1] for r in con.execute(f'PRAGMA table_info("{tabelle}")')]
 
 
 def _reset_stale_status() -> None:
-    """Setzt haengengebliebene Lauf-Status beim Start zurueck.
+    """Setzt haengengebliebene Lauf-Status beim Start auf `aborted`.
 
     Beim Start kann per Definition nichts laufen: was noch auf "building" oder
-    "pending" steht, stammt aus einem abgebrochenen Lauf (Neustart, Absturz,
+    "pending" steht, stammt aus einem unterbrochenen Lauf (Neustart, Absturz,
     Update). Ohne das Zuruecksetzen zeigt die Liste dauerhaft einen Spinner
     und das Status-Polling laeuft endlos weiter.
+
+    Das Ergebnis ist `aborted`, **nicht** `error`: der Bau ist nicht
+    fehlgeschlagen, er kam nicht zu Ende -- ueber das Paket selbst ist damit
+    nichts Schlechtes bekannt. Der Unterschied entscheidet, ob das Paket in der
+    automatischen Aktualisierung bleibt (T-132, siehe api/status.py).
 
     `core.system.db.reset_stale_status()` greift hier nicht: die Funktion geht
     ueber die per `register_table()` registrierten Tabellen. archlinux und
@@ -47,16 +59,17 @@ def _reset_stale_status() -> None:
     """
     from astrapi_core.system.db import _conn
 
+    from astrapi_packages.api import status as _status
+
     gesamt = 0
     con = _conn()
-    for tabelle in ("archlinux_packages", "debian_packages"):
+    for tabelle in _TABELLEN:
         try:
-            spalten = [r[1] for r in con.execute(f'PRAGMA table_info("{tabelle}")')]
-            if "last_status" not in spalten:
-                continue  # Tabelle wird erst beim ersten Store-Zugriff angelegt
+            if not _spalte_vorhanden(con, tabelle, "last_status"):
+                continue
             cur = con.execute(
                 f'UPDATE "{tabelle}" SET last_status = ? WHERE last_status IN (?, ?)',
-                ("error", *_STALE_STATUS),
+                (_status.ABORTED, *_status.LAEUFT),
             )
             gesamt += cur.rowcount or 0
         except Exception as e:
@@ -68,14 +81,44 @@ def _reset_stale_status() -> None:
         from astrapi_packages.modules.builder import store as builder_store
 
         for item_id, item in builder_store.list().items():
-            if item.get("last_status") in _STALE_STATUS:
-                builder_store.upsert(item_id, {"last_status": "error"})
+            if item.get("last_status") in _status.LAEUFT:
+                builder_store.upsert(item_id, {"last_status": _status.ABORTED})
                 gesamt += 1
     except Exception as e:
         _log.warning("reset_stale_status: builder: %s", e)
 
     if gesamt:
-        _log.info("reset_stale_status: %d abgebrochene Laeufe zurueckgesetzt", gesamt)
+        _log.info("reset_stale_status: %d unterbrochene Laeufe auf 'aborted' gesetzt", gesamt)
+
+
+def _normalisiere_leeren_status() -> None:
+    """Zieht den historischen Leerwert auf `neu` nach (T-134).
+
+    G-010 gibt "neu" als Initialwert vor; astrapi-packages hat stattdessen ''
+    geschrieben. Beide bedeuten "noch nie gebaut", aber zwei Schreibweisen fuer
+    denselben Zustand laden zu Vergleichsfehlern ein. Idempotent -- nach dem
+    ersten Start faellt die Bedingung auf null Zeilen.
+    """
+    from astrapi_core.system.db import _conn
+
+    from astrapi_packages.api import status as _status
+
+    con = _conn()
+    gesamt = 0
+    for tabelle in _TABELLEN:
+        try:
+            if not _spalte_vorhanden(con, tabelle, "last_status"):
+                continue
+            cur = con.execute(
+                f'UPDATE "{tabelle}" SET last_status = ? WHERE last_status = ?',
+                (_status.NEU, ""),
+            )
+            gesamt += cur.rowcount or 0
+        except Exception as e:
+            _log.warning("normalisiere_leeren_status: Tabelle %s: %s", tabelle, e)
+    if gesamt:
+        con.commit()
+        _log.info("normalisiere_leeren_status: %d Eintraege von '' auf 'neu' gesetzt", gesamt)
 
 
 def _db_check() -> tuple[bool, dict]:
@@ -103,6 +146,7 @@ def create_app() -> FastAPI:
 
     modules, _ = load_modules(_pkg)
     _reset_stale_status()
+    _normalisiere_leeren_status()
     api = create_api(modules=modules)
 
     from pathlib import Path

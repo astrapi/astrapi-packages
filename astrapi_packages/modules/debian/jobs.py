@@ -418,8 +418,27 @@ def update_all_packages() -> None:
             except Exception:
                 pass
 
+    from astrapi_packages.api import status as _status
+
     all_items = store.list()
-    built_ids = [k for k, v in all_items.items() if v.get("last_status") == "ok"]
+    built_ids = [k for k, v in all_items.items() if v.get("last_status") in _status.AUTO_UPDATE]
+
+    # Wer nicht mitmacht, und warum -- frueher fiel beides stillschweigend
+    # unter den Tisch (T-132).
+    nie_gebaut = [k for k, v in all_items.items() if _status.ist_nie_gebaut(v.get("last_status"))]
+    fehlerhaft = [k for k, v in all_items.items() if v.get("last_status") == _status.ERROR]
+    if nie_gebaut:
+        # G-017: der erste Bau wird von Hand angestossen und beobachtet.
+        log.info(
+            "debian.update_all: %d Paket(e) noch nie gebaut, erster Bau von Hand (G-017): %s",
+            len(nie_gebaut), ", ".join(sorted(nie_gebaut)),
+        )
+    if fehlerhaft:
+        log.warning(
+            "debian.update_all: %d Paket(e) im Fehlerzustand, nicht automatisch erneut gebaut: %s",
+            len(fehlerhaft), ", ".join(sorted(fehlerhaft)),
+        )
+
     if not built_ids:
         _finish("ok")
         return

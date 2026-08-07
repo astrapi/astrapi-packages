@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     source_subdir    TEXT NOT NULL DEFAULT '',
     pkg_type         TEXT NOT NULL DEFAULT 'package',
     enabled          INTEGER NOT NULL DEFAULT 1,
-    last_status      TEXT NOT NULL DEFAULT '',
+    last_status      TEXT NOT NULL DEFAULT 'neu',
     last_run         TEXT NOT NULL DEFAULT '',
     last_log         TEXT NOT NULL DEFAULT '',
     last_version     TEXT NOT NULL DEFAULT '',
