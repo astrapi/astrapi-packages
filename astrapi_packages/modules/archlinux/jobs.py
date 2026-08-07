@@ -107,8 +107,10 @@ def build_package(item_id: str) -> None:
 
     _t0 = _time.time()
     _act_id = None
+    _prev_log_id = None
     try:
         from astrapi_core.system.activity_log import log_activity
+        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
 
         _act_id = log_activity(
             "job",
@@ -117,6 +119,16 @@ def build_package(item_id: str) -> None:
             status="running",
             item_id=item_id,
         )
+        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
+        # (Scheduler -> update_all_packages -> build_package_with_deps -> je
+        # Dependency). Dann steht bereits ein aeusserer active_log_id (der vom
+        # Scheduler-Job). Ohne diesen Rahmen liefen alle Build-Zeilen dort
+        # hinein statt in den eigenen Eintrag -- dessen activity_log_lines
+        # blieben leer, full_log war die einzige Quelle mit echtem Inhalt
+        # (T-112). Nach dem Bau wird der vorherige Stand wiederhergestellt,
+        # damit der aeussere Kontext (Scheduler-Job) korrekt weiterlaeuft.
+        _prev_log_id = get_active_log_id()
+        set_active_log_id(_act_id)
     except Exception:
         pass
 
@@ -166,11 +178,20 @@ def build_package(item_id: str) -> None:
                 log_id=_act_id,
                 status=status,
                 duration_s=int(_time.time() - _t0),
-                full_log=output[-20_000:],
                 error_message=output[-500:] if status == "error" else None,
             )
         except Exception:
             pass
+        finally:
+            try:
+                from astrapi_core.system.logger import clear_active_log_id, set_active_log_id
+
+                if _prev_log_id is not None:
+                    set_active_log_id(_prev_log_id)
+                else:
+                    clear_active_log_id()
+            except Exception:
+                pass
 
     try:
         from astrapi_core.modules.notify import engine as _notify
