@@ -75,69 +75,13 @@ def _repo_path() -> Path:
     return base
 
 
-def build_package(item_id: str, notify: bool = True) -> None:
-    """Baut ein Debian-Paket im Docker-Container und legt die .deb-Datei ins Repository.
-
-    notify=False fuer Aufrufer, die selbst eine Sammel-Benachrichtigung
-    verschicken (update_all_packages(), T-117) -- sonst kaeme zusaetzlich zur
-    Sammel-Nachricht noch eine Einzelnachricht je Paket, die dieselbe
-    Information nur nochmal enthaelt. Der manuelle Bau-Weg (run_single(), ein
-    Klick auf ein einzelnes Paket) behaelt den Default True.
-    """
-    from astrapi_packages.modules.debian import store
-
-    item = store.get(item_id)
-    if not item:
-        log.warning("debian.build: Eintrag '%s' nicht gefunden", item_id)
-        return
-
-    s = _settings()
-    image = s("default_image", "ctl/debian-builder:latest")
-    source_url = (item.get("source_url") or "").strip()
-    source_subdir = (item.get("source_subdir") or "").strip()
+def _build_cmd(
+    item_id: str, source_url: str, source_subdir: str, image: str, repo_path: Path
+) -> list[str]:
+    """Baut das docker-run-Kommando für den Debian-Bau (gemeinsam für build_package() und
+    _build_single_streaming() -- ein Shell-Script an zwei Stellen zu pflegen wäre eine
+    Fehlerquelle, wenn eine Änderung nur an einer Stelle ankommt."""
     subdir = source_subdir or item_id
-
-    if not source_url:
-        store.update(
-            item_id,
-            {
-                "last_status": _status.ERROR,
-                "last_run": _now(),
-                "last_log": "Keine Git-URL angegeben.",
-            },
-        )
-        return
-
-    repo_path = _repo_path()
-    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
-
-    import time as _time
-
-    _t0 = _time.time()
-    _act_id = None
-    _prev_log_id = None
-    try:
-        from astrapi_core.system.activity_log import log_activity
-        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
-
-        _act_id = log_activity(
-            "job",
-            "debian",
-            f"Debian-Paket bauen: {item_id}",
-            status="running",
-            item_id=item_id,
-        )
-        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
-        # (Scheduler -> update_all_packages() -> je Paket). Ohne diesen
-        # Rahmen liefen alle Build-Zeilen mehrerer Pakete in denselben
-        # aeusseren Eintrag statt in je einen eigenen (T-136, analog
-        # archlinux seit T-112). Nach dem Bau wird der vorherige Stand
-        # wiederhergestellt, damit der aeussere Kontext (Scheduler-Job)
-        # korrekt weiterlaeuft.
-        _prev_log_id = get_active_log_id()
-        set_active_log_id(_act_id)
-    except Exception:
-        pass
 
     # Shell-Script: PKGBUILD lesen → .deb bauen
     # Python-format-Platzhalter: {source_url}, {item_id}
@@ -216,7 +160,7 @@ fakeroot dpkg-deb --build "$STAGING" "$DEB_FILE"
 echo "Gebaut: $DEB_FILE"
 """.format(source_url=source_url, item_id=item_id, subdir=subdir)
 
-    cmd = [
+    return [
         "docker",
         "run",
         "--rm",
@@ -227,6 +171,72 @@ echo "Gebaut: $DEB_FILE"
         "-c",
         build_script,
     ]
+
+
+def build_package(item_id: str, notify: bool = True) -> None:
+    """Baut ein Debian-Paket im Docker-Container und legt die .deb-Datei ins Repository.
+
+    notify=False fuer Aufrufer, die selbst eine Sammel-Benachrichtigung
+    verschicken (update_all_packages(), T-117) -- sonst kaeme zusaetzlich zur
+    Sammel-Nachricht noch eine Einzelnachricht je Paket, die dieselbe
+    Information nur nochmal enthaelt. Der manuelle Bau-Weg (run_single(), ein
+    Klick auf ein einzelnes Paket) behaelt den Default True.
+    """
+    from astrapi_packages.modules.debian import store
+
+    item = store.get(item_id)
+    if not item:
+        log.warning("debian.build: Eintrag '%s' nicht gefunden", item_id)
+        return
+
+    s = _settings()
+    image = s("default_image", "ctl/debian-builder:latest")
+    source_url = (item.get("source_url") or "").strip()
+    source_subdir = (item.get("source_subdir") or "").strip()
+
+    if not source_url:
+        store.update(
+            item_id,
+            {
+                "last_status": _status.ERROR,
+                "last_run": _now(),
+                "last_log": "Keine Git-URL angegeben.",
+            },
+        )
+        return
+
+    repo_path = _repo_path()
+    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
+
+    import time as _time
+
+    _t0 = _time.time()
+    _act_id = None
+    _prev_log_id = None
+    try:
+        from astrapi_core.system.activity_log import log_activity
+        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
+
+        _act_id = log_activity(
+            "job",
+            "debian",
+            f"Debian-Paket bauen: {item_id}",
+            status="running",
+            item_id=item_id,
+        )
+        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
+        # (Scheduler -> update_all_packages() -> je Paket). Ohne diesen
+        # Rahmen liefen alle Build-Zeilen mehrerer Pakete in denselben
+        # aeusseren Eintrag statt in je einen eigenen (T-136, analog
+        # archlinux seit T-112). Nach dem Bau wird der vorherige Stand
+        # wiederhergestellt, damit der aeussere Kontext (Scheduler-Job)
+        # korrekt weiterlaeuft.
+        _prev_log_id = get_active_log_id()
+        set_active_log_id(_act_id)
+    except Exception:
+        pass
+
+    cmd = _build_cmd(item_id, source_url, source_subdir, image, repo_path)
     log.info("debian.build: %s", " ".join(cmd))
     rc, raw_output = _run(cmd)
     cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
@@ -449,9 +459,110 @@ def _extract_version(repo_path: Path, item_id: str) -> str | None:
         return None
 
 
+# ── Zentraler Run-Router: run_single (mit Live-Output) ───────────────────────
+
+
+def _run_log(cmd: list[str], timeout: int = _TIMEOUT) -> int:
+    """Führt einen Subprocess aus und gibt jede Ausgabezeile an den Core-Logger weiter."""
+    from astrapi_core.system.logger import log as _log
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        for line in proc.stdout:
+            _log("INFO", line.rstrip())
+        proc.wait(timeout=timeout)
+        return proc.returncode
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        _log("ERROR", f"Timeout nach {timeout}s")
+        return 1
+    except FileNotFoundError:
+        _log("ERROR", f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?")
+        return 1
+    except Exception as e:
+        _log("ERROR", str(e))
+        return 1
+
+
+def _build_single_streaming(item_id: str) -> None:
+    """Baut ein einzelnes Debian-Paket – gibt Subprocess-Output zeilenweise per _log() aus.
+
+    Wird vom zentralen Run-Router aufgerufen (der bereits einen eigenen
+    activity_log-Kontext gesetzt hat, siehe api/run.py) -- anders als
+    build_package() öffnet diese Funktion deshalb keinen eigenen log_activity()
+    -Rahmen, sondern schreibt direkt in den vom Router vorgegebenen Kontext.
+    """
+    from astrapi_core.system.logger import log as _log
+
+    from astrapi_packages.modules.debian import store
+
+    item = store.get(item_id)
+    if not item:
+        _log("ERROR", f"Kein Eintrag für '{item_id}'")
+        return
+
+    s = _settings()
+    image = s("default_image", "ctl/debian-builder:latest")
+    source_url = (item.get("source_url") or "").strip()
+    source_subdir = (item.get("source_subdir") or "").strip()
+    if not source_url:
+        store.update(item_id, {"last_status": _status.ERROR})
+        _log("ERROR", "Keine Git-URL angegeben")
+        return
+
+    repo_path = _repo_path()
+    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
+
+    cmd = _build_cmd(item_id, source_url, source_subdir, image, repo_path)
+    cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
+    _log("INFO", cmd_repr)
+    rc = _run_log(cmd)
+
+    if rc == 0:
+        _update_packages_index(repo_path)
+        _trigger_mirror_sync(item_id)
+
+    version = _extract_version(repo_path, item_id) if rc == 0 else None
+    status = _status.OK if rc == 0 else _status.ERROR
+    update: dict = {"last_status": status, "last_run": _now()}
+    if version:
+        update["last_version"] = version
+    store.update(item_id, update)
+    _log("INFO" if status == _status.OK else "ERROR", f"{item_id} → {status}")
+
+    try:
+        from astrapi_core.modules.notify import engine as _notify
+
+        if status == _status.OK:
+            ver_info = f" ({version})" if version else ""
+            _notify.send(
+                title=f"Debian: {item_id} erfolgreich gebaut{ver_info}",
+                message="Status: ok",
+                event=_notify.SUCCESS,
+                source="debian",
+            )
+        else:
+            _notify.send(
+                title=f"Debian: {item_id} – Fehler beim Bauen",
+                message=f"rc={rc}",
+                event=_notify.ERROR,
+                source="debian",
+            )
+    except Exception:
+        pass
+
+
 def run_single(item_id: str) -> None:
-    """Einstiegspunkt für den zentralen Run-Router."""
-    build_package(item_id)
+    """Einstiegspunkt für den zentralen Run-Router (streamt Output via activity_log)."""
+    _build_single_streaming(item_id)
 
 
 def update_all_packages() -> None:
