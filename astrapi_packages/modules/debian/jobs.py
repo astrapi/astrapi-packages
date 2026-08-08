@@ -17,42 +17,45 @@ _TIMEOUT = 3600
 _ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
 
 
-def _pipe_to_activity_log(cmd_repr: str, raw_output: str, rc: int) -> None:
-    """Schreibt Subprocess-Output ins aktive activity_log (für Log-Modal)."""
+def _run_streamed(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
+    """Führt einen Subprocess aus, schreibt jede Zeile sofort ins aktive activity_log
+    (Live-Anzeige, egal ob manueller oder automatischer Bau) und gibt zusätzlich
+    (rc, vollständige Ausgabe) zurück -- fürs last_log-Feld und Fehlermeldungen."""
+    from astrapi_core.system.logger import log as _log
+
+    lines: list[str] = []
     try:
-        from astrapi_core.system.logger import log as _alog
-
-        _alog("INFO", cmd_repr)
-        for line in raw_output.splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
-            lower = stripped.lower()
-            lvl = "ERROR" if any(k in lower for k in _ERR_KEYWORDS) else "INFO"
-            _alog(lvl, stripped)
-        if rc != 0:
-            _alog("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
-    except Exception:
-        pass
-
-
-def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
-    try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",  # dpkg/apt-Ausgabe ist nicht garantiert UTF-8
-            timeout=timeout,
         )
-        return result.returncode, result.stdout
-    except subprocess.TimeoutExpired as e:
-        return 1, f"Timeout nach {timeout}s\n{e.stdout or ''}"
+        for line in proc.stdout:
+            stripped = line.rstrip()
+            lines.append(stripped)
+            lower = stripped.strip().lower()
+            lvl = "ERROR" if lower and any(k in lower for k in _ERR_KEYWORDS) else "INFO"
+            _log(lvl, stripped)
+        proc.wait(timeout=timeout)
+        rc = proc.returncode
+        if rc != 0:
+            _log("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
+        return rc, "\n".join(lines)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        msg = f"Timeout nach {timeout}s"
+        _log("ERROR", msg)
+        return 1, "\n".join([*lines, msg])
     except FileNotFoundError:
-        return 1, f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
+        msg = f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
+        _log("ERROR", msg)
+        return 1, msg
     except Exception as e:
+        _log("ERROR", str(e))
         return 1, str(e)
 
 
@@ -78,9 +81,8 @@ def _repo_path() -> Path:
 def _build_cmd(
     item_id: str, source_url: str, source_subdir: str, image: str, repo_path: Path
 ) -> list[str]:
-    """Baut das docker-run-Kommando für den Debian-Bau (gemeinsam für build_package() und
-    _build_single_streaming() -- ein Shell-Script an zwei Stellen zu pflegen wäre eine
-    Fehlerquelle, wenn eine Änderung nur an einer Stelle ankommt."""
+    """Baut das docker-run-Kommando für den Debian-Bau -- eigene Funktion, damit das
+    lange Shell-Script nicht den Ablauf von build_package() verschluckt."""
     subdir = source_subdir or item_id
 
     # Shell-Script: PKGBUILD lesen → .deb bauen
@@ -173,7 +175,7 @@ echo "Gebaut: $DEB_FILE"
     ]
 
 
-def build_package(item_id: str, notify: bool = True) -> None:
+def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True) -> None:
     """Baut ein Debian-Paket im Docker-Container und legt die .deb-Datei ins Repository.
 
     notify=False fuer Aufrufer, die selbst eine Sammel-Benachrichtigung
@@ -181,7 +183,19 @@ def build_package(item_id: str, notify: bool = True) -> None:
     Sammel-Nachricht noch eine Einzelnachricht je Paket, die dieselbe
     Information nur nochmal enthaelt. Der manuelle Bau-Weg (run_single(), ein
     Klick auf ein einzelnes Paket) behaelt den Default True.
+
+    own_log_entry=True (Default, automatischer Pfad via update_all_packages()):
+    oeffnet einen eigenen log_activity()-Rahmen, damit jedes Paket in einem
+    Scheduler-Lauf mit mehreren Paketen einen eigenen Eintrag bekommt statt
+    alle Build-Zeilen in den aeusseren Job-Eintrag zu schreiben (T-136).
+    own_log_entry=False (manueller Pfad via run_single()): der Run-Router hat
+    dafuer bereits einen eigenen Kontext gesetzt (api/run.py) -- ein zweiter,
+    verschachtelter Eintrag wuerde dessen eigene Status-Ermittlung leerlaufen
+    lassen (history_finish() liest die Zeilen des Router-Eintrags, nicht die
+    des verschachtelten).
     """
+    from astrapi_core.system.logger import log as _log
+
     from astrapi_packages.modules.debian import store
 
     item = store.get(item_id)
@@ -213,34 +227,28 @@ def build_package(item_id: str, notify: bool = True) -> None:
     _t0 = _time.time()
     _act_id = None
     _prev_log_id = None
-    try:
-        from astrapi_core.system.activity_log import log_activity
-        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
+    if own_log_entry:
+        try:
+            from astrapi_core.system.activity_log import log_activity
+            from astrapi_core.system.logger import get_active_log_id, set_active_log_id
 
-        _act_id = log_activity(
-            "job",
-            "debian",
-            f"Debian-Paket bauen: {item_id}",
-            status="running",
-            item_id=item_id,
-        )
-        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
-        # (Scheduler -> update_all_packages() -> je Paket). Ohne diesen
-        # Rahmen liefen alle Build-Zeilen mehrerer Pakete in denselben
-        # aeusseren Eintrag statt in je einen eigenen (T-136, analog
-        # archlinux seit T-112). Nach dem Bau wird der vorherige Stand
-        # wiederhergestellt, damit der aeussere Kontext (Scheduler-Job)
-        # korrekt weiterlaeuft.
-        _prev_log_id = get_active_log_id()
-        set_active_log_id(_act_id)
-    except Exception:
-        pass
+            _act_id = log_activity(
+                "job",
+                "debian",
+                f"Debian-Paket bauen: {item_id}",
+                status="running",
+                item_id=item_id,
+            )
+            _prev_log_id = get_active_log_id()
+            set_active_log_id(_act_id)
+        except Exception:
+            pass
 
     cmd = _build_cmd(item_id, source_url, source_subdir, image, repo_path)
-    log.info("debian.build: %s", " ".join(cmd))
-    rc, raw_output = _run(cmd)
     cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
-    _pipe_to_activity_log(cmd_repr, raw_output, rc)
+    log.info("debian.build: %s", " ".join(cmd))
+    _log("INFO", cmd_repr)
+    rc, raw_output = _run_streamed(cmd)
     output = f"{cmd_repr}\n\n{raw_output}"
 
     if rc == 0:
@@ -459,110 +467,15 @@ def _extract_version(repo_path: Path, item_id: str) -> str | None:
         return None
 
 
-# ── Zentraler Run-Router: run_single (mit Live-Output) ───────────────────────
-
-
-def _run_log(cmd: list[str], timeout: int = _TIMEOUT) -> int:
-    """Führt einen Subprocess aus und gibt jede Ausgabezeile an den Core-Logger weiter."""
-    from astrapi_core.system.logger import log as _log
-
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        for line in proc.stdout:
-            _log("INFO", line.rstrip())
-        proc.wait(timeout=timeout)
-        return proc.returncode
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        _log("ERROR", f"Timeout nach {timeout}s")
-        return 1
-    except FileNotFoundError:
-        _log("ERROR", f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?")
-        return 1
-    except Exception as e:
-        _log("ERROR", str(e))
-        return 1
-
-
-def _build_single_streaming(item_id: str) -> None:
-    """Baut ein einzelnes Debian-Paket – gibt Subprocess-Output zeilenweise per _log() aus.
-
-    Wird vom zentralen Run-Router aufgerufen (der bereits einen eigenen
-    activity_log-Kontext gesetzt hat, siehe api/run.py) -- anders als
-    build_package() öffnet diese Funktion deshalb keinen eigenen log_activity()
-    -Rahmen, sondern schreibt direkt in den vom Router vorgegebenen Kontext.
-    """
-    from astrapi_core.system.logger import log as _log
-
-    from astrapi_packages.modules.debian import store
-
-    item = store.get(item_id)
-    if not item:
-        _log("ERROR", f"Kein Eintrag für '{item_id}'")
-        return
-
-    s = _settings()
-    image = s("default_image", "ctl/debian-builder:latest")
-    source_url = (item.get("source_url") or "").strip()
-    source_subdir = (item.get("source_subdir") or "").strip()
-    if not source_url:
-        store.update(item_id, {"last_status": _status.ERROR})
-        _log("ERROR", "Keine Git-URL angegeben")
-        return
-
-    repo_path = _repo_path()
-    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
-
-    cmd = _build_cmd(item_id, source_url, source_subdir, image, repo_path)
-    cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
-    _log("INFO", cmd_repr)
-    rc = _run_log(cmd)
-
-    if rc == 0:
-        _update_packages_index(repo_path)
-        _trigger_mirror_sync(item_id)
-
-    version = _extract_version(repo_path, item_id) if rc == 0 else None
-    status = _status.OK if rc == 0 else _status.ERROR
-    update: dict = {"last_status": status, "last_run": _now()}
-    if version:
-        update["last_version"] = version
-    store.update(item_id, update)
-    _log("INFO" if status == _status.OK else "ERROR", f"{item_id} → {status}")
-
-    try:
-        from astrapi_core.modules.notify import engine as _notify
-
-        if status == _status.OK:
-            ver_info = f" ({version})" if version else ""
-            _notify.send(
-                title=f"Debian: {item_id} erfolgreich gebaut{ver_info}",
-                message="Status: ok",
-                event=_notify.SUCCESS,
-                source="debian",
-            )
-        else:
-            _notify.send(
-                title=f"Debian: {item_id} – Fehler beim Bauen",
-                message=f"rc={rc}",
-                event=_notify.ERROR,
-                source="debian",
-            )
-    except Exception:
-        pass
+# ── Zentraler Run-Router: run_single ─────────────────────────────────────────
 
 
 def run_single(item_id: str) -> None:
-    """Einstiegspunkt für den zentralen Run-Router (streamt Output via activity_log)."""
-    _build_single_streaming(item_id)
+    """Einstiegspunkt für den zentralen Run-Router (der bereits einen eigenen
+    activity_log-Kontext gesetzt hat, siehe api/run.py). build_package()
+    schreibt dabei direkt in den vom Router vorgegebenen Kontext
+    (own_log_entry=False) statt einen eigenen zu öffnen."""
+    build_package(item_id, own_log_entry=False)
 
 
 def update_all_packages() -> None:

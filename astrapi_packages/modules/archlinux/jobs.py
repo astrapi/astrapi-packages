@@ -18,26 +18,9 @@ _TIMEOUT = 3600
 _ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
 
 
-def _pipe_to_activity_log(cmd_repr: str, raw_output: str, rc: int) -> None:
-    """Schreibt Subprocess-Output ins aktive activity_log (für Log-Modal)."""
-    try:
-        from astrapi_core.system.logger import log as _alog
-
-        _alog("INFO", cmd_repr)
-        for line in raw_output.splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
-            lower = stripped.lower()
-            lvl = "ERROR" if any(k in lower for k in _ERR_KEYWORDS) else "INFO"
-            _alog(lvl, stripped)
-        if rc != 0:
-            _alog("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
-    except Exception:
-        pass
-
-
 def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
+    """Blockierender Subprocess-Aufruf ohne Live-Logging -- fuer Hilfskommandos
+    (repo-add/repo-remove), die nicht Teil eines sichtbaren Bau-Vorgangs sind."""
     try:
         result = subprocess.run(
             cmd,
@@ -54,6 +37,48 @@ def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
     except FileNotFoundError:
         return 1, f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
     except Exception as e:
+        return 1, str(e)
+
+
+def _run_streamed(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
+    """Führt einen Subprocess aus, schreibt jede Zeile sofort ins aktive activity_log
+    (Live-Anzeige, egal ob manueller oder automatischer Bau) und gibt zusätzlich
+    (rc, vollständige Ausgabe) zurück -- fürs last_log-Feld und Fehlermeldungen."""
+    from astrapi_core.system.logger import log as _log
+
+    lines: list[str] = []
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",  # makepkg/pacman-Ausgabe ist nicht garantiert UTF-8
+        )
+        for line in proc.stdout:
+            stripped = line.rstrip()
+            lines.append(stripped)
+            lower = stripped.strip().lower()
+            lvl = "ERROR" if lower and any(k in lower for k in _ERR_KEYWORDS) else "INFO"
+            _log(lvl, stripped)
+        proc.wait(timeout=timeout)
+        rc = proc.returncode
+        if rc != 0:
+            _log("ERROR", f"Build fehlgeschlagen (Exit-Code {rc})")
+        return rc, "\n".join(lines)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        msg = f"Timeout nach {timeout}s"
+        _log("ERROR", msg)
+        return 1, "\n".join([*lines, msg])
+    except FileNotFoundError:
+        msg = f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?"
+        _log("ERROR", msg)
+        return 1, msg
+    except Exception as e:
+        _log("ERROR", str(e))
         return 1, str(e)
 
 
@@ -78,7 +103,26 @@ def _arch_repo_path() -> str:
     return str(path)
 
 
-def build_package(item_id: str) -> None:
+def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True) -> None:
+    """Baut ein einzelnes Arch-Paket im Docker-Container, mit Live-Output.
+
+    own_log_entry=True (Default, automatischer Pfad via build_package_with_deps()
+    -> update_all_packages()): öffnet einen eigenen log_activity()-Rahmen, damit
+    jedes Paket in einem Scheduler-Lauf mit mehreren Paketen einen eigenen
+    Eintrag bekommt statt alle Build-Zeilen in den äußeren Job-Eintrag zu
+    schreiben (T-112). own_log_entry=False (manueller Pfad via run_single()):
+    der Run-Router hat dafür bereits einen eigenen Kontext gesetzt
+    (api/run.py) -- ein zweiter, verschachtelter Eintrag würde dessen eigene
+    Status-Ermittlung leerlaufen lassen (history_finish() liest die Zeilen des
+    Router-Eintrags, nicht die des verschachtelten).
+
+    notify=True für den manuellen Bau-Weg (ein Klick auf ein einzelnes Paket) --
+    da ist keine Sammel-Benachrichtigung im Spiel. Default False für den
+    automatischen Pfad, dessen Sammel-Benachrichtigung am Ende von
+    update_all_packages() bereits alle betroffenen Pakete nennt (T-117).
+    """
+    from astrapi_core.system.logger import log as _log
+
     from astrapi_packages.modules.archlinux import store
 
     item = store.get(item_id)
@@ -110,29 +154,22 @@ def build_package(item_id: str) -> None:
     _t0 = _time.time()
     _act_id = None
     _prev_log_id = None
-    try:
-        from astrapi_core.system.activity_log import log_activity
-        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
+    if own_log_entry:
+        try:
+            from astrapi_core.system.activity_log import log_activity
+            from astrapi_core.system.logger import get_active_log_id, set_active_log_id
 
-        _act_id = log_activity(
-            "job",
-            "archlinux",
-            f"Arch-Linux-Paket bauen: {item_id}",
-            status="running",
-            item_id=item_id,
-        )
-        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
-        # (Scheduler -> update_all_packages -> build_package_with_deps -> je
-        # Dependency). Dann steht bereits ein aeusserer active_log_id (der vom
-        # Scheduler-Job). Ohne diesen Rahmen liefen alle Build-Zeilen dort
-        # hinein statt in den eigenen Eintrag -- dessen activity_log_lines
-        # blieben leer, full_log war die einzige Quelle mit echtem Inhalt
-        # (T-112). Nach dem Bau wird der vorherige Stand wiederhergestellt,
-        # damit der aeussere Kontext (Scheduler-Job) korrekt weiterlaeuft.
-        _prev_log_id = get_active_log_id()
-        set_active_log_id(_act_id)
-    except Exception:
-        pass
+            _act_id = log_activity(
+                "job",
+                "archlinux",
+                f"Arch-Linux-Paket bauen: {item_id}",
+                status="running",
+                item_id=item_id,
+            )
+            _prev_log_id = get_active_log_id()
+            set_active_log_id(_act_id)
+        except Exception:
+            pass
 
     repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
     env_args = ["-e", f"REPO_NAME={repo_name}"]
@@ -150,10 +187,11 @@ def build_package(item_id: str) -> None:
         source_url,
     ]
 
+    cmd_repr = f"$ {' '.join(cmd)}"
     log.info("archlinux.build: %s", " ".join(cmd))
-    rc, raw_output = _run(cmd)
-    _pipe_to_activity_log(f"$ {' '.join(cmd)}", raw_output, rc)
-    output = f"$ {' '.join(cmd)}\n\n{raw_output}"
+    _log("INFO", cmd_repr)
+    rc, raw_output = _run_streamed(cmd)
+    output = f"{cmd_repr}\n\n{raw_output}"
 
     version = None
     if rc == 0:
@@ -195,15 +233,27 @@ def build_package(item_id: str) -> None:
             except Exception:
                 pass
 
-    # Keine Einzelbenachrichtigung hier (T-117): build_package() wird im
-    # gesamten Repo ausschliesslich aus update_all_packages() heraus
-    # aufgerufen (ueber build_package_with_deps(), je Paket). Dessen
-    # Sammel-Benachrichtigung am Ende nennt bereits alle betroffenen Pakete --
-    # eine zusaetzliche Nachricht je Paket waere bei jedem automatischen Lauf
-    # redundant, nicht nur bei einem Kaskadenfehler mit vielen Fehlschlaegen
-    # auf einmal. Der manuelle Bau-Weg (run_single(), ueber den Run-Router)
-    # ruft build_package() nicht auf und ist von dieser Aenderung nicht
-    # betroffen.
+    if notify:
+        try:
+            from astrapi_core.modules.notify import engine as _notify
+
+            if status == _status.OK:
+                ver_info = f" ({version})" if version else ""
+                _notify.send(
+                    title=f"Paket {item_id} erfolgreich gebaut{ver_info}",
+                    message="Status: ok",
+                    event=_notify.SUCCESS,
+                    source="archlinux",
+                )
+            else:
+                _notify.send(
+                    title=f"Paket {item_id} – Fehler beim Bauen",
+                    message=f"rc={rc}",
+                    event=_notify.ERROR,
+                    source="archlinux",
+                )
+        except Exception:
+            pass
 
 
 def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
@@ -607,119 +657,13 @@ def update_all_packages() -> None:
 # ── Zentraler Run-Router: run_single ─────────────────────────────────────────
 
 
-def _run_log(cmd: list[str], timeout: int = _TIMEOUT) -> int:
-    """Führt einen Subprocess aus und gibt jede Ausgabezeile an den Core-Logger weiter."""
-    from astrapi_core.system.logger import log as _log
-
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",  # makepkg/pacman-Ausgabe ist nicht garantiert UTF-8
-        )
-        for line in proc.stdout:
-            _log("INFO", line.rstrip())
-        proc.wait(timeout=timeout)
-        return proc.returncode
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        _log("ERROR", f"Timeout nach {timeout}s")
-        return 1
-    except FileNotFoundError:
-        from astrapi_core.system.logger import log as _log
-
-        _log("ERROR", f"Kommando nicht gefunden: {cmd[0]!r} – ist Docker installiert?")
-        return 1
-    except Exception as e:
-        from astrapi_core.system.logger import log as _log
-
-        _log("ERROR", str(e))
-        return 1
-
-
-def _build_single_streaming(item_id: str, s, repo_path: str, store_obj) -> None:
-    """Baut ein einzelnes Paket – gibt Subprocess-Output zeilenweise per _log() aus."""
-    from astrapi_core.system.logger import log as _log
-
-    item = store_obj.get(item_id)
-    if not item:
-        _log("ERROR", f"Kein Eintrag für '{item_id}'")
-        return
-
-    image = s("default_image", "ctl/arch-builder:latest")
-    repo_name = s("repo_name", "pkgctl")
-    source_url = (item.get("source_url") or "").strip()
-    source_subdir = (item.get("source_subdir") or "").strip()
-    if not source_url:
-        store_obj.update(item_id, {"last_status": _status.ERROR})
-        _log("ERROR", "Keine Git-URL angegeben")
-        return
-
-    store_obj.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
-
-    repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
-    env_args = ["-e", f"REPO_NAME={repo_name}"]
-    if source_subdir:
-        env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
-
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        *repo_vol,
-        *env_args,
-        image,
-        item_id,
-        source_url,
-    ]
-
-    rc = 1
-    _log("INFO", f"$ {' '.join(cmd)}")
-    rc = _run_log(cmd)
-
-    version = None
-    if rc == 0:
-        version = _repo_add(repo_path, repo_name, item_id)
-        _trigger_mirror_sync(item_id)
-
-    status = _status.OK if rc == 0 else _status.ERROR
-    update: dict = {"last_status": status, "last_run": _now()}
-    if version:
-        update["last_version"] = version
-    store_obj.update(item_id, update)
-    _log("INFO" if status == _status.OK else "ERROR", f"{item_id} → {status}")
-
-    try:
-        from astrapi_core.modules.notify import engine as _notify
-
-        if status == "ok":
-            ver_info = f" ({version})" if version else ""
-            _notify.send(
-                title=f"Paket {item_id} erfolgreich gebaut{ver_info}",
-                message="Status: ok",
-                event=_notify.SUCCESS,
-                source="archlinux",
-            )
-        else:
-            _notify.send(
-                title=f"Paket {item_id} – Fehler beim Bauen",
-                message=f"rc={rc}",
-                event=_notify.ERROR,
-                source="archlinux",
-            )
-    except Exception:
-        pass
-
-
 def run_single(item_id: str) -> None:
-    """Wird vom zentralen Run-Router aufgerufen (streamt Output via activity_log).
+    """Wird vom zentralen Run-Router aufgerufen (der bereits einen eigenen
+    activity_log-Kontext gesetzt hat, siehe api/run.py).
 
     Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem
-    Hauptpaket – analog zu build_package_with_deps, aber mit Live-Output.
+    Hauptpaket. build_package() schreibt dabei direkt in den vom Router
+    vorgegebenen Kontext (own_log_entry=False) statt einen eigenen zu öffnen.
     """
     from astrapi_core.system.logger import log as _log
 
@@ -741,7 +685,6 @@ def run_single(item_id: str) -> None:
         _log("ERROR", str(e))
         return
 
-    s = _settings()
     repo_path = _arch_repo_path()
 
     # Pending-Status für alle noch zu bauenden Einträge setzen
@@ -757,7 +700,7 @@ def run_single(item_id: str) -> None:
             _log("INFO", f"Dep '{dep_id}' bereits aktuell, übersprungen")
             continue
         _log("INFO", f"Baue Abhängigkeit: {dep_id}")
-        _build_single_streaming(dep_id, s, repo_path, _store)
+        build_package(dep_id, notify=True, own_log_entry=False)
         dep_item = _store.get(dep_id)
         if dep_item and dep_item.get("last_status") == _status.ERROR:
             _store.update(item_id, {"last_status": _status.ERROR, "last_run": _now()})
@@ -765,7 +708,7 @@ def run_single(item_id: str) -> None:
             return
 
     _log("INFO", f"Baue: {item_id}")
-    _build_single_streaming(item_id, s, repo_path, _store)
+    build_package(item_id, notify=True, own_log_entry=False)
 
 
 def _trigger_mirror_sync(item_id: str) -> None:
