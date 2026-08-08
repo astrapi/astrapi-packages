@@ -111,6 +111,34 @@ def build_package(item_id: str, notify: bool = True) -> None:
     repo_path = _repo_path()
     store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
 
+    import time as _time
+
+    _t0 = _time.time()
+    _act_id = None
+    _prev_log_id = None
+    try:
+        from astrapi_core.system.activity_log import log_activity
+        from astrapi_core.system.logger import get_active_log_id, set_active_log_id
+
+        _act_id = log_activity(
+            "job",
+            "debian",
+            f"Debian-Paket bauen: {item_id}",
+            status="running",
+            item_id=item_id,
+        )
+        # Eigener log_id-Rahmen: build_package() laeuft auch verschachtelt
+        # (Scheduler -> update_all_packages() -> je Paket). Ohne diesen
+        # Rahmen liefen alle Build-Zeilen mehrerer Pakete in denselben
+        # aeusseren Eintrag statt in je einen eigenen (T-136, analog
+        # archlinux seit T-112). Nach dem Bau wird der vorherige Stand
+        # wiederhergestellt, damit der aeussere Kontext (Scheduler-Job)
+        # korrekt weiterlaeuft.
+        _prev_log_id = get_active_log_id()
+        set_active_log_id(_act_id)
+    except Exception:
+        pass
+
     # Shell-Script: PKGBUILD lesen → .deb bauen
     # Python-format-Platzhalter: {source_url}, {item_id}
     # Bash-Variablen: ${{...}} → ${...}
@@ -222,12 +250,35 @@ echo "Gebaut: $DEB_FILE"
         update["last_version"] = version
     store.update(item_id, update)
 
+    if _act_id:
+        try:
+            from astrapi_core.system.activity_log import update_activity_log
+
+            update_activity_log(
+                log_id=_act_id,
+                status=status,
+                duration_s=int(_time.time() - _t0),
+                error_message=output[-500:] if status == _status.ERROR else None,
+            )
+        except Exception:
+            pass
+        finally:
+            try:
+                from astrapi_core.system.logger import clear_active_log_id, set_active_log_id
+
+                if _prev_log_id is not None:
+                    set_active_log_id(_prev_log_id)
+                else:
+                    clear_active_log_id()
+            except Exception:
+                pass
+
     try:
         from astrapi_core.modules.notify import engine as _notify
 
         if not notify:
             pass
-        elif status == "ok":
+        elif status == _status.OK:
             ver_info = f" ({version})" if version else ""
             _notify.send(
                 title=f"Debian: {item_id} erfolgreich gebaut{ver_info}",
