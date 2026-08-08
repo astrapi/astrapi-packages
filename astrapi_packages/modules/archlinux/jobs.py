@@ -8,6 +8,8 @@ from pathlib import Path
 
 from astrapi_core.system.format import fmt_now as _now
 
+from astrapi_packages.api import status as _status
+
 log = logging.getLogger(__name__)
 
 _TIMEOUT = 3600
@@ -94,14 +96,14 @@ def build_package(item_id: str) -> None:
         store.update(
             item_id,
             {
-                "last_status": "error",
+                "last_status": _status.ERROR,
                 "last_run": _now(),
                 "last_log": "Keine Git-URL angegeben.",
             },
         )
         return
 
-    store.update(item_id, {"last_status": "building", "last_run": _now()})
+    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
 
     import time as _time
 
@@ -158,7 +160,7 @@ def build_package(item_id: str) -> None:
         version = _repo_add(repo_path, repo_name, item_id)
         _trigger_mirror_sync(item_id)
 
-    status = "ok" if rc == 0 else "error"
+    status = _status.OK if rc == 0 else _status.ERROR
     log.info("archlinux.build: %s → %s (rc=%d)", item_id, status, rc)
 
     update: dict = {
@@ -178,7 +180,7 @@ def build_package(item_id: str) -> None:
                 log_id=_act_id,
                 status=status,
                 duration_s=int(_time.time() - _t0),
-                error_message=output[-500:] if status == "error" else None,
+                error_message=output[-500:] if status == _status.ERROR else None,
             )
         except Exception:
             pass
@@ -375,7 +377,7 @@ def build_package_with_deps(item_id: str) -> None:
         store.update(
             item_id,
             {
-                "last_status": "error",
+                "last_status": _status.ERROR,
                 "last_run": _now(),
                 "last_log": str(e),
             },
@@ -385,7 +387,7 @@ def build_package_with_deps(item_id: str) -> None:
     # Pending-Status für alle noch zu bauenden Einträge setzen
     for pending_id in build_order:
         if not is_up_to_date(pending_id, repo_path):
-            store.update(pending_id, {"last_status": "pending"})
+            store.update(pending_id, {"last_status": _status.PENDING})
 
     # Deps zuerst bauen (alles außer dem Hauptpaket)
     for dep_id in build_order:
@@ -397,11 +399,11 @@ def build_package_with_deps(item_id: str) -> None:
         log.info("archlinux.build_with_deps: baue Dep '%s'", dep_id)
         build_package(dep_id)
         dep_item = store.get(dep_id)
-        if dep_item and dep_item.get("last_status") == "error":
+        if dep_item and dep_item.get("last_status") == _status.ERROR:
             store.update(
                 item_id,
                 {
-                    "last_status": "error",
+                    "last_status": _status.ERROR,
                     "last_run": _now(),
                     "last_log": f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.\n\n"
                     f"{dep_item.get('last_log', '')}",
@@ -504,8 +506,6 @@ def update_all_packages() -> None:
         _finish("ok")
         return
 
-    from astrapi_packages.api import status as _status
-
     built_ids = [k for k, v in all_items.items() if v.get("last_status") in _status.AUTO_UPDATE]
 
     # Wer nicht mitmacht, und warum -- frueher fiel beides stillschweigend
@@ -590,7 +590,7 @@ def update_all_packages() -> None:
             )
             build_package_with_deps(item_id)
             result_status = (store.get(item_id) or {}).get("last_status", "")
-            if result_status == "ok":
+            if result_status == _status.OK:
                 built_count += 1
             else:
                 errors.append(item_id)
@@ -671,11 +671,11 @@ def _build_single_streaming(item_id: str, s, repo_path: str, store_obj) -> None:
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
     if not source_url:
-        store_obj.update(item_id, {"last_status": "error"})
+        store_obj.update(item_id, {"last_status": _status.ERROR})
         _log("ERROR", "Keine Git-URL angegeben")
         return
 
-    store_obj.update(item_id, {"last_status": "building", "last_run": _now()})
+    store_obj.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
 
     repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
     env_args = ["-e", f"REPO_NAME={repo_name}"]
@@ -702,12 +702,12 @@ def _build_single_streaming(item_id: str, s, repo_path: str, store_obj) -> None:
         version = _repo_add(repo_path, repo_name, item_id)
         _trigger_mirror_sync(item_id)
 
-    status = "ok" if rc == 0 else "error"
+    status = _status.OK if rc == 0 else _status.ERROR
     update: dict = {"last_status": status, "last_run": _now()}
     if version:
         update["last_version"] = version
     store_obj.update(item_id, update)
-    _log("INFO" if status == "ok" else "ERROR", f"{item_id} → {status}")
+    _log("INFO" if status == _status.OK else "ERROR", f"{item_id} → {status}")
 
     try:
         from astrapi_core.modules.notify import engine as _notify
@@ -753,7 +753,7 @@ def run_single(item_id: str) -> None:
     try:
         build_order = resolve_build_order([item_id], _store)
     except CyclicDependencyError as e:
-        _store.update(item_id, {"last_status": "error", "last_run": _now()})
+        _store.update(item_id, {"last_status": _status.ERROR, "last_run": _now()})
         _log("ERROR", str(e))
         return
 
@@ -763,7 +763,7 @@ def run_single(item_id: str) -> None:
     # Pending-Status für alle noch zu bauenden Einträge setzen
     for pid in build_order:
         if not is_up_to_date(pid, repo_path):
-            _store.update(pid, {"last_status": "pending"})
+            _store.update(pid, {"last_status": _status.PENDING})
 
     # Deps zuerst bauen
     for dep_id in build_order:
@@ -775,8 +775,8 @@ def run_single(item_id: str) -> None:
         _log("INFO", f"Baue Abhängigkeit: {dep_id}")
         _build_single_streaming(dep_id, s, repo_path, _store)
         dep_item = _store.get(dep_id)
-        if dep_item and dep_item.get("last_status") == "error":
-            _store.update(item_id, {"last_status": "error", "last_run": _now()})
+        if dep_item and dep_item.get("last_status") == _status.ERROR:
+            _store.update(item_id, {"last_status": _status.ERROR, "last_run": _now()})
             _log("ERROR", f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.")
             return
 

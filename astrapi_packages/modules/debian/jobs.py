@@ -6,6 +6,8 @@ from pathlib import Path
 
 from astrapi_core.system.format import fmt_now as _now
 
+from astrapi_packages.api import status as _status
+
 log = logging.getLogger(__name__)
 
 _TIMEOUT = 3600
@@ -97,12 +99,16 @@ def build_package(item_id: str, notify: bool = True) -> None:
     if not source_url:
         store.update(
             item_id,
-            {"last_status": "error", "last_run": _now(), "last_log": "Keine Git-URL angegeben."},
+            {
+                "last_status": _status.ERROR,
+                "last_run": _now(),
+                "last_log": "Keine Git-URL angegeben.",
+            },
         )
         return
 
     repo_path = _repo_path()
-    store.update(item_id, {"last_status": "building", "last_run": _now()})
+    store.update(item_id, {"last_status": _status.BUILDING, "last_run": _now()})
 
     # Shell-Script: PKGBUILD lesen → .deb bauen
     # Python-format-Platzhalter: {source_url}, {item_id}
@@ -203,7 +209,7 @@ echo "Gebaut: $DEB_FILE"
         _trigger_mirror_sync(item_id)
 
     version = _extract_version(repo_path, item_id) if rc == 0 else None
-    status = "ok" if rc == 0 else "error"
+    status = _status.OK if rc == 0 else _status.ERROR
     log.info("debian.build: %s → %s (rc=%d)", item_id, status, rc)
 
     update: dict = {
@@ -427,8 +433,6 @@ def update_all_packages() -> None:
             except Exception:
                 pass
 
-    from astrapi_packages.api import status as _status
-
     all_items = store.list()
     built_ids = [k for k, v in all_items.items() if v.get("last_status") in _status.AUTO_UPDATE]
 
@@ -505,7 +509,7 @@ def update_all_packages() -> None:
         log.info("debian.update_all: %s veraltet (%s → %s), baue …", item_id, current, upstream)
         try:
             build_package(item_id, notify=False)
-            if (store.get(item_id) or {}).get("last_status") == "ok":
+            if (store.get(item_id) or {}).get("last_status") == _status.OK:
                 built_count += 1
             else:
                 errors.append(item_id)
