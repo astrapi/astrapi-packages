@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, Response
 
 from astrapi_packages.api import status as _status
 from astrapi_packages.modules.archlinux import KEY, store
+from astrapi_packages.modules.archlinux.utils import pkg_cache
 
 _DIR = Path(__file__).parent.parent  # modules/archlinux/
 _SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
@@ -95,22 +96,8 @@ def _classify_deps(deps: list[str], existing: set[str]) -> list[dict]:
     return result
 
 
-import importlib.util as _ilu
-import sys as _sys
-
-
-def _get_pkg_cache():
-    _key = "_archlinux_pkg_cache"
-    if _key not in _sys.modules:
-        _spec = _ilu.spec_from_file_location(_key, _DIR / "utils" / "pkg_cache.py")
-        _mod = _ilu.module_from_spec(_spec)
-        _sys.modules[_key] = _mod
-        _spec.loader.exec_module(_mod)
-        _mod.start()
-    return _sys.modules[_key]
-
-
-_get_pkg_cache()
+# Hintergrund-Cache starten
+pkg_cache.start()
 
 
 # ── CRUD-Router für delete + toggle (Standard-Verhalten) ─────────────────────
@@ -338,7 +325,6 @@ def _search_aur(term: str) -> list[dict]:
 def search_packages(request: Request):
     import threading
 
-    pkg_cache = _get_pkg_cache()
     term = request.query_params.get("q", "").strip()
     if len(term) < 2:
         return HTMLResponse("")
@@ -428,7 +414,7 @@ def check_updates(request: Request):
     from urllib.parse import quote
 
     try:
-        _get_pkg_cache().refresh()
+        pkg_cache.refresh()
     except Exception:
         pass
 
@@ -454,7 +440,6 @@ def check_updates(request: Request):
     except Exception:
         pass
 
-    pkg_cache = _get_pkg_cache()
     pkg_entries = {e.get("name"): e for e in pkg_cache.get_all() if e.get("name")}
 
     for item_id in all_ids:

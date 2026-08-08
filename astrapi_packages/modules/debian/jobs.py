@@ -7,6 +7,7 @@ from pathlib import Path
 from astrapi_core.system.format import fmt_now as _now
 
 from astrapi_packages.api import status as _status
+from astrapi_packages.modules.debian.utils import pkg_cache
 
 log = logging.getLogger(__name__)
 
@@ -404,7 +405,6 @@ def run_single(item_id: str) -> None:
 
 def update_all_packages() -> None:
     """Prüft auf neue Versionen und baut veraltete Debian-Pakete neu."""
-    import sys
     import time as _time
 
     from astrapi_packages.modules.debian import store
@@ -457,19 +457,16 @@ def update_all_packages() -> None:
         return
 
     # pkg_cache aktualisieren
-    pkg_cache = sys.modules.get("_debian_pkg_cache")
     try:
-        if pkg_cache:
-            pkg_cache.refresh()
+        pkg_cache.refresh()
     except Exception as e:
         log.warning("debian.update_all: pkg_cache-Refresh fehlgeschlagen: %s", e)
 
     cache_entries: dict[str, dict] = {}
-    if pkg_cache:
-        try:
-            cache_entries = {e["name"]: e for e in pkg_cache.get_all() if e.get("name")}
-        except Exception:
-            pass
+    try:
+        cache_entries = {e["name"]: e for e in pkg_cache.get_all() if e.get("name")}
+    except Exception:
+        pass
 
     from .ui.crud import _pkgbuild_info
 

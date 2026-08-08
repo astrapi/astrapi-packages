@@ -9,6 +9,7 @@ from pathlib import Path
 from astrapi_core.system.format import fmt_now as _now
 
 from astrapi_packages.api import status as _status
+from astrapi_packages.modules.archlinux.utils import pkg_cache
 
 log = logging.getLogger(__name__)
 
@@ -530,13 +531,9 @@ def update_all_packages() -> None:
 
     # Pkg-Cache aktualisieren
     try:
-        from .ui import _get_pkg_cache
-
-        pkg_cache = _get_pkg_cache()
         pkg_cache.refresh()
     except Exception as e:
         log.warning("update_all_packages: Cache-Refresh fehlgeschlagen: %s", e)
-        pkg_cache = None
 
     # AUR: Batch-Abfrage für alle item_ids
     qs = "&".join(f"arg[]={quote(i)}" for i in built_ids)
@@ -551,11 +548,10 @@ def update_all_packages() -> None:
 
     # Repo-Versionen aus pkg_cache
     pkg_entries: dict[str, dict] = {}
-    if pkg_cache:
-        try:
-            pkg_entries = {e.get("name"): e for e in pkg_cache.get_all() if e.get("name")}
-        except Exception:
-            pass
+    try:
+        pkg_entries = {e.get("name"): e for e in pkg_cache.get_all() if e.get("name")}
+    except Exception:
+        pass
 
     # upstream_version speichern und veraltete Pakete bauen
     from .ui.crud import _version_from_pkgbuild_url

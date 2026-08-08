@@ -10,21 +10,13 @@ from fastapi.responses import HTMLResponse, Response
 
 from astrapi_packages.api import status as _status
 from astrapi_packages.modules.debian import KEY, store
+from astrapi_packages.modules.debian.utils import pkg_cache
 
 _DIR = Path(__file__).parent.parent  # modules/debian/
 _SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
 
 # Hintergrund-Cache starten
-import importlib.util as _ilu
-import sys as _sys
-
-_cache_key = "_debian_pkg_cache"
-if _cache_key not in _sys.modules:
-    _spec = _ilu.spec_from_file_location(_cache_key, _DIR / "utils" / "pkg_cache.py")
-    _mod = _ilu.module_from_spec(_spec)
-    _sys.modules[_cache_key] = _mod
-    _spec.loader.exec_module(_mod)
-    _mod.start()
+pkg_cache.start()
 
 
 def _running_fn() -> dict:
@@ -153,16 +145,15 @@ def search_packages(request: Request):
     term = request.query_params.get("q", "").strip()
     if len(term) < 2:
         return HTMLResponse("")
-    pkg_cache = _sys.modules.get(_cache_key)
-    if pkg_cache and not pkg_cache.get_all():
+    if not pkg_cache.get_all():
         import threading
 
         threading.Thread(target=pkg_cache.refresh, daemon=True).start()
-    results = pkg_cache.search(term) if pkg_cache else []
+    results = pkg_cache.search(term)
     return render(
         request,
         f"{KEY}/dialogs/edit/search_results.html",
-        dict(results=results, term=term, cache_empty=pkg_cache and not pkg_cache.get_all()),
+        dict(results=results, term=term, cache_empty=not pkg_cache.get_all()),
     )
 
 
@@ -226,10 +217,8 @@ def check_updates(request: Request):
     import re
     import urllib.request
 
-    pkg_cache = _sys.modules.get(_cache_key)
     try:
-        if pkg_cache:
-            pkg_cache.refresh()
+        pkg_cache.refresh()
     except Exception:
         pass
 
