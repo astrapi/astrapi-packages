@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-import threading
 from pathlib import Path
 
 from astrapi_core.system.format import fmt_now as _now
@@ -413,17 +412,6 @@ def build_package_with_deps(item_id: str) -> None:
             return
 
     build_package(item_id)
-
-
-# ── Async-Wrapper ──────────────────────────────────────────────────────────────
-
-
-def build_package_async(item_id: str) -> None:
-    threading.Thread(target=build_package, args=(item_id,), daemon=True).start()
-
-
-def build_package_with_deps_async(item_id: str) -> None:
-    threading.Thread(target=build_package_with_deps, args=(item_id,), daemon=True).start()
 
 
 # ── Orphan-Markierung ──────────────────────────────────────────────────────────
