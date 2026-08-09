@@ -10,9 +10,10 @@ NEU       Eintrag angelegt, noch nie gebaut.
 BUILDING  Bau laeuft.
 PENDING   Fuer einen Bau eingeplant (nur archlinux, als Abhaengigkeit).
 OK        Bau erfolgreich abgeschlossen.
-ERROR     Bau ausgefuehrt und fehlgeschlagen.
-ABORTED   Bau kam nicht zu Ende -- Neustart, Absturz, Update. **Kein**
-          Fehlschlag: ueber das Paket ist damit nichts Schlechtes bekannt.
+ERROR     Bau ausgefuehrt und fehlgeschlagen -- oder ein Lauf, der beim
+          App-Neustart mitten in BUILDING/PENDING unterbrochen wurde
+          (T-148-PACKAGES: der eigene ABORTED-Zustand aus T-132 wurde wieder
+          entfernt, der seltene Fall ist manuelles Eingreifen wert).
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ BUILDING = "building"
 PENDING = "pending"
 OK = "ok"
 ERROR = "error"
-ABORTED = "aborted"
 
 #: Ein Vorgang laeuft gerade. Beim Start kann das nicht zutreffen.
 LAEUFT = (BUILDING, PENDING)
@@ -35,16 +35,16 @@ NIE_GEBAUT = (NEU, "")
 #: Zustaende, die an der automatischen Aktualisierung teilnehmen.
 #:
 #: OK      -- gebaut, Version bekannt, Vergleich moeglich.
-#: ABORTED -- der letzte Lauf kam nicht zu Ende, das Paket war davor aber in
-#:            Ordnung. Es hier auszuschliessen wuerde bedeuten, dass ein
-#:            Neustart zur falschen Zeit ein Paket dauerhaft aus der Automatik
-#:            wirft (T-132).
 #:
 #: Bewusst *nicht* enthalten:
 #: NEU     -- G-017: der erste Bau wird von Hand angestossen und beobachtet.
 #: ERROR   -- der Bau ist nachweislich fehlgeschlagen; ihn ungefragt zu
-#:            wiederholen ist Endlos-Wiederholung ohne neue Erkenntnis.
-AUTO_UPDATE = (OK, ABORTED)
+#:            wiederholen ist Endlos-Wiederholung ohne neue Erkenntnis. Das
+#:            gilt seit T-148-PACKAGES bewusst auch fuer einen durch
+#:            App-Neustart unterbrochenen Lauf (vorher eigener ABORTED-
+#:            Zustand, T-132) -- der seltene Fall bleibt manuelles Eingreifen,
+#:            statt dafuer ein eigenes Vokabular zu pflegen.
+AUTO_UPDATE = (OK,)
 
 
 def ist_nie_gebaut(status: str | None) -> bool:

@@ -40,17 +40,18 @@ def _spalte_vorhanden(con, tabelle: str, spalte: str) -> bool:
 
 
 def _reset_stale_status() -> None:
-    """Setzt haengengebliebene Lauf-Status beim Start auf `aborted`.
+    """Setzt haengengebliebene Lauf-Status beim Start auf `error`.
 
     Beim Start kann per Definition nichts laufen: was noch auf "building" oder
     "pending" steht, stammt aus einem unterbrochenen Lauf (Neustart, Absturz,
     Update). Ohne das Zuruecksetzen zeigt die Liste dauerhaft einen Spinner
     und das Status-Polling laeuft endlos weiter.
 
-    Das Ergebnis ist `aborted`, **nicht** `error`: der Bau ist nicht
-    fehlgeschlagen, er kam nicht zu Ende -- ueber das Paket selbst ist damit
-    nichts Schlechtes bekannt. Der Unterschied entscheidet, ob das Paket in der
-    automatischen Aktualisierung bleibt (T-132, siehe api/status.py).
+    Bis T-148-PACKAGES war das Ergebnis `aborted` statt `error`, damit ein
+    unterbrochener Lauf nicht aus der automatischen Aktualisierung faellt
+    (T-132). Auf Nachfrage bewusst zurueckgebaut: der Fall ist selten genug,
+    dass ein manueller Eingriff akzeptabel ist -- ein eigenes Vokabular nur
+    dafuer lohnt den Pflegeaufwand nicht.
 
     `core.system.db.reset_stale_status()` greift hier nicht: die Funktion geht
     ueber die per `register_table()` registrierten Tabellen. archlinux und
@@ -69,7 +70,7 @@ def _reset_stale_status() -> None:
                 continue
             cur = con.execute(
                 f'UPDATE "{tabelle}" SET last_status = ? WHERE last_status IN (?, ?)',
-                (_status.ABORTED, *_status.LAEUFT),
+                (_status.ERROR, *_status.LAEUFT),
             )
             gesamt += cur.rowcount or 0
         except Exception as e:
@@ -82,13 +83,13 @@ def _reset_stale_status() -> None:
 
         for item_id, item in builder_store.list().items():
             if item.get("last_status") in _status.LAEUFT:
-                builder_store.upsert(item_id, {"last_status": _status.ABORTED})
+                builder_store.upsert(item_id, {"last_status": _status.ERROR})
                 gesamt += 1
     except Exception as e:
         _log.warning("reset_stale_status: builder: %s", e)
 
     if gesamt:
-        _log.info("reset_stale_status: %d unterbrochene Laeufe auf 'aborted' gesetzt", gesamt)
+        _log.info("reset_stale_status: %d unterbrochene Laeufe auf 'error' gesetzt", gesamt)
 
 
 def _normalisiere_leeren_status() -> None:
