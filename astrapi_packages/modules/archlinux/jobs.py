@@ -591,11 +591,11 @@ def update_all_packages() -> None:
     except Exception:
         pass
 
-    # upstream_version speichern und veraltete Pakete bauen
+    # Phase 1: Versionen prüfen, tatsächliche Bau-Liste ermitteln -- welche
+    # Kandidaten am Ende gebaut werden, steht erst nach dem Versionscheck fest.
     from .ui.crud import _version_from_pkgbuild_url
 
-    built_count = 0
-    errors = []
+    to_build: list[str] = []
     for item_id in built_ids:
         upstream = ""
         if item_id in aur_versions:
@@ -620,14 +620,29 @@ def update_all_packages() -> None:
         current = (store.get(item_id) or {}).get("last_version", "")
         if upstream and upstream != current:
             log.info(
-                "update_all_packages: %s ist veraltet (%s → %s), baue …", item_id, current, upstream
+                "update_all_packages: %s ist veraltet (%s → %s), zum Bau vorgemerkt",
+                item_id, current, upstream,
             )
-            build_package_with_deps(item_id)
-            result_status = (store.get(item_id) or {}).get("last_status", "")
-            if result_status == _status.OK:
-                built_count += 1
-            else:
-                errors.append(item_id)
+            to_build.append(item_id)
+
+    # Phase 2: die ganze Bau-Liste auf einmal als eingeplant markieren, bevor
+    # das erste Paket drankommt -- statt dass jedes Paket erst beim eigenen
+    # Bau-Start aus dem Nichts auftaucht.
+    for item_id in to_build:
+        store.update(item_id, {"last_status": _status.PENDING})
+
+    # Phase 3: nacheinander bauen. build_package_with_deps() markiert für die
+    # eigene Dependency-Kette weiterhin PENDING (s.o.) -- unverändert, hier
+    # kommt nur die vorab gesetzte Markierung der Hauptpakete dazu.
+    built_count = 0
+    errors = []
+    for item_id in to_build:
+        build_package_with_deps(item_id)
+        result_status = (store.get(item_id) or {}).get("last_status", "")
+        if result_status == _status.OK:
+            built_count += 1
+        else:
+            errors.append(item_id)
 
     final_status = "error" if errors else "ok"
     error_msg = f"Fehler bei: {', '.join(errors)}" if errors else None

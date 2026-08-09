@@ -545,8 +545,9 @@ def update_all_packages() -> None:
 
     from .ui.crud import _pkgbuild_info
 
-    built_count = 0
-    errors: list[str] = []
+    # Phase 1: Versionen prüfen, tatsächliche Bau-Liste ermitteln -- welche
+    # Kandidaten am Ende gebaut werden, steht erst nach dem Versionscheck fest.
+    to_build: list[str] = []
     for item_id in built_ids:
         entry = cache_entries.get(item_id, {})
         pkgver = entry.get("pkgver", "")
@@ -578,7 +579,23 @@ def update_all_packages() -> None:
             log.info("debian.update_all: %s ist aktuell (%s)", item_id, current)
             continue
 
-        log.info("debian.update_all: %s veraltet (%s → %s), baue …", item_id, current, upstream)
+        log.info(
+            "debian.update_all: %s veraltet (%s → %s), zum Bau vorgemerkt",
+            item_id, current, upstream,
+        )
+        to_build.append(item_id)
+
+    # Phase 2: die ganze Bau-Liste auf einmal als eingeplant markieren, bevor
+    # das erste Paket drankommt -- analog zu archlinux (dort über
+    # build_package_with_deps() bereits vorhanden; debian kannte PENDING
+    # bisher gar nicht, da es keine eigene Dependency-Queue hat).
+    for item_id in to_build:
+        store.update(item_id, {"last_status": _status.PENDING})
+
+    # Phase 3: nacheinander bauen.
+    built_count = 0
+    errors: list[str] = []
+    for item_id in to_build:
         try:
             build_package(item_id, notify=False)
             if (store.get(item_id) or {}).get("last_status") == _status.OK:
