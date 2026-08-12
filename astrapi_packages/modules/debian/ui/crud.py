@@ -157,6 +157,24 @@ def search_packages(request: Request):
     )
 
 
+@router.post(f"/ui/{KEY}/pkg-cache/refresh", response_class=HTMLResponse)
+async def refresh_pkg_cache(request: Request):
+    """Laedt packages.json sofort neu statt bis zu 5 Min. auf den
+    Hintergrund-Refresh zu warten (T-156-PACKAGES) - z.B. direkt nach dem
+    Veroeffentlichen eines neuen Pakets im Repo."""
+    pkg_cache.refresh()
+    form = await request.form()
+    term = (form.get("q") or "").strip()
+    if len(term) < 2:
+        return HTMLResponse("")
+    results = pkg_cache.search(term)
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/search_results.html",
+        dict(results=results, term=term, cache_empty=not pkg_cache.get_all()),
+    )
+
+
 # ── PKGBUILD-Info (Version + Distribution) ───────────────────────────────────
 
 

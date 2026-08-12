@@ -349,6 +349,35 @@ def search_packages(request: Request):
     )
 
 
+@router.post(f"/ui/{KEY}/pkg-cache/refresh", response_class=HTMLResponse)
+async def refresh_pkg_cache(request: Request):
+    """Laedt packages.json sofort neu statt bis zu 5 Min. auf den
+    Hintergrund-Refresh zu warten (T-156-PACKAGES) - z.B. direkt nach dem
+    Veroeffentlichen eines neuen Pakets im Repo."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    pkg_cache.refresh()
+    form = await request.form()
+    term = (form.get("q") or "").strip()
+    if len(term) < 2:
+        return HTMLResponse("")
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_pkg = ex.submit(pkg_cache.search, term)
+        f_aur = ex.submit(_search_aur, term)
+        pkg_results = f_pkg.result()
+        aur_results = f_aur.result()
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/search_results.html",
+        dict(
+            pkg_results=pkg_results,
+            aur_results=aur_results,
+            term=term,
+            cache_empty=not pkg_cache.get_all(),
+        ),
+    )
+
+
 @router.get(f"/ui/{KEY}/aur-deps", response_class=HTMLResponse)
 def aur_deps_for_pkg(request: Request):
     """Gibt die AUR-Abhängigkeiten eines Pakets als kommaseparierten String zurück."""

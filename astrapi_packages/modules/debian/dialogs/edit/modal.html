@@ -28,9 +28,17 @@
   </div>
 
   <div id="pkg-search-box" style="{% if _source_url %}display:none;{% endif %}">
-    <label class="form-label" style="margin-bottom:6px;">
-      Paket suchen <span style="color:var(--error)">*</span>
-    </label>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <label class="form-label" style="margin:0;">
+        Paket suchen <span style="color:var(--error)">*</span>
+      </label>
+      <button type="button" class="btn-icon" title="Paketliste jetzt neu laden (statt bis zu 5 Min. zu warten)"
+              hx-post="/ui/debian/pkg-cache/refresh"
+              hx-include="#pkg-search-input"
+              hx-target="#pkg-search-results">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><use href="#icon-refresh"></use></svg>
+      </button>
+    </div>
     {%- set _search_attrs -%}
     id="pkg-search-input" autocomplete="off"
     hx-get="/ui/debian/search"

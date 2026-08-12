@@ -29,7 +29,15 @@
   <div id="pkg-search-box" style="{% if _source_url %}display:none;{% endif %}">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
       <label class="form-label" style="margin:0;">Paket suchen <span class="required-mark">*</span></label>
-      <span class="form-hint" id="pkg-search-hint" style="font-size:11px;"></span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="form-hint" id="pkg-search-hint" style="font-size:11px;"></span>
+        <button type="button" class="btn-icon" title="Paketliste jetzt neu laden (statt bis zu 5 Min. zu warten)"
+                hx-post="/ui/archlinux/pkg-cache/refresh"
+                hx-include="#pkg-search-input"
+                hx-target="#pkg-search-results">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><use href="#icon-refresh"></use></svg>
+        </button>
+      </div>
     </div>
     {%- set _search_attrs -%}
     id="pkg-search-input" autocomplete="off"
