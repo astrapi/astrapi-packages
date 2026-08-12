@@ -153,11 +153,10 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
 
     _t0 = _time.time()
     _act_id = None
-    _prev_log_id = None
     if own_log_entry:
         try:
             from astrapi_core.system.activity_log import log_activity
-            from astrapi_core.system.logger import get_active_log_id, set_active_log_id
+            from astrapi_core.system.logger import set_active_log_id
 
             _act_id = log_activity(
                 "job",
@@ -166,7 +165,6 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
                 status="running",
                 item_id=item_id,
             )
-            _prev_log_id = get_active_log_id()
             set_active_log_id(_act_id)
         except Exception:
             pass
@@ -224,12 +222,9 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
             pass
         finally:
             try:
-                from astrapi_core.system.logger import clear_active_log_id, set_active_log_id
+                from astrapi_core.system.logger import clear_active_log_id
 
-                if _prev_log_id is not None:
-                    set_active_log_id(_prev_log_id)
-                else:
-                    clear_active_log_id()
+                clear_active_log_id()
             except Exception:
                 pass
 
