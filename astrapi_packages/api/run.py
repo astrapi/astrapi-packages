@@ -4,8 +4,9 @@ Analogie zu astrapi_backup.api.routers.run, aber für astrapi-packages.
 
 Einbinden in fastapi_app.py:
     from astrapi_packages.api.run import make_run_router
-    for mod in ["builder", "archlinux"]:
+    for mod in ["archlinux", "debian"]:
         app.include_router(make_run_router(mod), prefix=f"/api/{mod}")
+    app.include_router(make_run_router("builder", auto_open_log=False), prefix="/api/builder")
 """
 
 import asyncio
@@ -110,7 +111,7 @@ def _item_description(module: str, item_id: str) -> str:
 # ── Router-Factory ────────────────────────────────────────────────────────────
 
 
-def make_run_router(module: str) -> APIRouter:
+def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
     """Erzeugt einen APIRouter mit Run/Log/SSE-Routen für ein Modul.
 
     Einbinden mit prefix="/api/{module}":
@@ -118,6 +119,12 @@ def make_run_router(module: str) -> APIRouter:
       GET    /{item_id}/logs/stream
       GET    /{item_id}/logs
       GET    /{item_id}/logs/{log_id}
+
+    auto_open_log: Ob ein manueller Start per HX-Trigger sofort das
+    Log-Modal öffnet (gedacht für archlinux/debian, wo der Bau lange
+    dauert und Live-Output beim manuellen Klick erwartet wird - siehe
+    T-139-PACKAGES). Für Module wie builder, wo das nicht erwuenscht ist,
+    False übergeben.
     """
     router = APIRouter(tags=[module])
 
@@ -172,8 +179,10 @@ def make_run_router(module: str) -> APIRouter:
             },
         ).body.decode()
 
-        trigger = json.dumps({"openLogModal": {"module": module, "itemId": item_id}})
-        return HTMLResponse(row_html, headers={"HX-Trigger": trigger})
+        if auto_open_log:
+            trigger = json.dumps({"openLogModal": {"module": module, "itemId": item_id}})
+            return HTMLResponse(row_html, headers={"HX-Trigger": trigger})
+        return HTMLResponse(row_html)
 
     # ── SSE: Live-Log-Stream ──────────────────────────────────────────
 
