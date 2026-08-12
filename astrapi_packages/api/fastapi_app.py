@@ -35,10 +35,9 @@ def create(modules: list | None = None) -> FastAPI:
 
     from astrapi_packages.api.run import make_run_router
 
-    for _mod_key in ["archlinux", "debian"]:
-        app.include_router(make_run_router(_mod_key), prefix=f"/api/{_mod_key}")
-    app.include_router(
-        make_run_router("builder", auto_open_log=False), prefix="/api/builder"
-    )
+    for _mod_key in ["builder", "archlinux", "debian"]:
+        app.include_router(
+            make_run_router(_mod_key, auto_open_log=False), prefix=f"/api/{_mod_key}"
+        )
 
     return app

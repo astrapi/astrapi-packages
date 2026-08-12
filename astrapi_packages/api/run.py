@@ -4,9 +4,8 @@ Analogie zu astrapi_backup.api.routers.run, aber für astrapi-packages.
 
 Einbinden in fastapi_app.py:
     from astrapi_packages.api.run import make_run_router
-    for mod in ["archlinux", "debian"]:
-        app.include_router(make_run_router(mod), prefix=f"/api/{mod}")
-    app.include_router(make_run_router("builder", auto_open_log=False), prefix="/api/builder")
+    for mod in ["builder", "archlinux", "debian"]:
+        app.include_router(make_run_router(mod, auto_open_log=False), prefix=f"/api/{mod}")
 """
 
 import asyncio
@@ -121,10 +120,11 @@ def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
       GET    /{item_id}/logs/{log_id}
 
     auto_open_log: Ob ein manueller Start per HX-Trigger sofort das
-    Log-Modal öffnet (gedacht für archlinux/debian, wo der Bau lange
-    dauert und Live-Output beim manuellen Klick erwartet wird - siehe
-    T-139-PACKAGES). Für Module wie builder, wo das nicht erwuenscht ist,
-    False übergeben.
+    Log-Modal öffnet. Urspruenglich fuer archlinux/debian eingefuehrt
+    (T-139-PACKAGES, Live-Output beim manuellen Paketbau), auf Wunsch
+    aber wieder deaktiviert (T-151-PACKAGES) - alle drei Module rufen
+    aktuell mit False auf. Der Parameter bleibt fuer ein Modul erhalten,
+    das das Verhalten kuenftig doch will.
     """
     router = APIRouter(tags=[module])
 
