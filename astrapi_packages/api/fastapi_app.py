@@ -35,9 +35,15 @@ def create(modules: list | None = None) -> FastAPI:
 
     from astrapi_packages.api.run import make_run_router
 
+    # Zweimal gemountet: /api/{mod} fuer Run/Logs, /ui/{mod} zusaetzlich fuer
+    # /status - der generische Zeilen-Poll-Mechanismus (list_wrapper_inner.html)
+    # fragt /ui/{module}/status ab, analog zu astrapi-backup (T-158-PACKAGES).
     for _mod_key in ["builder", "archlinux", "debian"]:
         app.include_router(
             make_run_router(_mod_key, auto_open_log=False), prefix=f"/api/{_mod_key}"
+        )
+        app.include_router(
+            make_run_router(_mod_key, auto_open_log=False), prefix=f"/ui/{_mod_key}"
         )
 
     return app

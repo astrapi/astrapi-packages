@@ -111,10 +111,15 @@ def _item_description(module: str, item_id: str) -> str:
 
 
 def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
-    """Erzeugt einen APIRouter mit Run/Log/SSE-Routen für ein Modul.
+    """Erzeugt einen APIRouter mit Run/Log/SSE/Status-Routen für ein Modul.
 
-    Einbinden mit prefix="/api/{module}":
+    Wird zweimal gemountet (siehe fastapi_app.py), einmal mit
+    prefix="/api/{module}" fuer Run/Logs, einmal zusaetzlich mit
+    prefix="/ui/{module}" nur wegen /status - der Poll-Div im generischen
+    Listen-Template erwartet die Status-Route unter /ui/, analog zu
+    astrapi-backup:
       POST   /{item_id}/run
+      GET    /status
       GET    /{item_id}/logs/stream
       GET    /{item_id}/logs
       GET    /{item_id}/logs/{log_id}
@@ -127,6 +132,24 @@ def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
     das das Verhalten kuenftig doch will.
     """
     router = APIRouter(tags=[module])
+
+    # ── Status-Endpunkt für das Zeilen-Polling ─────────────────────────
+    # Vom Poll-Div in list_wrapper_inner.html per "hx-trigger=every 2s"
+    # abgefragt, solange etwas laeuft (T-158-PACKAGES) - ohne diese Route
+    # (unter /ui/{module} gemountet, siehe fastapi_app.py) bleibt die Zeile
+    # nach Bau-Ende auf "läuft" stehen, bis die Seite neu geladen wird.
+
+    @router.get("/status", response_class=HTMLResponse)
+    def module_status(request: Request):
+        return render(
+            request,
+            "partials/oob/status_oob.html",
+            {
+                "cfg": load_config(module),
+                "module": module,
+                "running": get_running(),
+            },
+        )
 
     # ── Run-Route ─────────────────────────────────────────────────────
 
@@ -179,10 +202,15 @@ def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
             },
         ).body.decode()
 
+        # Die Antwort ist eine <tr>. Ein <div> daran anzuhaengen geht nicht:
+        # beim Parsen eines Zeilen-Fragments hebt der HTML-Parser fremde
+        # Elemente aus dem Tabellenkontext heraus. Das Status-Polling wird
+        # deshalb per Event angestossen (index.html aktiviert den bereits im
+        # DOM vorhandenen Poll-Div); status_oob.html schaltet ihn wieder ab.
+        events: dict = {"jobStarted": {"module": module}}
         if auto_open_log:
-            trigger = json.dumps({"openLogModal": {"module": module, "itemId": item_id}})
-            return HTMLResponse(row_html, headers={"HX-Trigger": trigger})
-        return HTMLResponse(row_html)
+            events["openLogModal"] = {"module": module, "itemId": item_id}
+        return HTMLResponse(row_html, headers={"HX-Trigger": json.dumps(events)})
 
     # ── SSE: Live-Log-Stream ──────────────────────────────────────────
 
