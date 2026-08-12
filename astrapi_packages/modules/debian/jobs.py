@@ -98,8 +98,19 @@ git clone --depth=1 '{source_url}' /build/src
 cd /build/src/{subdir}
 [[ ! -f PKGBUILD ]] && {{ echo "FEHLER: PKGBUILD nicht gefunden in $(pwd)"; exit 1; }}
 
+# Variablen-Stand vor dem Einlesen merken, um gleich alle von der PKGBUILD
+# neu gesetzten Variablen zu erkennen -- auch eigene Hilfsvariablen
+# (z.B. _url/_tarball/_sha256), nicht nur eine feste Standardliste.
+_vars_before=$(compgen -v)
+
 # PKGBUILD einlesen
 source ./PKGBUILD
+
+# Von der PKGBUILD neu gesetzte Variablen (Standardfelder + eigene) fuer die
+# fakeroot-Subshell weiter unten merken -- die startet als neuer bash-Prozess
+# und erbt nur exportierte Variablen, PKGBUILD-Variablen sind aber nicht
+# exportiert.
+_pkgbuild_vars=$(comm -13 <(echo "$_vars_before" | sort) <(compgen -v | sort) | tr '\n' ' ')
 
 # Umgebungsvariablen analog zu makepkg
 export srcdir="$(pwd)"
@@ -136,7 +147,7 @@ if declare -f check &>/dev/null; then
 fi
 
 echo "=== Starte package() ==="
-fakeroot -- bash -c "$(declare -p pkgname pkgver pkgrel pkgdesc arch maintainer pkgdir srcdir startdir 2>/dev/null || true); $(declare -f package); package"
+fakeroot -- bash -c "$(declare -p $_pkgbuild_vars pkgdir srcdir startdir 2>/dev/null || true); $(declare -f package); package"
 echo "=== package() abgeschlossen ==="
 
 # DEBIAN/control erzeugen
