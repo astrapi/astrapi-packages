@@ -85,3 +85,12 @@ try:
     )
 except Exception:
     pass
+
+# ── Config-Loader für den zentralen Run-Router ───────────────────────────────
+# Ohne das faellt api/run.py's load_config() auf storage.store zurueck, das es
+# hier nicht gibt (store lebt in __init__.py) - die Zeile nach manuellem Start
+# wurde dadurch mit komplett leeren Daten gerendert (T-157-PACKAGES).
+
+from astrapi_packages.api.run import register_config_loader  # noqa: E402
+
+register_config_loader(KEY, store.list)
