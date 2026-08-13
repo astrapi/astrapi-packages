@@ -176,11 +176,22 @@ def make_run_router(module: str, auto_open_log: bool = True) -> APIRouter:
             finally:
                 duration = int(time.time() - t0)
                 if status == "ok":
+                    # run_single() propagiert einen echten Bau-Fehlschlag (rc != 0)
+                    # nicht per Exception, sondern nur ueber last_status im
+                    # Item-Store (siehe build_package()/build_image()) - das ist
+                    # das massgebliche Ergebnis. Die grobe Keyword-Heuristik in
+                    # _run_streamed() taggt auch harmlose Log-Zeilen (z.B.
+                    # fehlgeschlagene *optionale* node-gyp-Bindings) als ERROR;
+                    # ohne diesen Vorrang wuerde ein tatsaechlich erfolgreicher
+                    # Bau im Activity-Verlauf faelschlich als "error" erscheinen.
+                    item_status = (load_config(module).get(item_id) or {}).get("last_status")
                     levels = {r["level"] for r in get_log_lines(hist_id)}
-                    if "ERROR" in levels:
+                    if item_status == "error":
                         status = "error"
                     elif "WARNING" in levels:
                         status = "warning"
+                    elif item_status is None and "ERROR" in levels:
+                        status = "error"
                 history_finish(hist_id, status, duration)
                 clear_active_log_id()
                 clear_tee_context()
