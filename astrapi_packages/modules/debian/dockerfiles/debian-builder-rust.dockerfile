@@ -21,6 +21,9 @@ deb https://mirror.simpsons.lan/files/debian/debian-trixie-security/ trixie-secu
 deb [trusted=yes] https://mirror.simpsons.lan/files/debian/simpsons/ ./\n' > /etc/apt/sources.list && \
     echo 'Acquire::https::Verify-Peer "false";' > /etc/apt/apt.conf.d/99simpsons-mirror
 
+# pkg-config/libssl-dev/libsqlite3-dev sind vaultwardens deklarierte
+# makedepends -- jobs.py::_build_cmd() wertet makedepends aber nie aus,
+# darum hier fest im Image statt ueber die PKGBUILD.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         apt-utils \
@@ -29,7 +32,10 @@ RUN apt-get update && \
         debhelper \
         git \
         curl \
-        fakeroot && \
+        fakeroot \
+        pkg-config \
+        libssl-dev \
+        libsqlite3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m builder && mkdir /build /repo && chown builder:builder /build /repo
