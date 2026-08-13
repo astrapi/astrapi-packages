@@ -127,6 +127,16 @@ _crud = make_crud_router(
 router = APIRouter()
 
 
+def _image_options() -> list[dict]:
+    from astrapi_core.ui.settings_registry import get_module as _get_setting
+
+    from astrapi_packages.modules.builder import images_for_module
+
+    default_value = _get_setting(KEY, "default_image", "ctl/arch-builder:latest")
+    opts = [o for o in images_for_module(KEY) if o["value"] != default_value]
+    return [{"value": "", "label": "Standardimage"}, *opts]
+
+
 def _ctx():
     cfg = store.list()
     running = {
@@ -160,6 +170,7 @@ def create_modal(request: Request):
             item_id=None,
             item=None,
             schema=_SCHEMA["fields"],
+            image_options=_image_options(),
         ),
     )
 
@@ -192,6 +203,7 @@ async def create_apply(request: Request):
         "source_url": source_url,
         "source_subdir": form.get("source_subdir", "").strip(),
         "aur_deps": form.get("aur_deps", "").strip(),
+        "image": form.get("image", "").strip(),
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
         # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
@@ -222,6 +234,7 @@ def edit_modal(item_id: str, request: Request):
             item_id=item_id,
             item=item,
             schema=_SCHEMA["fields"],
+            image_options=_image_options(),
         ),
     )
 
@@ -234,6 +247,7 @@ async def edit_apply(item_id: str, request: Request):
             "source_url": form.get("source_url", "").strip(),
             "source_subdir": form.get("source_subdir", "").strip(),
             "aur_deps": form.get("aur_deps", "").strip(),
+            "image": form.get("image", "").strip(),
             "pkg_type": form.get("pkg_type", "package").strip() or "package",
             "enabled": "enabled" in form,
         }

@@ -215,7 +215,7 @@ def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True)
         return
 
     s = _settings()
-    image = s("default_image", "ctl/debian-builder:latest")
+    image = (item.get("image") or "").strip() or s("default_image", "ctl/debian-builder:latest")
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
 

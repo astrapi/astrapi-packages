@@ -5,12 +5,12 @@ fields:
     label: Build
     cols:  1
 
-  - key:         default_image
-    label:       Standard Build-Image
-    type:        text
-    placeholder: "ctl/debian-builder:latest"
-    default:     "ctl/debian-builder:latest"
-    description: "Docker-Image das zum Bauen der Debian-Pakete verwendet wird"
+  - key:             default_image
+    label:            Standard Build-Image
+    type:             select
+    options_endpoint: /api/builder/images/for-select?module=debian
+    default:          "ctl/debian-builder:latest"
+    description:      "Docker-Image das zum Bauen der Debian-Pakete verwendet wird"
 
   - type:  section
     label: APT-Repository

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS archlinux_packages (
     source_url       TEXT NOT NULL DEFAULT '',
     source_subdir    TEXT NOT NULL DEFAULT '',
     aur_deps         TEXT NOT NULL DEFAULT '',
+    image            TEXT NOT NULL DEFAULT '',
     pkg_type         TEXT NOT NULL DEFAULT 'package',
     enabled          INTEGER NOT NULL DEFAULT 1,
     last_status      TEXT NOT NULL DEFAULT 'neu',
@@ -31,6 +32,7 @@ _COLS = (
     "source_url",
     "source_subdir",
     "aur_deps",
+    "image",
     "pkg_type",
     "enabled",
     "last_status",
@@ -87,6 +89,10 @@ class ArchlinuxPackageStore:
         try:
             db = _db()
             db.execute(_DDL)
+            try:
+                db.execute("ALTER TABLE archlinux_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
             db.commit()
             self._table_ready = True
             return True

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     name             TEXT PRIMARY KEY,
     source_url       TEXT NOT NULL DEFAULT '',
     source_subdir    TEXT NOT NULL DEFAULT '',
+    image            TEXT NOT NULL DEFAULT '',
     pkg_type         TEXT NOT NULL DEFAULT 'package',
     enabled          INTEGER NOT NULL DEFAULT 1,
     last_status      TEXT NOT NULL DEFAULT 'neu',
@@ -28,6 +29,7 @@ _COLS = (
     "name",
     "source_url",
     "source_subdir",
+    "image",
     "pkg_type",
     "enabled",
     "last_status",
@@ -84,6 +86,10 @@ class DebianPackageStore:
             db.execute(_DDL)
             try:
                 db.execute("ALTER TABLE debian_packages ADD COLUMN source_subdir TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                db.execute("ALTER TABLE debian_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
             except Exception:
                 pass
             db.commit()

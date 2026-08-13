@@ -18,6 +18,7 @@ def _load_images() -> dict[str, dict]:
         img_id: {
             "tag": cfg.get("tag", "latest"),
             "dockerfile_dir": cfg.get("dockerfile_dir", "dockerfiles"),
+            "module": cfg.get("module", ""),
         }
         for img_id, cfg in meta.items()
     }
@@ -37,6 +38,31 @@ def _docker_items() -> dict:
         img_id: {"tag": cfg["tag"], "enabled": True, **(store.get(img_id) or {})}
         for img_id, cfg in IMAGES.items()
     }
+
+
+def images_for_module(module: str) -> list[dict]:
+    """Für Dropdowns: registrierte Images eines Distro-Moduls (debian/archlinux)."""
+    return [
+        {"value": f"ctl/{img_id}:{cfg['tag']}", "label": img_id}
+        for img_id, cfg in IMAGES.items()
+        if cfg.get("module") == module
+    ]
+
+
+# ── Dynamische Dropdown-Optionen für options_endpoint (settings.yaml) ────────
+
+from astrapi_core.ui.field_resolver import register_options_fetcher as _register_options_fetcher
+
+
+def _images_options_fetcher(endpoint: str) -> list:
+    from urllib.parse import parse_qs, urlparse
+
+    qs = parse_qs(urlparse(endpoint).query)
+    module = qs.get("module", [None])[0]
+    return images_for_module(module) if module else []
+
+
+_register_options_fetcher("/api/builder/images/for-select", _images_options_fetcher)
 
 
 from .ui import router as ui_router  # ui/ package

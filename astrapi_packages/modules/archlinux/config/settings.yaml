@@ -5,12 +5,12 @@ fields:
     label: Build
     cols:  1
 
-  - key:         default_image
-    label:       Standard Build-Image
-    type:        text
-    placeholder: "ctl/arch-builder:latest"
-    default:     "ctl/arch-builder:latest"
-    description: "Docker-Image das zum Bauen der Pakete verwendet wird"
+  - key:             default_image
+    label:            Standard Build-Image
+    type:             select
+    options_endpoint: /api/builder/images/for-select?module=archlinux
+    default:          "ctl/arch-builder:latest"
+    description:      "Docker-Image das zum Bauen der Pakete verwendet wird"
 
   - type:  section
     label: Pacman-Repository

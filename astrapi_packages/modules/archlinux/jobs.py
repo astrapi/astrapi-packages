@@ -131,7 +131,7 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
         return
 
     s = _settings()
-    image = s("default_image", "ctl/arch-builder:latest")
+    image = (item.get("image") or "").strip() or s("default_image", "ctl/arch-builder:latest")
     repo_path = _arch_repo_path()
     repo_name = s("repo_name", "pkgctl")
     source_url = (item.get("source_url") or "").strip()

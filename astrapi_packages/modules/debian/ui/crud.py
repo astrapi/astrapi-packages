@@ -41,6 +41,16 @@ _crud = make_crud_router(
 router = APIRouter()
 
 
+def _image_options() -> list[dict]:
+    from astrapi_core.ui.settings_registry import get_module as _get_setting
+
+    from astrapi_packages.modules.builder import images_for_module
+
+    default_value = _get_setting(KEY, "default_image", "ctl/debian-builder:latest")
+    opts = [o for o in images_for_module(KEY) if o["value"] != default_value]
+    return [{"value": "", "label": "Standardimage"}, *opts]
+
+
 def _ctx():
     cfg = store.list()
     return dict(
@@ -68,7 +78,7 @@ def create_modal(request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/modal.html",
-        dict(item_id=None, item=None, error=None),
+        dict(item_id=None, item=None, error=None, image_options=_image_options()),
     )
 
 
@@ -101,6 +111,7 @@ async def create_apply(request: Request):
     data = {
         "source_url": form.get("source_url", "").strip(),
         "source_subdir": form.get("source_subdir", "").strip(),
+        "image": form.get("image", "").strip(),
         "pkg_type": form.get("pkg_type", "package").strip() or "package",
         "enabled": "enabled" in form,
         # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
@@ -122,7 +133,7 @@ def edit_modal(item_id: str, request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/modal.html",
-        dict(item_id=item_id, item=item, error=None),
+        dict(item_id=item_id, item=item, error=None, image_options=_image_options()),
     )
 
 
@@ -133,6 +144,7 @@ async def edit_apply(item_id: str, request: Request):
         data = {
             "source_url": form.get("source_url", "").strip(),
             "source_subdir": form.get("source_subdir", "").strip(),
+            "image": form.get("image", "").strip(),
             "pkg_type": form.get("pkg_type", "package").strip() or "package",
             "enabled": "enabled" in form,
         }

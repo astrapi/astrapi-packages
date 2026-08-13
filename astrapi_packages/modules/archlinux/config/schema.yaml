@@ -26,3 +26,8 @@ fields:
       - value: dependency
         label: Abhängigkeit
     default:     package
+
+  - name:             image
+    label:            Build-Image
+    type:             select
+    options_endpoint:  /api/builder/images/for-select?module=archlinux

@@ -84,6 +84,12 @@
                  (item or {}).get('pkg_type') or 'package',
                  placeholder='') }}
 </div>
+
+{# ── Build-Image ───────────────────────────────────────────────────── #}
+<div>
+  <label class="form-label">Build-Image</label>
+  {{ form_select('image', image_options, (item or {}).get('image') or '', placeholder='') }}
+</div>
 {% endblock %}
 
 {% block dialog_footer %}

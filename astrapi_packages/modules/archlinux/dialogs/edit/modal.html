@@ -1,5 +1,5 @@
 {% extends "partials/dialogs/pkg_edit_modal_base.html" %}
-{% from "partials/components/ui_macros.html" import btn, form_input %}
+{% from "partials/components/ui_macros.html" import btn, form_input, form_select %}
 
 {% block dialog_width %}560{% endblock %}
 {% block dialog_title %}{{ 'Paket bearbeiten – ' ~ item_id if item_id else 'Neues Arch-Linux-Paket' }}{% endblock %}
@@ -69,6 +69,12 @@
   <span class="form-hint" style="font-size:11px;margin-top:3px;display:block;">
     Abhängigkeiten die nicht in den offiziellen Repos sind. Werden automatisch als Einträge angelegt und vor diesem Paket gebaut.
   </span>
+</div>
+
+{# ── Build-Image ───────────────────────────────────────────────────── #}
+<div>
+  <label class="form-label">Build-Image</label>
+  {{ form_select('image', image_options, (item or {}).get('image') or '', placeholder='') }}
 </div>
 {% endblock %}
 

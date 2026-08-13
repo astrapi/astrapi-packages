@@ -1,7 +1,14 @@
 arch-builder:
   tag: latest
   dockerfile_dir: "../archlinux/dockerfiles"
+  module: archlinux
 
 debian-builder:
   tag: latest
   dockerfile_dir: "../debian/dockerfiles"
+  module: debian
+
+debian-builder-rust:
+  tag: latest
+  dockerfile_dir: "../debian/dockerfiles"
+  module: debian
