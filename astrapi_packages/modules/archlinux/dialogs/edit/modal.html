@@ -47,7 +47,15 @@
     hx-include="this"
     {%- endset -%}
     {{ form_input('q', placeholder='Paketname oder Beschreibung ...', attrs=_search_attrs) }}
-    <div id="pkg-search-results" style="margin-top:4px;"></div>
+    <div id="pkg-search-results" style="margin-top:4px;">
+      {% if no_source %}
+      <p class="form-hint" style="margin-top:6px; color:var(--r);">
+        Keine Paketquelle für Repos konfiguriert – unter Einstellungen →
+        Arch Linux eine Paket-Repo-URL hinterlegen (AUR-Suche funktioniert
+        unabhängig davon).
+      </p>
+      {% endif %}
+    </div>
   </div>
 
   <input type="hidden" name="source_url"       id="field-source-url"       value="{{ _source_url }}">

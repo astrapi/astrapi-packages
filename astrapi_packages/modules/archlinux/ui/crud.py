@@ -171,6 +171,7 @@ def create_modal(request: Request):
             item=None,
             schema=_SCHEMA["fields"],
             image_options=_image_options(),
+            no_source=not pkg_cache.has_source(),
         ),
     )
 

@@ -78,7 +78,13 @@ def create_modal(request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/modal.html",
-        dict(item_id=None, item=None, error=None, image_options=_image_options()),
+        dict(
+            item_id=None,
+            item=None,
+            error=None,
+            image_options=_image_options(),
+            no_source=not pkg_cache.has_source(),
+        ),
     )
 
 
