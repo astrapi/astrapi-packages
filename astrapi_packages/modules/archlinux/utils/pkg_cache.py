@@ -96,6 +96,12 @@ def get_all() -> list[dict]:
         return list(_cache)
 
 
+def has_source() -> bool:
+    """False, wenn keine Paketquelle konfiguriert ist - unterscheidet das vom
+    Zustand "Cache laedt noch", der sich sonst nie aufloest."""
+    return bool(_repo_paths())
+
+
 def search(term: str) -> list[dict]:
     t = term.lower()
     with _lock:

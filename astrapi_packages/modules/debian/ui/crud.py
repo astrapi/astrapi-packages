@@ -165,7 +165,12 @@ def search_packages(request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/search_results.html",
-        dict(results=results, term=term, cache_empty=not pkg_cache.get_all()),
+        dict(
+            results=results,
+            term=term,
+            cache_empty=not pkg_cache.get_all(),
+            no_source=not pkg_cache.has_source(),
+        ),
     )
 
 
@@ -183,7 +188,12 @@ async def refresh_pkg_cache(request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/search_results.html",
-        dict(results=results, term=term, cache_empty=not pkg_cache.get_all()),
+        dict(
+            results=results,
+            term=term,
+            cache_empty=not pkg_cache.get_all(),
+            no_source=not pkg_cache.has_source(),
+        ),
     )
 
 

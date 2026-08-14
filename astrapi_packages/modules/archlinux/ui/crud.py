@@ -359,6 +359,7 @@ def search_packages(request: Request):
             aur_results=aur_results,
             term=term,
             cache_empty=not pkg_cache.get_all(),
+            no_source=not pkg_cache.has_source(),
         ),
     )
 
@@ -388,6 +389,7 @@ async def refresh_pkg_cache(request: Request):
             aur_results=aur_results,
             term=term,
             cache_empty=not pkg_cache.get_all(),
+            no_source=not pkg_cache.has_source(),
         ),
     )
 
