@@ -17,3 +17,8 @@ debian-builder-python:
   tag: latest
   dockerfile_dir: "../debian/dockerfiles"
   module: debian
+
+debian-builder-php:
+  tag: latest
+  dockerfile_dir: "../debian/dockerfiles"
+  module: debian
