@@ -61,3 +61,7 @@ module = load_modul(
         ]
     ),
 )
+# In den Einstellungen eingebettet statt eigener Nav-Eintrag, siehe
+# projects/core/planung-os-types-settings-embed.md
+module.hidden = True
+module.settings_embed = True

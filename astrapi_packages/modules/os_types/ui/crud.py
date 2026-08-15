@@ -25,4 +25,5 @@ router = make_crud_router(
     has_run_buttons=False,
     has_toggle=False,
     has_status=False,
+    embed_target_id="#os_types-settings-slot",
 )

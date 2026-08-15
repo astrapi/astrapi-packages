@@ -10,7 +10,3 @@
 - key:   packages
   label: Pakete
   group: Build
-
-- key:   os_types
-  label: OS-Typen
-  group: Build
