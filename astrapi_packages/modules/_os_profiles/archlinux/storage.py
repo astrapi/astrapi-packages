@@ -1,4 +1,4 @@
-"""astrapi_packages.modules.archlinux.storage – ArchlinuxPackageStore.
+"""astrapi_packages.modules._os_profiles.archlinux.storage – ArchlinuxPackageStore.
 
 Eigene SQLite-Tabelle `archlinux_packages` statt kvstore-JSON-Blobs.
 Primary Key ist der Paketname (TEXT), identisch zum bisherigen kvstore-Key.

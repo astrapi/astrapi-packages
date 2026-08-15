@@ -22,6 +22,15 @@ import astrapi_packages._app as app_mod  # noqa: E402
 
 client = TestClient(app_mod.app)
 
+# app_mod.db_path() liest work_dir() bei JEDEM Aufruf neu aus
+# ASTRAPI_PACKAGES_WORK_DIR -- setzt eine andere Testdatei (z.B.
+# test_os_profiles.py) diese Variable spaeter waehrend der Kollektion auf ihr
+# eigenes tempdir, wuerde ein spaeter aufgerufenes db_path() dorthin zeigen,
+# obwohl astrapi_packages._app (Singleton, nur einmal importiert) nach wie vor
+# gegen die urspruengliche DB verbunden ist. app_mod.ACTUAL_DB_PATH ist der
+# von create_app() beim tatsaechlichen (einzigen) Lauf eingefrorene Pfad.
+_DB_PATH = app_mod.ACTUAL_DB_PATH
+
 
 @pytest.fixture(autouse=True)
 def _reconnect_own_db():
@@ -32,7 +41,7 @@ def _reconnect_own_db():
     from astrapi_core.system import db as core_db
 
     core_db._local.conn = None
-    core_db.configure(app_mod.db_path())
+    core_db.configure(_DB_PATH)
     yield
 
 
@@ -63,9 +72,9 @@ def test_new_in_db_setzt_source_type_db(mod):
     client.post(f"/ui/{mod}/new-in-db", data={"name": name})
 
     if mod == "debian":
-        from astrapi_packages.modules.debian import store
+        from astrapi_packages.modules._os_profiles.debian import store
     else:
-        from astrapi_packages.modules.archlinux import store
+        from astrapi_packages.modules._os_profiles.archlinux import store
 
     assert store.get(name)["source_type"] == "db"
 

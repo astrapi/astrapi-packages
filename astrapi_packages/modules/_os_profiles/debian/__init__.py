@@ -1,4 +1,4 @@
-"""astrapi_packages.modules.debian – Debian-Paket-Verwaltung."""
+"""astrapi_packages.modules._os_profiles.debian – Debian-Paket-Verwaltung."""
 
 from pathlib import Path
 from typing import Optional

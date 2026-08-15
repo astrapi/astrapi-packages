@@ -1,4 +1,4 @@
-"""astrapi_packages.modules.debian.jobs – Build-Logik für Debian-Pakete."""
+"""astrapi_packages.modules._os_profiles.debian.jobs – Build-Logik für Debian-Pakete."""
 
 import logging
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 from astrapi_core.system.format import fmt_now as _now
 
 from astrapi_packages.api import status as _status
-from astrapi_packages.modules.debian.utils import pkg_cache
+from astrapi_packages.modules._os_profiles.debian.utils import pkg_cache
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +69,8 @@ def _settings():
 
 
 def _repo_path() -> Path:
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import _extra_disk
+    from astrapi_packages._paths import repo_dir as _repo_dir
 
     disk = _extra_disk()
     base = (Path(disk).resolve() / "debian") if disk else (_repo_dir() / "debian").resolve()
@@ -226,7 +227,7 @@ def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True)
     """
     from astrapi_core.system.logger import log as _log
 
-    from astrapi_packages.modules.debian import store
+    from astrapi_packages.modules._os_profiles.debian import store
 
     item = store.get(item_id)
     if not item:
@@ -533,7 +534,7 @@ def update_all_packages() -> None:
     """Prüft auf neue Versionen und baut veraltete Debian-Pakete neu."""
     import time as _time
 
-    from astrapi_packages.modules.debian import store
+    from astrapi_packages.modules._os_profiles.debian import store
 
     _t0 = _time.time()
     _act_id = None

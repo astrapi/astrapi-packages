@@ -1,8 +1,8 @@
-"""Tests fuer _build_cmd() in astrapi_packages.modules.archlinux.jobs (Etappe 3)."""
+"""Tests fuer _build_cmd() in astrapi_packages.modules._os_profiles.archlinux.jobs (Etappe 3)."""
 
 from pathlib import Path
 
-from astrapi_packages.modules.archlinux.jobs import _build_cmd
+from astrapi_packages.modules._os_profiles.archlinux.jobs import _build_cmd
 
 
 def test_git_variante_unveraendert():

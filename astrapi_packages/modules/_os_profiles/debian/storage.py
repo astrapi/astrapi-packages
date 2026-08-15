@@ -1,4 +1,4 @@
-"""astrapi_packages.modules.debian.storage – DebianPackageStore.
+"""astrapi_packages.modules._os_profiles.debian.storage – DebianPackageStore.
 
 Eigene SQLite-Tabelle `debian_packages`.
 Primary Key ist der Paketname (TEXT).

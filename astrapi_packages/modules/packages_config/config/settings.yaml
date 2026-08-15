@@ -1,0 +1,16 @@
+fields:
+  - type: section
+    label: Aktive Betriebssysteme
+    cols: 1
+
+  - key: enable_debian
+    label: Debian
+    type: boolean
+    default: true
+    description: "Debian-Paketverwaltung im Menü anzeigen. Neustart der App nötig."
+
+  - key: enable_archlinux
+    label: Arch Linux
+    type: boolean
+    default: true
+    description: "Arch-Linux-Paketverwaltung im Menü anzeigen. Neustart der App nötig."

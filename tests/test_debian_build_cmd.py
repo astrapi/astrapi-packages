@@ -1,4 +1,4 @@
-"""Tests fuer _build_cmd() in astrapi_packages.modules.debian.jobs (Etappe 3).
+"""Tests fuer _build_cmd() in astrapi_packages.modules._os_profiles.debian.jobs (Etappe 3).
 
 Deckt beide Build-Pfade ab: der bestehende git-Clone-Pfad (source_type='git',
 Default, AUR/externe Altfaelle) muss unveraendert funktionieren, der neue
@@ -7,7 +7,7 @@ Bind-Mount-Pfad (source_type='db') darf keinen git clone mehr enthalten.
 
 from pathlib import Path
 
-from astrapi_packages.modules.debian.jobs import _build_cmd
+from astrapi_packages.modules._os_profiles.debian.jobs import _build_cmd
 
 
 def test_git_variante_unveraendert():

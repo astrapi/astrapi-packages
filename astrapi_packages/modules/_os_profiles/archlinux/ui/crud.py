@@ -9,8 +9,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
 from astrapi_packages.api import status as _status
-from astrapi_packages.modules.archlinux import KEY, store
-from astrapi_packages.modules.archlinux.utils import pkg_cache
+from astrapi_packages.modules._os_profiles.archlinux import KEY, store
+from astrapi_packages.modules._os_profiles.archlinux.utils import pkg_cache
 from astrapi_packages.utils import file_store
 from astrapi_packages.utils.export_import import build_export_import_routes
 from astrapi_packages.utils.file_routes import build_file_routes

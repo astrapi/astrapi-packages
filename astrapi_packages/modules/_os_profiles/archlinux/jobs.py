@@ -8,7 +8,7 @@ from pathlib import Path
 from astrapi_core.system.format import fmt_now as _now
 
 from astrapi_packages.api import status as _status
-from astrapi_packages.modules.archlinux.utils import pkg_cache
+from astrapi_packages.modules._os_profiles.archlinux.utils import pkg_cache
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +137,8 @@ def _settings():
 
 def _arch_repo_path() -> str:
     """Gibt <repo_base>/arch/x86_64/ zurück und legt das Verzeichnis an."""
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import _extra_disk
+    from astrapi_packages._paths import repo_dir as _repo_dir
 
     disk = _extra_disk()
     base = (Path(disk).resolve() / "arch") if disk else (_repo_dir().resolve() / "arch")
@@ -167,7 +168,7 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
     """
     from astrapi_core.system.logger import log as _log
 
-    from astrapi_packages.modules.archlinux import store
+    from astrapi_packages.modules._os_profiles.archlinux import store
 
     item = store.get(item_id)
     if not item:
@@ -359,7 +360,7 @@ def delete_package(item_id: str, item: dict) -> None:
     """
     import glob as _glob
 
-    from astrapi_packages.modules.archlinux import store
+    from astrapi_packages.modules._os_profiles.archlinux import store
 
     from .utils.dep_graph import find_orphan_deps
 
@@ -466,7 +467,7 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
 
 def build_package_with_deps(item_id: str) -> None:
     """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem Hauptpaket."""
-    from astrapi_packages.modules.archlinux import store
+    from astrapi_packages.modules._os_profiles.archlinux import store
 
     from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
 
@@ -526,7 +527,7 @@ def mark_orphan_deps() -> None:
     Ein Dep-Eintrag gilt als verwaist wenn er von keinem Paket mehr in
     aur_deps referenziert wird.  Das Feld 'orphaned' wird entsprechend gesetzt.
     """
-    from astrapi_packages.modules.archlinux import store
+    from astrapi_packages.modules._os_profiles.archlinux import store
 
     from .utils.dep_graph import find_all_orphan_deps
 
@@ -567,7 +568,7 @@ def update_all_packages() -> None:
     import urllib.request
     from urllib.parse import quote
 
-    from astrapi_packages.modules.archlinux import store
+    from astrapi_packages.modules._os_profiles.archlinux import store
 
     _t0 = _time.time()
     _act_id = None
@@ -739,7 +740,7 @@ def run_single(item_id: str) -> None:
     """
     from astrapi_core.system.logger import log as _log
 
-    from astrapi_packages.modules.archlinux import store as _store
+    from astrapi_packages.modules._os_profiles.archlinux import store as _store
 
     from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
 

@@ -122,6 +122,54 @@ def _normalisiere_leeren_status() -> None:
         _log.info("normalisiere_leeren_status: %d Eintraege von '' auf 'neu' gesetzt", gesamt)
 
 
+# Bekannte OS-Profile unter modules/_os_profiles/. Der Unterstrich-Praefix
+# haelt sie aus dem normalen Verzeichnis-Scan von load_modules() heraus (siehe
+# _os_profiles/__init__.py) -- ein neues OS "erfinden" reicht als Einstellung
+# nicht aus, es braucht immer ein Profil in dieser Liste.
+_OS_PROFILE_SETTINGS = {
+    "debian": "enable_debian",
+    "archlinux": "enable_archlinux",
+}
+
+
+def _as_bool(value: object, default: bool = False) -> bool:
+    """Einstellungen aus dem Formular kommen als String 'true'/'false' an
+    (settings_save_module() wandelt sie nicht in echte Booleans um, siehe
+    astrapi-mirror._sync_engine.validator._as_bool fuer dasselbe Muster) --
+    ein rohes `if wert:` waere fuer den String 'false' faelschlich wahr.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _load_enabled_os_profiles() -> list:
+    """Importiert genau die OS-Profile, die per Einstellung (Modul
+    packages_config) aktiviert sind, und gibt ihre Module-Instanzen zurueck.
+
+    Deaktivierte Profile werden nicht importiert -- sie tauchen weder in
+    Navigation noch Scheduler noch API auf, bis die Einstellung geaendert und
+    die App neu gestartet wird (Aenderungen an aktiven OS brauchen einen
+    Neustart, da Routen nur einmal beim Start registriert werden).
+    """
+    import importlib
+
+    from astrapi_core.ui.settings_registry import get_module as _get_setting
+
+    found = []
+    for os_type, setting_key in _OS_PROFILE_SETTINGS.items():
+        if not _as_bool(_get_setting("packages_config", setting_key, True), True):
+            continue
+        try:
+            mod = importlib.import_module(f"astrapi_packages.modules._os_profiles.{os_type}")
+            found.append(mod.module)
+        except Exception as e:
+            _log.warning("OS-Profil '%s' konnte nicht geladen werden: %s", os_type, e)
+    return found
+
+
 def _db_check() -> tuple[bool, dict]:
     from astrapi_core.system.db import _conn
 
@@ -132,7 +180,11 @@ def _db_check() -> tuple[bool, dict]:
         return False, {"db": False}
 
 
+ACTUAL_DB_PATH = None  # von create_app() beim einzigen echten Lauf gesetzt
+
+
 def create_app() -> FastAPI:
+    global ACTUAL_DB_PATH
     _pkg = package_dir()
     configure_settings(health_fn=_db_check, app_name=get_display_name(_pkg))
     configure_updater(_pkg)
@@ -140,12 +192,19 @@ def create_app() -> FastAPI:
     from astrapi_core.system.db import configure as _configure_db
     from astrapi_core.system.db import create_all_registered_tables
 
-    _configure_db(db_path())
+    # db_path() liest work_dir() bei jedem Aufruf neu aus der Env-Variable --
+    # hier einmalig einfrieren, sonst wuerde ein spaeterer db_path()-Aufruf
+    # (z.B. aus einem Test, der seinerseits die Variable fuer sich selbst neu
+    # setzt) auf einen anderen Pfad zeigen als den, gegen den create_app()
+    # tatsaechlich die Tabellen angelegt hat.
+    ACTUAL_DB_PATH = db_path()
+    _configure_db(ACTUAL_DB_PATH)
     create_all_registered_tables()
 
     settings_init(work_dir())
 
     modules, _ = load_modules(_pkg)
+    modules += _load_enabled_os_profiles()
     _reset_stale_status()
     _normalisiere_leeren_status()
     api = create_api(modules=modules)
