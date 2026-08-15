@@ -17,8 +17,12 @@ RUN sed -i "s/#MAKEFLAGS=\"-j2\"/MAKEFLAGS=\"-j\$(nproc)\"/" /etc/makepkg.conf &
 RUN useradd -m -G wheel makepkg && \
     echo "makepkg ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-COPY arch-build.sh /usr/local/bin/build.sh
-RUN chmod +x /usr/local/bin/build.sh
+# Kein COPY/ENTRYPOINT mehr fuer build.sh: seit dem generischen Build-Runner
+# (astrapi_packages/utils/build_runner.py, siehe
+# projects/packages/planung-datei-editor.md, "Virtuelles OS-Modul") wird
+# build.sh/publish.sh als Datei des Builder-Image-Eintrags zur Laufzeit
+# gemountet und explizit aufgerufen (`bash /build/scripts/build.sh`), nicht
+# mehr ins Image gebacken -- siehe examples/os-types/archlinux/build.sh.
 
 USER makepkg
 WORKDIR /home/makepkg
@@ -29,5 +33,3 @@ RUN cd /tmp && \
     cd yay-bin && \
     makepkg -si --noconfirm && \
     rm -rf /tmp/yay-bin
-
-ENTRYPOINT ["/usr/local/bin/build.sh"]

@@ -1,0 +1,170 @@
+{% extends "dialog_form.html" %}
+{% from "partials/components/ui_macros.html" import form_select, form_input %}
+
+{% block dialog_width %}540{% endblock %}
+{% block dialog_title %}{{ 'Paket bearbeiten – ' ~ item_id if item_id else 'Neues Paket' }}{% endblock %}
+{% block form_action %}{% if item_id %}/ui/packages/{{ item_id }}/update{% else %}/ui/packages/{% endif %}{% endblock %}
+{% block form_attrs %}onsubmit="return packagesModalValidate(this)"{% endblock %}
+
+{% block dialog_body %}
+<div id="modal-error-container">
+{% if error %}
+<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+            background:var(--r-dim);color:var(--r);font-size:13px;">
+  {{ error }}
+</div>
+{% endif %}
+</div>
+
+{% set _os_type     = (item or {}).get('os_type') or '' %}
+{% set _pkg_name    = (item or {}).get('name') or '' %}
+{% set _source_type = (item or {}).get('source_type') or 'git' %}
+
+{% if item_id %}
+<div class="inline-cluster" style="gap:0; border-bottom:1px solid var(--border); margin-bottom:12px;">
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-basis"
+          onclick="packagesModalTab('basis')" style="border-radius:0; border-bottom:2px solid var(--accent);">
+    Grunddaten
+  </button>
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-files"
+          onclick="packagesModalTab('files')" style="border-radius:0; border-bottom:2px solid transparent;">
+    Dateien
+  </button>
+</div>
+{% endif %}
+
+<div id="tab-basis">
+
+{% if item_id %}
+<div>
+  <label class="form-label">OS-Typ</label>
+  {{ form_input('os_type_display', _os_type, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
+  <input type="hidden" name="os_type" value="{{ _os_type }}">
+</div>
+<div>
+  <label class="form-label">Paketname</label>
+  {{ form_input('name_display', _pkg_name, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
+  <input type="hidden" name="name" value="{{ _pkg_name }}">
+</div>
+{% if _source_type == 'db' %}
+<p class="form-hint">DB-verwaltet — Bearbeitung über den Tab „Dateien".</p>
+{% else %}
+<div>
+  <label class="form-label">Git-URL</label>
+  {{ form_input('source_url', (item or {}).get('source_url') or '',
+               placeholder='https://github.com/example/mypackage.git') }}
+</div>
+<div>
+  <label class="form-label">Unterverzeichnis im Repo</label>
+  {{ form_input('source_subdir', (item or {}).get('source_subdir') or '',
+               placeholder='Standard: Paketname') }}
+</div>
+{% if (item or {}).get('source_url') %}
+<div class="inline-cluster" style="margin:4px 0 8px;">
+  <button type="button" class="btn btn-sm btn-ghost"
+          hx-post="/ui/packages/{{ item_id }}/import-from-git"
+          hx-target="#dialog" hx-swap="outerHTML">
+    Aus Git-Repo importieren (→ DB-verwaltet)
+  </button>
+</div>
+{% endif %}
+{% endif %}
+{% else %}
+<div>
+  <label class="form-label">OS-Typ</label>
+  {{ form_select('os_type', os_type_options, os_type_options[0].value if os_type_options else '', placeholder='') }}
+  {% if not os_type_options %}
+  <span class="form-hint" style="color:var(--r);">Noch kein OS-Typ angelegt — unter „OS-Typen" zuerst einen anlegen.</span>
+  {% endif %}
+</div>
+<div>
+  <label class="form-label">Paketname</label>
+  {{ form_input('name', '', placeholder='z.B. mypackage') }}
+</div>
+<div>
+  <label class="form-label">Git-URL</label>
+  {{ form_input('source_url', '', placeholder='https://github.com/example/mypackage.git (leer = später per Datei-Editor)') }}
+</div>
+<div>
+  <label class="form-label">Unterverzeichnis im Repo</label>
+  {{ form_input('source_subdir', '', placeholder='Standard: Paketname') }}
+</div>
+{% endif %}
+
+<div>
+  <label class="form-label">Typ</label>
+  {{ form_select('pkg_type',
+                 [{'value':'package','label':'Paket'},{'value':'dependency','label':'Abhängigkeit'}],
+                 (item or {}).get('pkg_type') or 'package',
+                 placeholder='') }}
+</div>
+
+<div>
+  <label class="form-label">Build-Image</label>
+  {{ form_select('image', image_options, (item or {}).get('image') or '', placeholder='') }}
+</div>
+
+</div>{# /tab-basis #}
+
+{% if item_id %}
+<div id="tab-files" style="display:none;">
+  {% if _source_type == 'db' %}
+    {% set files_module = 'packages' %}
+    {% set files_item_id = item_id %}
+    {% include "partials/components/file_editor_tab.html" %}
+  {% else %}
+    <p class="form-hint">Extern verwaltet (Git) — hier nicht bearbeitbar.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block dialog_footer %}
+<div class="ds-modal-footer">
+  <label class="toggle-field">
+    <input type="hidden" name="enabled" value="0">
+    <input type="checkbox" name="enabled" value="1" id="modal-enabled"
+           style="display:none;" {{ 'checked' if (item or {}).get('enabled', True) else '' }}>
+    <button type="button"
+            class="toggle-switch {{ 'toggle-on' if (item or {}).get('enabled', True) else 'toggle-off' }}"
+            onclick="var cb=document.getElementById('modal-enabled');cb.checked=!cb.checked;this.classList.toggle('toggle-on',cb.checked);this.classList.toggle('toggle-off',!cb.checked);this.nextElementSibling.textContent=cb.checked?'Aktiviert':'Deaktiviert';">
+      <span class="toggle-knob"></span>
+    </button>
+    <span class="toggle-field-label">{{ 'Aktiviert' if (item or {}).get('enabled', True) else 'Deaktiviert' }}</span>
+  </label>
+  <div class="modal-actions">
+    <button type="button" class="btn btn-sm btn-ghost" onclick="closeModal(this)">Abbrechen</button>
+    <button type="submit" class="btn btn-sm btn-primary" id="create-edit-submit">
+      {{ 'Speichern' if item_id else 'Erstellen' }}
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block dialog_scripts %}
+{{ super() }}
+<script>
+function packagesModalValidate(form) {
+  {% if not item_id %}
+  const name = form.querySelector('[name="name"]')?.value?.trim();
+  const osType = form.querySelector('[name="os_type"]')?.value?.trim();
+  if (!name || !osType) {
+    document.getElementById('modal-error-container').innerHTML =
+      '<div style="margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--r-dim);color:var(--r);font-size:13px;">OS-Typ und Paketname sind erforderlich.</div>';
+    return false;
+  }
+  {% endif %}
+  return true;
+}
+
+{% if item_id %}
+function packagesModalTab(name) {
+  document.getElementById('tab-basis').style.display = name === 'basis' ? '' : 'none';
+  document.getElementById('tab-files').style.display = name === 'files' ? '' : 'none';
+  document.getElementById('tab-btn-basis').style.borderBottomColor = name === 'basis' ? 'var(--accent)' : 'transparent';
+  document.getElementById('tab-btn-files').style.borderBottomColor = name === 'files' ? 'var(--accent)' : 'transparent';
+  if (name === 'files') filesTabInit('packages', '{{ item_id }}');
+}
+{% endif %}
+</script>
+{% endblock %}

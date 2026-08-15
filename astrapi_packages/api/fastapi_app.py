@@ -38,10 +38,7 @@ def create(modules: list | None = None) -> FastAPI:
     # Zweimal gemountet: /api/{mod} fuer Run/Logs, /ui/{mod} zusaetzlich fuer
     # /status - der generische Zeilen-Poll-Mechanismus (list_wrapper_inner.html)
     # fragt /ui/{module}/status ab, analog zu astrapi-backup (T-158-PACKAGES).
-    # Gefiltert auf tatsaechlich geladene Module: archlinux/debian sind seit dem
-    # virtuellen OS-Modul nur dann in `modules`, wenn per Einstellung aktiv.
-    _loaded_keys = {m.key for m in modules}
-    for _mod_key in [k for k in ("builder", "archlinux", "debian") if k in _loaded_keys]:
+    for _mod_key in ("builder", "packages"):
         app.include_router(
             make_run_router(_mod_key, auto_open_log=False), prefix=f"/api/{_mod_key}"
         )

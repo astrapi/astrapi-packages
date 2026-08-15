@@ -1,9 +1,0 @@
-label:           Archlinux
-nav_group:       Build
-
-card_actions:
-  - type: run
-  - type: log
-  - type: open_url
-    url: "{browse_url}"
-    show_if_field: browse_url

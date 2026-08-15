@@ -7,15 +7,10 @@
 - key:   builder
   group: Build
 
-- key:   archlinux
-  label: Archlinux
+- key:   packages
+  label: Pakete
   group: Build
 
-- key:   debian
-  label: Debian
+- key:   os_types
+  label: OS-Typen
   group: Build
-
-- key:   packages_config
-  label: OS-Auswahl
-  group: Build
-  url:   /ui/settings

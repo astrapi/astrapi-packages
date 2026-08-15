@@ -1,0 +1,40 @@
+id_field:
+  name:        key
+  label:       Schlüssel
+  placeholder: "z.B. debian, archlinux, ubuntu"
+  max:         50
+
+fields:
+  - name:    label
+    label:   Anzeigename
+    type:    text
+    default: ""
+    max:     100
+
+  - name:    repo_subdir
+    label:   Repo-Unterordner
+    type:    text
+    placeholder: "z.B. debian oder arch/x86_64"
+    default: ""
+    max:     200
+
+  - name:    depends_url_template
+    label:   Abhängigkeiten-URL-Vorlage
+    type:    text
+    placeholder: "z.B. https://aur.archlinux.org/{name}.git (leer = aus)"
+    default: ""
+    max:     300
+
+  - name:    gnupg_home
+    label:   GPG-Homedir (für publish.sh)
+    type:    text
+    placeholder: "z.B. /home/ottoadm/.gnupg (leer = kein Mount)"
+    default: ""
+    max:     300
+
+  - name:    gpg_key_id
+    label:   GPG-Signierschlüssel-ID
+    type:    text
+    placeholder: "leer = keine Signierung"
+    default: ""
+    max:     100

@@ -1,0 +1,28 @@
+id_field:
+  name:        id
+  label:       Paket-ID
+
+fields:
+  - name:        os_type
+    label:       OS-Typ
+    type:        select
+
+  - name:        source_url
+    label:       Git-URL
+    type:        text
+    placeholder: "https://github.com/example/mypackage.git"
+    max:         500
+
+  - name:        pkg_type
+    label:       Typ
+    type:        select
+    options:
+      - value: package
+        label: Paket
+      - value: dependency
+        label: Abhängigkeit
+    default:     package
+
+  - name:        image
+    label:       Build-Image
+    type:        select

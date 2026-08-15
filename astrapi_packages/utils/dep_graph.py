@@ -1,0 +1,202 @@
+"""astrapi_packages.utils.dep_graph – generische Dependency-Graph-Logik.
+
+Verschoben+generalisiert aus dem vormaligen archlinux/utils/dep_graph.py
+(siehe projects/packages/planung-datei-editor.md, "Virtuelles OS-Modul"):
+der Kern (Build-Reihenfolge, Zyklen-Erkennung, Waisen-Erkennung) war schon
+OS-unabhaengig, nur die Feldnamen (aur_deps) und das Auto-Anlegen fehlender
+Deps ueber eine hart codierte AUR-URL waren Archlinux-spezifisch. Gilt jetzt
+fuer alle OS-Typen -- ein Paket mit gefuellter depends-Spalte bekommt dieselbe
+Umlauf-/Waisen-Erkennung, unabhaengig vom os_type.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import deque
+
+log = logging.getLogger(__name__)
+
+
+class CyclicDependencyError(Exception):
+    pass
+
+
+# ── Hilfsfunktionen ────────────────────────────────────────────────────────────
+
+
+def parse_deps(item: dict) -> list[str]:
+    """Liest depends aus einem Item-Dict und gibt bereinigte Namen zurück."""
+    raw = (item.get("depends") or "").strip()
+    if not raw:
+        return []
+    return [d.strip() for d in raw.split(",") if d.strip()]
+
+
+def is_up_to_date(item_id: str, repo_path: str, pattern: str = "{item_id}-*") -> bool:
+    """Prüft ob ein gebautes Paket bereits im Repo-Verzeichnis liegt."""
+    import glob
+    import os
+
+    p = os.path.join(repo_path, pattern.format(item_id=item_id))
+    return bool(glob.glob(p))
+
+
+# ── Graph-Auflösung ────────────────────────────────────────────────────────────
+
+
+def resolve_build_order(start_ids: list[str], store) -> list[str]:
+    """Gibt die Build-Reihenfolge zurück (Blätter zuerst, Hauptpaket zuletzt).
+
+    Ignoriert Deps die nicht im Store vorhanden sind.
+
+    Raises:
+        CyclicDependencyError: wenn ein Zyklus erkannt wird.
+    """
+    all_items = store.list()
+
+    # Phase 1: Graph aufbauen (BFS, nur Store-bekannte Knoten)
+    graph: dict[str, set[str]] = {}
+    visited: set[str] = set()
+    queue: deque[str] = deque(start_ids)
+
+    while queue:
+        node = queue.popleft()
+        if node in visited:
+            continue
+        visited.add(node)
+        item = all_items.get(node)
+        if item is None:
+            continue
+        # depends steht als blanke Namen (wie in einer PKGBUILD), Store-Keys
+        # sind aber "{os_type}:{name}" -- mit dem os_type des jeweiligen
+        # Knotens qualifizieren, bevor im Store nachgeschlagen wird.
+        os_type = item.get("os_type", "")
+        deps_in_store = {
+            f"{os_type}:{d}" if os_type else d
+            for d in parse_deps(item)
+            if (f"{os_type}:{d}" if os_type else d) in all_items
+        }
+        graph[node] = deps_in_store
+        for dep in deps_in_store:
+            if dep not in visited:
+                queue.append(dep)
+
+    # Phase 2: Topologische Sortierung via Kahn
+    in_degree: dict[str, int] = {n: len(graph.get(n, set())) for n in visited}
+    reverse: dict[str, set[str]] = {n: set() for n in visited}
+    for node, deps in graph.items():
+        for dep in deps:
+            if dep in reverse:
+                reverse[dep].add(node)
+
+    kahn_queue: deque[str] = deque(n for n in visited if in_degree[n] == 0)
+    order: list[str] = []
+
+    while kahn_queue:
+        node = kahn_queue.popleft()
+        order.append(node)
+        for dependent in reverse.get(node, set()):
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                kahn_queue.append(dependent)
+
+    if len(order) < len(visited):
+        cycle_nodes = [n for n in visited if n not in set(order)]
+        raise CyclicDependencyError(
+            f"Zyklische Abhängigkeit erkannt zwischen: {', '.join(sorted(cycle_nodes))}"
+        )
+
+    return order
+
+
+# ── Autocreate ─────────────────────────────────────────────────────────────────
+
+
+def autocreate_deps(item_id: str, item: dict, store, url_template: str = "") -> list[str]:
+    """Legt fehlende Dep-Einträge automatisch im Store an.
+
+    url_template: z.B. "https://aur.archlinux.org/{name}.git", je OS-Typ
+    konfigurierbar (os_types.depends_url_template). Leer → Auto-Anlegen für
+    diesen OS-Typ deaktiviert, still übersprungen statt Fehler.
+
+    Bestehende Einträge werden nicht überschrieben.
+    """
+    created: list[str] = []
+    if not url_template:
+        return created
+    all_items = store.list()
+    os_type = item.get("os_type", "")
+
+    for dep_name in parse_deps(item):
+        if dep_name == item_id:
+            continue
+        dep_id = f"{os_type}:{dep_name}" if os_type else dep_name
+        if dep_id in all_items:
+            continue
+        try:
+            from astrapi_packages.api import status as _status
+
+            store.create(
+                dep_id,
+                {
+                    "name": dep_name,
+                    "os_type": os_type,
+                    "source_url": url_template.format(name=dep_name),
+                    "pkg_type": "dependency",
+                    "enabled": True,
+                    # G-017 gilt auch fuer automatisch angelegte Abhaengigkeiten:
+                    # angelegt, aber nicht gebaut.
+                    "last_status": _status.NEU,
+                },
+            )
+            created.append(dep_id)
+            log.info("dep_graph: Dep-Eintrag '%s' automatisch angelegt", dep_id)
+        except KeyError:
+            pass  # Race condition: zwischenzeitlich angelegt
+
+    return created
+
+
+# ── Orphan-Cleanup ─────────────────────────────────────────────────────────────
+
+
+def find_all_orphan_deps(store) -> list[str]:
+    """Gibt alle Item-IDs zurück die von keinem Paket mehr referenziert werden.
+
+    Nur Einträge mit pkg_type=='dependency' werden berücksichtigt.
+    """
+    all_items = store.list()
+
+    referenced: set[str] = set()
+    for pkg_id, pkg_data in all_items.items():
+        os_type = pkg_data.get("os_type", "")
+        for d in parse_deps(pkg_data):
+            referenced.add(f"{os_type}:{d}" if os_type else d)
+
+    return [
+        item_id
+        for item_id, item_data in all_items.items()
+        if item_data.get("pkg_type") == "dependency" and item_id not in referenced
+    ]
+
+
+def find_orphan_deps(deleted_id: str, store) -> list[str]:
+    """Gibt Item-IDs zurück die nach dem Löschen von deleted_id verwaist wären."""
+    all_items = store.list()
+    deleted_item = all_items.get(deleted_id, {})
+    os_type = deleted_item.get("os_type", "")
+    deps_of_deleted = {f"{os_type}:{d}" if os_type else d for d in parse_deps(deleted_item)}
+
+    if not deps_of_deleted:
+        return []
+
+    still_needed: set[str] = set()
+    for pkg_id, pkg_data in all_items.items():
+        if pkg_id == deleted_id:
+            continue
+        pkg_os_type = pkg_data.get("os_type", "")
+        for d in parse_deps(pkg_data):
+            still_needed.add(f"{pkg_os_type}:{d}" if pkg_os_type else d)
+
+    orphans = deps_of_deleted - still_needed
+    return [o for o in orphans if all_items.get(o, {}).get("pkg_type") == "dependency"]
