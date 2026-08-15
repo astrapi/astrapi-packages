@@ -3,13 +3,11 @@
 import subprocess
 import threading
 import time
-from pathlib import Path
 
 from astrapi_core.system.format import fmt_now as _now
 from astrapi_core.system.logger import log as _log
 
 _TIMEOUT_BUILD = 3600  # 1 Stunde max. für docker build
-_BUILDER_DIR = Path(__file__).parent
 
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
@@ -58,22 +56,49 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
 
 
 def run_single(item_id: str) -> None:
-    """Baut ein Docker-Image. Ausgabe via log() → Activity-Log (SSE-fähig)."""
-    from astrapi_packages.modules.builder import IMAGES, store
+    """Baut ein Docker-Image. Ausgabe via log() → Activity-Log (SSE-fähig).
 
-    if item_id not in IMAGES:
-        _log("ERROR", f"Image '{item_id}' nicht in IMAGES definiert")
+    Materialisiert die aktuelle DB-Version von Dockerfile + Zusatzdateien
+    (owner_type='builder', siehe file_store.py) in ein Arbeitsverzeichnis und
+    baut von dort -- ersetzt seit Etappe 2/2.3 den vormals statischen Pfad im
+    installierten Python-Paket.
+    """
+    from astrapi_packages._paths import work_dir
+    from astrapi_packages.modules.builder import store
+    from astrapi_packages.utils import file_store
+
+    item = store.get(item_id)
+    if item is None:
+        _log("ERROR", f"Image '{item_id}' nicht gefunden")
         return
 
     image = f"ctl/{item_id}"
-    tag = IMAGES[item_id].get("tag", "latest")
-    _dd = IMAGES[item_id].get("dockerfile_dir", "dockerfiles")
-    dockerfile_dir = Path(_dd) if Path(_dd).is_absolute() else (_BUILDER_DIR / _dd).resolve()
-    dockerfile = dockerfile_dir / f"{item_id}.dockerfile"
+    tag = item.get("tag", "latest")
+    build_dir = work_dir() / "build-context" / "builder" / item_id
+    file_store.materialize("builder", item_id, build_dir)
+    dockerfile = build_dir / f"{item_id}.dockerfile"
+
+    if not dockerfile.exists():
+        _log(
+            "ERROR",
+            f"Keine Datei '{item_id}.dockerfile' fuer Image '{item_id}' hinterlegt "
+            "(im Datei-Editor anlegen).",
+        )
+        store.upsert(item_id, {"last_status": "error", "last_run": _now()})
+        return
 
     store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
-    cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(dockerfile_dir)]
+    cmd = [
+        "docker",
+        "build",
+        "--no-cache",
+        "-t",
+        f"{image}:{tag}",
+        "-f",
+        str(dockerfile),
+        str(build_dir),
+    ]
     _log("INFO", f"$ {' '.join(cmd)}")
 
     rc, _ = _run(cmd, _TIMEOUT_BUILD)

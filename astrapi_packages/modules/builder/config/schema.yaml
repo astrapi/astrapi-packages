@@ -1,0 +1,24 @@
+id_field:
+  name:        id
+  label:       Image-ID
+  placeholder: "z.B. arch-builder"
+  max:         100
+
+fields:
+  - name:    tag
+    label:   Tag
+    type:    text
+    default: latest
+    max:     50
+
+  - name:    module
+    label:   Fach-Modul
+    type:    select
+    options:
+      - value: ""
+        label: (keins)
+      - value: debian
+        label: Debian
+      - value: archlinux
+        label: Arch Linux
+    default: ""

@@ -1,0 +1,83 @@
+{% extends "dialog_form.html" %}
+{% from "partials/components/ui_macros.html" import btn, form_select, form_input %}
+
+{% block dialog_width %}780{% endblock %}
+{% block dialog_title %}{{ 'Builder-Image bearbeiten – ' ~ item_id if item_id else 'Neues Builder-Image' }}{% endblock %}
+{% block form_action %}{% if item_id %}/ui/builder/{{ item_id }}/update{% else %}/ui/builder/{% endif %}{% endblock %}
+
+{% block dialog_body %}
+<div id="modal-error-container"></div>
+
+{% set _tag    = (item or {}).get('tag') or 'latest' %}
+{% set _module = (item or {}).get('module') or '' %}
+
+{% if item_id %}
+<div class="inline-cluster" style="gap:0; border-bottom:1px solid var(--border); margin-bottom:12px;">
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-basis"
+          onclick="builderModalTab('basis')" style="border-radius:0; border-bottom:2px solid var(--accent);">
+    Grunddaten
+  </button>
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-files"
+          onclick="builderModalTab('files')" style="border-radius:0; border-bottom:2px solid transparent;">
+    Dateien
+  </button>
+</div>
+{% endif %}
+
+<div id="tab-basis">
+  <div>
+    <label class="form-label">Image-ID</label>
+    {% if item_id %}
+      {{ form_input('id', item_id, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
+    {% else %}
+      {{ form_input('id', '', placeholder='z.B. arch-builder') }}
+    {% endif %}
+  </div>
+  <div>
+    <label class="form-label">Tag</label>
+    {{ form_input('tag', _tag, placeholder='latest') }}
+  </div>
+  <div>
+    <label class="form-label">Fach-Modul</label>
+    {{ form_select('module',
+                   [{'value':'','label':'(keins)'},{'value':'debian','label':'Debian'},{'value':'archlinux','label':'Arch Linux'}],
+                   _module, placeholder='') }}
+  </div>
+  {% if error %}
+  <div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+              background:var(--r-dim);color:var(--r);font-size:13px;">
+    {{ error }}
+  </div>
+  {% endif %}
+</div>
+
+{% if item_id %}
+<div id="tab-files" style="display:none;">
+  {% set files_module = 'builder' %}
+  {% set files_item_id = item_id %}
+  {% include "partials/components/file_editor_tab.html" %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block dialog_footer %}
+<div class="ds-modal-footer ds-modal-footer--end">
+  <button type="button" class="btn btn-sm btn-ghost" onclick="closeModal(this)">Abbrechen</button>
+  <button type="submit" class="btn btn-sm btn-primary">{{ 'Speichern' if item_id else 'Erstellen' }}</button>
+</div>
+{% endblock %}
+
+{% block dialog_scripts %}
+{{ super() }}
+{% if item_id %}
+<script>
+function builderModalTab(name) {
+  document.getElementById('tab-basis').style.display = name === 'basis' ? '' : 'none';
+  document.getElementById('tab-files').style.display = name === 'files' ? '' : 'none';
+  document.getElementById('tab-btn-basis').style.borderBottomColor = name === 'basis' ? 'var(--accent)' : 'transparent';
+  document.getElementById('tab-btn-files').style.borderBottomColor = name === 'files' ? 'var(--accent)' : 'transparent';
+  if (name === 'files') filesTabInit('builder', '{{ item_id }}');
+}
+</script>
+{% endif %}
+{% endblock %}
