@@ -9,7 +9,10 @@ from fastapi.responses import HTMLResponse
 
 from astrapi_packages.modules.builder import _KEY as KEY
 from astrapi_packages.modules.builder import store
+from astrapi_packages.utils.export_import import build_export_import_routes
 from astrapi_packages.utils.file_routes import build_file_routes
+
+_EXPORT_FIELDS = ["tag", "module"]
 
 _DIR = Path(__file__).parent.parent
 
@@ -121,3 +124,4 @@ _crud = make_crud_router(
 
 router.include_router(_crud)
 router.include_router(build_file_routes(KEY))
+router.include_router(build_export_import_routes(KEY, store, _EXPORT_FIELDS))

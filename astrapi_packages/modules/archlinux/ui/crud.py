@@ -11,11 +11,21 @@ from fastapi.responses import HTMLResponse, Response
 from astrapi_packages.api import status as _status
 from astrapi_packages.modules.archlinux import KEY, store
 from astrapi_packages.modules.archlinux.utils import pkg_cache
+from astrapi_packages.utils.export_import import build_export_import_routes
 from astrapi_packages.utils.file_routes import build_file_routes
 from astrapi_packages.utils.git_import import GitImportError, import_package_from_git
 
 _DIR = Path(__file__).parent.parent  # modules/archlinux/
 _SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
+_EXPORT_FIELDS = [
+    "source_url",
+    "source_subdir",
+    "aur_deps",
+    "image",
+    "pkg_type",
+    "enabled",
+    "source_type",
+]
 
 
 def _pkgname(pkgbuild: str) -> str:
@@ -540,3 +550,4 @@ def check_updates(request: Request):
 # CRUD-Router am Ende einbinden – eigene Routen oben haben Vorrang (first-match)
 router.include_router(_crud)
 router.include_router(build_file_routes(KEY))
+router.include_router(build_export_import_routes(KEY, store, _EXPORT_FIELDS))

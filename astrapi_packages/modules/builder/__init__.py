@@ -77,6 +77,12 @@ module = load_modul(
     ui_router,
     ui_header=Header(
         [
+            Header.link_button("Alle exportieren", href=f"/ui/{_KEY}/export"),
+            Header.action_button(
+                "Importieren",
+                hx_get=f"/ui/{_KEY}/import-dialog",
+                hx_target="body",
+            ),
             Header.action_button(
                 "Neu",
                 hx_get=f"/ui/{_KEY}/create",
