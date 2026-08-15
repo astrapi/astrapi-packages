@@ -1,0 +1,28 @@
+{#
+  packages/partials/mobile_cards.html
+  Mobile-Karten für Pakete -- kein card_actions in modul.yaml, daher
+  expliziter Run-Button (mc.m_card_run_actions) statt nur Edit/Delete, sonst
+  würde "Bauen" auf Mobile fehlen (siehe mobile_card_macros.html-Docstring).
+#}
+{% import 'partials/components/mobile_card_macros.html' as mc %}
+
+{% if cfg %}
+  {% for item_id, item in cfg.items() %}
+    {% call mc.m_card(item.get('name') or item_id, status=item.get('last_status'), enabled=item.get('enabled', True)) %}
+      {{ mc.m_card_row('OS-Typ', item.get('os_type')) }}
+      {{ mc.m_card_row('Version', item.get('last_version')) }}
+      {{ mc.m_card_row('Typ', item.get('pkg_type_label')) }}
+      {{ mc.m_card_row('Quelle', item.get('source_type_label')) }}
+      {{ mc.m_card_row('Status', item.get('orphaned_label')) }}
+    {% endcall %}
+    {% call mc.m_card_footer() %}
+      {{ mc.m_card_run_actions(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}
+    {% endcall %}
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="none"><use href="#icon-file-text"></use></svg>
+    <div class="empty-state-title">Keine Einträge vorhanden</div>
+    <div class="empty-state-sub">Erstelle den ersten Eintrag mit „Neu"</div>
+  </div>
+{% endif %}
