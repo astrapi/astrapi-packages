@@ -11,6 +11,8 @@ from fastapi.responses import HTMLResponse, Response
 from astrapi_packages.api import status as _status
 from astrapi_packages.modules.debian import KEY, store
 from astrapi_packages.modules.debian.utils import pkg_cache
+from astrapi_packages.utils.file_routes import build_file_routes
+from astrapi_packages.utils.git_import import GitImportError, import_package_from_git
 
 _DIR = Path(__file__).parent.parent  # modules/debian/
 _SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
@@ -158,6 +160,26 @@ async def edit_apply(item_id: str, request: Request):
     return render(request, "content.html", _ctx())
 
 
+@router.post(f"/ui/{KEY}/{{item_id}}/import-from-git", response_class=HTMLResponse)
+def import_from_git(item_id: str, request: Request):
+    item = store.get(item_id)
+    if item is None:
+        return HTMLResponse("Nicht gefunden", status_code=404)
+    error = None
+    try:
+        import_package_from_git(
+            KEY, item_id, item.get("source_url", ""), item.get("source_subdir", "")
+        )
+        store.update(item_id, {"source_type": "db"})
+    except GitImportError as e:
+        error = str(e)
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/modal.html",
+        dict(item_id=item_id, item=store.get(item_id), error=error, image_options=_image_options()),
+    )
+
+
 @router.get(f"/ui/{KEY}/search", response_class=HTMLResponse)
 def search_packages(request: Request):
     term = request.query_params.get("q", "").strip()
@@ -276,7 +298,9 @@ def check_updates(request: Request):
         if v.get("last_status") not in _status.AUTO_UPDATE and v.get("upstream_version"):
             store.update(k, {"upstream_version": ""})
 
-    cache_entries = {e["name"]: e for e in (pkg_cache.get_all() if pkg_cache else []) if e.get("name")}
+    cache_entries = {
+        e["name"]: e for e in (pkg_cache.get_all() if pkg_cache else []) if e.get("name")
+    }
 
     def _version_from_pkgbuild(source_url: str, subdir: str) -> str:
         base = source_url.rstrip("/").removesuffix(".git")
@@ -313,3 +337,4 @@ def check_updates(request: Request):
 # ── CRUD-Router einbinden ─────────────────────────────────────────────────────
 
 router.include_router(_crud)
+router.include_router(build_file_routes(KEY))

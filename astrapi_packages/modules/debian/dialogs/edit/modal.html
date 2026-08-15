@@ -7,10 +7,33 @@
 {% block form_attrs %}onsubmit="return debianPkgValidate(this)"{% endblock %}
 
 {% block dialog_body %}
-<div id="modal-error-container"></div>
+<div id="modal-error-container">
+{% if error %}
+<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+            background:var(--r-dim);color:var(--r);font-size:13px;">
+  {{ error }}
+</div>
+{% endif %}
+</div>
 
-{% set _source_url = (item or {}).get('source_url') or '' %}
-{% set _pkg_name   = (item or {}).get('name') or item_id or '' %}
+{% set _source_url  = (item or {}).get('source_url') or '' %}
+{% set _pkg_name    = (item or {}).get('name') or item_id or '' %}
+{% set _source_type = (item or {}).get('source_type') or 'git' %}
+
+{% if item_id %}
+<div class="inline-cluster" style="gap:0; border-bottom:1px solid var(--border); margin-bottom:12px;">
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-basis"
+          onclick="debianModalTab('basis')" style="border-radius:0; border-bottom:2px solid var(--accent);">
+    Grunddaten
+  </button>
+  <button type="button" class="btn btn-sm btn-ghost" id="tab-btn-files"
+          onclick="debianModalTab('files')" style="border-radius:0; border-bottom:2px solid transparent;">
+    Dateien
+  </button>
+</div>
+{% endif %}
+
+<div id="tab-basis">
 
 {# ── Paket-Suche (nur im Create-Modus) ────────────────────────────── #}
 {% if not item_id %}
@@ -71,6 +94,9 @@
   <label class="form-label">Paketname</label>
   {{ form_input('name', item_id, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
 </div>
+{% if _source_type == 'db' %}
+<p class="form-hint">DB-verwaltet — Bearbeitung über den Tab „Dateien".</p>
+{% else %}
 <div>
   <label class="form-label">Git-URL</label>
   {{ form_input('source_url', (item or {}).get('source_url') or '',
@@ -81,6 +107,16 @@
   {{ form_input('source_subdir', (item or {}).get('source_subdir') or '',
                placeholder='Standard: Paketname') }}
 </div>
+{% if _source_url %}
+<div class="inline-cluster" style="margin:4px 0 8px;">
+  <button type="button" class="btn btn-sm btn-ghost"
+          hx-post="/ui/debian/{{ item_id }}/import-from-git"
+          hx-target="#dialog" hx-swap="outerHTML">
+    Aus Git-Repo importieren (→ DB-verwaltet)
+  </button>
+</div>
+{% endif %}
+{% endif %}
 {% endif %}
 
 {# ── Typ ────────────────────────────────────────────────────────────── #}
@@ -97,6 +133,20 @@
   <label class="form-label">Build-Image</label>
   {{ form_select('image', image_options, (item or {}).get('image') or '', placeholder='') }}
 </div>
+
+</div>{# /tab-basis #}
+
+{% if item_id %}
+<div id="tab-files" style="display:none;">
+  {% if _source_type == 'db' %}
+    {% set files_module = 'debian' %}
+    {% set files_item_id = item_id %}
+    {% include "partials/components/file_editor_tab.html" %}
+  {% else %}
+    <p class="form-hint">Extern verwaltet (Git) — hier nicht bearbeitbar.</p>
+  {% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 {% block dialog_footer %}
@@ -177,5 +227,15 @@ document.body.addEventListener('debianModalError', function(e) {
        ${e.detail}
      </div>`;
 });
+
+{% if item_id %}
+function debianModalTab(name) {
+  document.getElementById('tab-basis').style.display = name === 'basis' ? '' : 'none';
+  document.getElementById('tab-files').style.display = name === 'files' ? '' : 'none';
+  document.getElementById('tab-btn-basis').style.borderBottomColor = name === 'basis' ? 'var(--accent)' : 'transparent';
+  document.getElementById('tab-btn-files').style.borderBottomColor = name === 'files' ? 'var(--accent)' : 'transparent';
+  if (name === 'files') filesTabInit('debian', '{{ item_id }}');
+}
+{% endif %}
 </script>
 {% endblock %}

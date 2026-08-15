@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS archlinux_packages (
     last_log         TEXT NOT NULL DEFAULT '',
     last_version     TEXT NOT NULL DEFAULT '',
     upstream_version TEXT NOT NULL DEFAULT '',
-    orphaned         INTEGER NOT NULL DEFAULT 0
+    orphaned         INTEGER NOT NULL DEFAULT 0,
+    source_type      TEXT NOT NULL DEFAULT 'git'
 )"""
 
 _COLS = (
@@ -41,6 +42,7 @@ _COLS = (
     "last_version",
     "upstream_version",
     "orphaned",
+    "source_type",
 )
 _BOOL_COLS = frozenset({"enabled", "orphaned"})
 
@@ -90,7 +92,15 @@ class ArchlinuxPackageStore:
             db = _db()
             db.execute(_DDL)
             try:
-                db.execute("ALTER TABLE archlinux_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
+                db.execute(
+                    "ALTER TABLE archlinux_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''"
+                )
+            except Exception:
+                pass
+            try:
+                db.execute(
+                    "ALTER TABLE archlinux_packages ADD COLUMN source_type TEXT NOT NULL DEFAULT 'git'"
+                )
             except Exception:
                 pass
             db.commit()
@@ -101,9 +111,11 @@ class ArchlinuxPackageStore:
 
     def _get_row(self, item_id: str):
         """Direkte DB-Abfrage ohne Lock – nur innerhalb von Lock-Blöcken verwenden."""
-        return _db().execute(
-            f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE name=?", (item_id,)
-        ).fetchone()
+        return (
+            _db()
+            .execute(f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE name=?", (item_id,))
+            .fetchone()
+        )
 
     def _row_to_dict(self, row) -> dict:
         d = dict(zip(_COLS, row))
@@ -129,15 +141,17 @@ class ArchlinuxPackageStore:
         if not self._ensure_table():
             return {}
         with self._lock:
-            rows = _db().execute(
-                f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name"
-            ).fetchall()
+            rows = _db().execute(f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name").fetchall()
         result = {r[0]: self._row_to_dict(r) for r in rows}
         for item_id, item in result.items():
             url = item.get("source_url", "")
             item["browse_url"] = _browse_url(url, item.get("source_subdir", ""), item_id)
-            item["source_type_label"] = "AUR" if "aur.archlinux.org" in url else ("Repo" if url else "")
-            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
+            item["source_type_label"] = (
+                "AUR" if "aur.archlinux.org" in url else ("Repo" if url else "")
+            )
+            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(
+                item.get("pkg_type", ""), ""
+            )
             item["orphaned_label"] = "verwaist" if item.get("orphaned") else ""
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
@@ -232,15 +246,11 @@ class ArchlinuxPackageStore:
         if not self._ensure_table():
             raise RuntimeError("DB nicht verfügbar")
         with self._lock:
-            row = _db().execute(
-                f"SELECT {field} FROM {_TABLE} WHERE name=?", (item_id,)
-            ).fetchone()
+            row = _db().execute(f"SELECT {field} FROM {_TABLE} WHERE name=?", (item_id,)).fetchone()
             if row is None:
                 raise KeyError(f"'{item_id}' nicht gefunden")
             new_val = 0 if row[0] else 1
-            _db().execute(
-                f"UPDATE {_TABLE} SET {field}=? WHERE name=?", (new_val, item_id)
-            )
+            _db().execute(f"UPDATE {_TABLE} SET {field}=? WHERE name=?", (new_val, item_id))
             _db().commit()
         return bool(new_val)
 

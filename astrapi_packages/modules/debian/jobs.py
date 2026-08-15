@@ -79,20 +79,40 @@ def _repo_path() -> Path:
 
 
 def _build_cmd(
-    item_id: str, source_url: str, source_subdir: str, image: str, repo_path: Path
+    item_id: str,
+    source_url: str,
+    source_subdir: str,
+    image: str,
+    repo_path: Path,
+    source_type: str = "git",
+    host_src_dir: "Path | None" = None,
 ) -> list[str]:
     """Baut das docker-run-Kommando für den Debian-Bau -- eigene Funktion, damit das
-    lange Shell-Script nicht den Ablauf von build_package() verschluckt."""
+    lange Shell-Script nicht den Ablauf von build_package() verschluckt.
+
+    source_type='db': statt eines git clone wird ein bereits vom Aufrufer
+    materialisiertes Verzeichnis (host_src_dir, siehe file_store.materialize())
+    read-only nach /build/src/{item_id} gemountet -- der Bau-Schritt selbst
+    (PKGBUILD sourcen, prepare/build/check/package, dpkg-deb) bleibt identisch.
+    """
     subdir = source_subdir or item_id
+    volumes = ["-v", f"{repo_path}:/repo"]
+
+    if source_type == "db":
+        assert host_src_dir is not None, "host_src_dir erforderlich für source_type='db'"
+        subdir = item_id
+        volumes += ["-v", f"{host_src_dir}:/build/src/{subdir}:ro"]
+        clone_step = f"mkdir -p /build/src/{subdir}  # bereits per Bind-Mount befüllt"
+    else:
+        clone_step = f"git clone --depth=1 '{source_url}' /build/src"
 
     # Shell-Script: PKGBUILD lesen → .deb bauen
-    # Python-format-Platzhalter: {source_url}, {item_id}
+    # Python-format-Platzhalter: {clone_step}, {subdir}
     # Bash-Variablen: ${{...}} → ${...}
     build_script = """\
 set -e
 
-# Repository klonen
-git clone --depth=1 '{source_url}' /build/src
+{clone_step}
 
 # In das Paket-Unterverzeichnis wechseln
 cd /build/src/{subdir}
@@ -171,14 +191,13 @@ echo "---"
 DEB_FILE="/repo/${{pkgname}}_${{pkgver}}-${{pkgrel}}_${{DEB_ARCH}}.deb"
 fakeroot dpkg-deb --build "$STAGING" "$DEB_FILE"
 echo "Gebaut: $DEB_FILE"
-""".format(source_url=source_url, item_id=item_id, subdir=subdir)
+""".format(clone_step=clone_step, subdir=subdir)
 
     return [
         "docker",
         "run",
         "--rm",
-        "-v",
-        f"{repo_path}:/repo",
+        *volumes,
         image,
         "bash",
         "-c",
@@ -218,8 +237,26 @@ def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True)
     image = (item.get("image") or "").strip() or s("default_image", "ctl/debian-builder:latest")
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
+    source_type = (item.get("source_type") or "git").strip()
 
-    if not source_url:
+    host_src_dir = None
+    if source_type == "db":
+        from astrapi_packages._paths import work_dir
+        from astrapi_packages.utils import file_store
+
+        host_src_dir = work_dir() / "build-context" / "debian" / item_id
+        file_store.materialize("debian", item_id, host_src_dir)
+        if not (host_src_dir / "PKGBUILD").exists():
+            store.update(
+                item_id,
+                {
+                    "last_status": _status.ERROR,
+                    "last_run": _now(),
+                    "last_log": "Keine PKGBUILD im Datei-Editor hinterlegt.",
+                },
+            )
+            return
+    elif not source_url:
         store.update(
             item_id,
             {
@@ -253,8 +290,16 @@ def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True)
         except Exception:
             pass
 
-    cmd = _build_cmd(item_id, source_url, source_subdir, image, repo_path)
-    cmd_repr = f"$ docker run --rm -v {repo_path}:/repo {image} bash -c <build_script>"
+    cmd = _build_cmd(
+        item_id,
+        source_url,
+        source_subdir,
+        image,
+        repo_path,
+        source_type=source_type,
+        host_src_dir=host_src_dir,
+    )
+    cmd_repr = f"$ docker run --rm -v {repo_path}:/repo [...] {image} bash -c <build_script>"
     log.info("debian.build: %s", " ".join(cmd))
     _log("INFO", cmd_repr)
     rc, raw_output = _run_streamed(cmd)
@@ -525,12 +570,14 @@ def update_all_packages() -> None:
         # G-017: der erste Bau wird von Hand angestossen und beobachtet.
         log.info(
             "debian.update_all: %d Paket(e) noch nie gebaut, erster Bau von Hand (G-017): %s",
-            len(nie_gebaut), ", ".join(sorted(nie_gebaut)),
+            len(nie_gebaut),
+            ", ".join(sorted(nie_gebaut)),
         )
     if fehlerhaft:
         log.warning(
             "debian.update_all: %d Paket(e) im Fehlerzustand, nicht automatisch erneut gebaut: %s",
-            len(fehlerhaft), ", ".join(sorted(fehlerhaft)),
+            len(fehlerhaft),
+            ", ".join(sorted(fehlerhaft)),
         )
 
     if not built_ids:
@@ -587,7 +634,9 @@ def update_all_packages() -> None:
 
         log.info(
             "debian.update_all: %s veraltet (%s → %s), zum Bau vorgemerkt",
-            item_id, current, upstream,
+            item_id,
+            current,
+            upstream,
         )
         to_build.append(item_id)
 
@@ -659,10 +708,12 @@ def delete_package(item_id: str, item: dict) -> None:
 def _trigger_mirror_sync(item_id: str) -> None:
     try:
         from astrapi_core.ui.settings_registry import get_module as _gm
+
         url = (_gm("debian", "mirror_trigger_url", default="") or "").strip()
         if not url:
             return
         import urllib.request
+
         req = urllib.request.Request(url, data=b"", method="POST")
         with urllib.request.urlopen(req, timeout=5):
             pass

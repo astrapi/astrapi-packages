@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     last_run         TEXT NOT NULL DEFAULT '',
     last_log         TEXT NOT NULL DEFAULT '',
     last_version     TEXT NOT NULL DEFAULT '',
-    upstream_version TEXT NOT NULL DEFAULT ''
+    upstream_version TEXT NOT NULL DEFAULT '',
+    source_type      TEXT NOT NULL DEFAULT 'git'
 )"""
 
 _COLS = (
@@ -37,6 +38,7 @@ _COLS = (
     "last_log",
     "last_version",
     "upstream_version",
+    "source_type",
 )
 _BOOL_COLS = frozenset({"enabled"})
 
@@ -85,11 +87,19 @@ class DebianPackageStore:
             db = _db()
             db.execute(_DDL)
             try:
-                db.execute("ALTER TABLE debian_packages ADD COLUMN source_subdir TEXT NOT NULL DEFAULT ''")
+                db.execute(
+                    "ALTER TABLE debian_packages ADD COLUMN source_subdir TEXT NOT NULL DEFAULT ''"
+                )
             except Exception:
                 pass
             try:
                 db.execute("ALTER TABLE debian_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                db.execute(
+                    "ALTER TABLE debian_packages ADD COLUMN source_type TEXT NOT NULL DEFAULT 'git'"
+                )
             except Exception:
                 pass
             db.commit()
@@ -100,9 +110,11 @@ class DebianPackageStore:
 
     def _get_row(self, item_id: str):
         """Direkte DB-Abfrage ohne Lock – nur innerhalb von Lock-Blöcken verwenden."""
-        return _db().execute(
-            f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE name=?", (item_id,)
-        ).fetchone()
+        return (
+            _db()
+            .execute(f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE name=?", (item_id,))
+            .fetchone()
+        )
 
     def _row_to_dict(self, row) -> dict:
         d = dict(zip(_COLS, row))
@@ -128,15 +140,15 @@ class DebianPackageStore:
         if not self._ensure_table():
             return {}
         with self._lock:
-            rows = _db().execute(
-                f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name"
-            ).fetchall()
+            rows = _db().execute(f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name").fetchall()
         result = {r[0]: self._row_to_dict(r) for r in rows}
         for item_id, item in result.items():
             url = item.get("source_url", "")
             item["browse_url"] = _browse_url(url, item_id)
             item["source_type_label"] = "Repo" if url else ""
-            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
+            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(
+                item.get("pkg_type", ""), ""
+            )
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
         if offset:
@@ -230,15 +242,11 @@ class DebianPackageStore:
         if not self._ensure_table():
             raise RuntimeError("DB nicht verfügbar")
         with self._lock:
-            row = _db().execute(
-                f"SELECT {field} FROM {_TABLE} WHERE name=?", (item_id,)
-            ).fetchone()
+            row = _db().execute(f"SELECT {field} FROM {_TABLE} WHERE name=?", (item_id,)).fetchone()
             if row is None:
                 raise KeyError(f"'{item_id}' nicht gefunden")
             new_val = 0 if row[0] else 1
-            _db().execute(
-                f"UPDATE {_TABLE} SET {field}=? WHERE name=?", (new_val, item_id)
-            )
+            _db().execute(f"UPDATE {_TABLE} SET {field}=? WHERE name=?", (new_val, item_id))
             _db().commit()
         return bool(new_val)
 

@@ -70,8 +70,11 @@ if [ -n "$SOURCE_URL" ]; then
         cd "${SOURCE_SUBDIR}"
     fi
 else
-    echo "==> Verwende gemountetes PKGBUILD ..."
-    cp /home/makepkg/source/PKGBUILD .
+    echo "==> Verwende gemounteten Quellordner (DB-verwaltetes Paket) ..."
+    # Ganzer Ordner statt nur PKGBUILD: Zusatzdateien (Patches, .install-
+    # Skripte, systemd-Units, ...) muessen genauso verfuegbar sein wie beim
+    # git-clone-Pfad oben.
+    cp -r /home/makepkg/source/. .
 fi
 
 echo "==> Importiere GPG-Keys aus PKGBUILD ..."

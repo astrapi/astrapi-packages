@@ -18,6 +18,50 @@ _TIMEOUT = 3600
 _ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
 
 
+def _build_cmd(
+    item_id: str,
+    source_url: str,
+    source_subdir: str,
+    image: str,
+    repo_path,
+    repo_name: str,
+    source_type: str = "git",
+    host_src_dir: "Path | None" = None,
+) -> list[str]:
+    """Baut das docker-run-Kommando fuer den Arch-Bau -- eigene, testbare
+    Funktion (analog debian/jobs.py:_build_cmd).
+
+    source_type='db': statt der source_url wird ein bereits vom Aufrufer
+    materialisiertes Verzeichnis (host_src_dir, siehe file_store.materialize())
+    read-only nach /home/makepkg/source gemountet; arch-build.sh (siehe
+    examples/builders/arch-builder/arch-build.sh) kopiert bei leerem
+    SOURCE_URL-Argument von dort statt zu klonen.
+    """
+    repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
+    env_args = ["-e", f"REPO_NAME={repo_name}"]
+    src_vol: list[str] = []
+    effective_source_url = source_url
+
+    if source_type == "db":
+        assert host_src_dir is not None, "host_src_dir erforderlich für source_type='db'"
+        src_vol = ["-v", f"{host_src_dir}:/home/makepkg/source:ro"]
+        effective_source_url = ""
+    elif source_subdir:
+        env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
+
+    return [
+        "docker",
+        "run",
+        "--rm",
+        *repo_vol,
+        *src_vol,
+        *env_args,
+        image,
+        item_id,
+        effective_source_url,
+    ]
+
+
 def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
     """Blockierender Subprocess-Aufruf ohne Live-Logging -- fuer Hilfskommandos
     (repo-add/repo-remove), die nicht Teil eines sichtbaren Bau-Vorgangs sind."""
@@ -136,7 +180,26 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
     repo_name = s("repo_name", "pkgctl")
     source_url = (item.get("source_url") or "").strip()
     source_subdir = (item.get("source_subdir") or "").strip()
-    if not source_url:
+    source_type = (item.get("source_type") or "git").strip()
+
+    host_src_dir = None
+    if source_type == "db":
+        from astrapi_packages._paths import work_dir
+        from astrapi_packages.utils import file_store
+
+        host_src_dir = work_dir() / "build-context" / "archlinux" / item_id
+        file_store.materialize("archlinux", item_id, host_src_dir)
+        if not (host_src_dir / "PKGBUILD").exists():
+            store.update(
+                item_id,
+                {
+                    "last_status": _status.ERROR,
+                    "last_run": _now(),
+                    "last_log": "Keine PKGBUILD im Datei-Editor hinterlegt.",
+                },
+            )
+            return
+    elif not source_url:
         store.update(
             item_id,
             {
@@ -169,21 +232,16 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
         except Exception:
             pass
 
-    repo_vol = ["-v", f"{repo_path}:/home/makepkg/repo"]
-    env_args = ["-e", f"REPO_NAME={repo_name}"]
-    if source_subdir:
-        env_args += ["-e", f"SOURCE_SUBDIR={source_subdir}"]
-
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        *repo_vol,
-        *env_args,
-        image,
+    cmd = _build_cmd(
         item_id,
         source_url,
-    ]
+        source_subdir,
+        image,
+        repo_path,
+        repo_name,
+        source_type=source_type,
+        host_src_dir=host_src_dir,
+    )
 
     cmd_repr = f"$ {' '.join(cmd)}"
     log.info("archlinux.build: %s", " ".join(cmd))
@@ -550,12 +608,14 @@ def update_all_packages() -> None:
         # G-017: der erste Bau wird von Hand angestossen und beobachtet.
         log.info(
             "update_all_packages: %d Paket(e) noch nie gebaut, erster Bau von Hand (G-017): %s",
-            len(nie_gebaut), ", ".join(sorted(nie_gebaut)),
+            len(nie_gebaut),
+            ", ".join(sorted(nie_gebaut)),
         )
     if fehlerhaft:
         log.warning(
             "update_all_packages: %d Paket(e) im Fehlerzustand, nicht automatisch erneut gebaut: %s",
-            len(fehlerhaft), ", ".join(sorted(fehlerhaft)),
+            len(fehlerhaft),
+            ", ".join(sorted(fehlerhaft)),
         )
 
     if not built_ids:
@@ -616,7 +676,9 @@ def update_all_packages() -> None:
         if upstream and upstream != current:
             log.info(
                 "update_all_packages: %s ist veraltet (%s → %s), zum Bau vorgemerkt",
-                item_id, current, upstream,
+                item_id,
+                current,
+                upstream,
             )
             to_build.append(item_id)
 
@@ -724,10 +786,12 @@ def run_single(item_id: str) -> None:
 def _trigger_mirror_sync(item_id: str) -> None:
     try:
         from astrapi_core.ui.settings_registry import get_module as _gm
+
         url = (_gm("archlinux", "mirror_trigger_url", default="") or "").strip()
         if not url:
             return
         import urllib.request
+
         req = urllib.request.Request(url, data=b"", method="POST")
         with urllib.request.urlopen(req, timeout=5):
             pass
