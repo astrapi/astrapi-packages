@@ -76,6 +76,12 @@ module = load_modul(
                 hx_get=f"/ui/{_KEY}/create",
                 hx_target="body",
             ),
+            Header.action_button(
+                "Neu (PKGBUILD)",
+                hx_get=f"/ui/{_KEY}/new-in-db",
+                hx_target="body",
+                style="ghost",
+            ),
         ]
     ),
 )

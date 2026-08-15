@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from astrapi_packages.api import status as _status
 from astrapi_packages.modules.debian import KEY, store
 from astrapi_packages.modules.debian.utils import pkg_cache
+from astrapi_packages.utils import file_store
 from astrapi_packages.utils.export_import import build_export_import_routes
 from astrapi_packages.utils.file_routes import build_file_routes
 from astrapi_packages.utils.git_import import GitImportError, import_package_from_git
@@ -18,6 +19,19 @@ from astrapi_packages.utils.git_import import GitImportError, import_package_fro
 _DIR = Path(__file__).parent.parent  # modules/debian/
 _SCHEMA = load_schema(str(_DIR / "config" / "schema.yaml"))
 _EXPORT_FIELDS = ["source_url", "source_subdir", "image", "pkg_type", "enabled", "source_type"]
+
+_PKGBUILD_TEMPLATE = """\
+pkgname={name}
+pkgver=0.0.1
+pkgrel=1
+pkgdesc=""
+arch=(x86_64)
+depends=()
+
+package() {{
+  echo "TODO: package() implementieren"
+}}
+"""
 
 # Hintergrund-Cache starten
 pkg_cache.start()
@@ -179,6 +193,46 @@ def import_from_git(item_id: str, request: Request):
         request,
         f"{KEY}/dialogs/edit/modal.html",
         dict(item_id=item_id, item=store.get(item_id), error=error, image_options=_image_options()),
+    )
+
+
+@router.get(f"/ui/{KEY}/new-in-db", response_class=HTMLResponse)
+def new_in_db_dialog(request: Request):
+    return render(request, "dialog_new_in_db.html", dict(module=KEY, error=None))
+
+
+@router.post(f"/ui/{KEY}/new-in-db", response_class=HTMLResponse)
+async def new_in_db_apply(request: Request):
+    form = await request.form()
+    item_id = form.get("name", "").strip()
+    if not item_id:
+        return render(
+            request,
+            "dialog_new_in_db.html",
+            dict(module=KEY, error="Paketname ist erforderlich."),
+        )
+    if store.get(item_id) is not None:
+        return render(
+            request,
+            "dialog_new_in_db.html",
+            dict(module=KEY, error=f"'{item_id}' ist bereits vorhanden."),
+        )
+    store.create(
+        item_id,
+        {
+            "pkg_type": "package",
+            "enabled": True,
+            "last_status": _status.NEU,
+            "source_type": "db",
+        },
+    )
+    file_store.save(
+        KEY, item_id, "PKGBUILD", _PKGBUILD_TEMPLATE.format(name=item_id), message="Neu erstellt"
+    )
+    return render(
+        request,
+        f"{KEY}/dialogs/edit/modal.html",
+        dict(item_id=item_id, item=store.get(item_id), error=None, image_options=_image_options()),
     )
 
 
