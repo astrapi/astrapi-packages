@@ -10,13 +10,11 @@
 
 {% if cfg %}
   {% for item_id, item in cfg.items() %}
-    {% call mc.m_card(item_id, status=item.get('last_status')) %}
+    {% set _footer %}{{ mc.m_card_actions_default(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}{% endset %}
+    {% call mc.m_card(item_id, status=item.get('last_status'), footer=_footer) %}
       {{ mc.m_card_row('Tag', item.get('tag')) }}
       {{ mc.m_card_row('Fach-Modul', _module_labels.get(item.get('module'), item.get('module'))) }}
       {{ mc.m_card_row('Letzter Build', item.get('last_run')) }}
-    {% endcall %}
-    {% call mc.m_card_footer() %}
-      {{ mc.m_card_actions_default(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}
     {% endcall %}
   {% endfor %}
 {% else %}

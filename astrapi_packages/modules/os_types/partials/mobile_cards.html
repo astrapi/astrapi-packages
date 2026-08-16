@@ -7,12 +7,10 @@
 
 {% if cfg %}
   {% for item_id, item in cfg.items() %}
-    {% call mc.m_card(item.get('label') or item_id) %}
+    {% set _footer %}{{ mc.m_card_actions_default(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}{% endset %}
+    {% call mc.m_card(item.get('label') or item_id, footer=_footer) %}
       {{ mc.m_card_row('Repo-Unterordner', item.get('repo_subdir')) }}
       {{ mc.m_card_row('Abhängigkeiten-URL', item.get('depends_url_template')) }}
-    {% endcall %}
-    {% call mc.m_card_footer() %}
-      {{ mc.m_card_actions_default(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}
     {% endcall %}
   {% endfor %}
 {% else %}

@@ -94,12 +94,15 @@ module = load_modul(
                 "Neu",
                 hx_get=f"/ui/{_KEY}/create",
                 hx_target="body",
+                style="primary",
+                icon="plus",
             ),
             Header.action_button(
                 "Neu (PKGBUILD)",
                 hx_get=f"/ui/{_KEY}/new-in-db",
                 hx_target="body",
                 style="ghost",
+                icon="plus",
             ),
         ]
     ),

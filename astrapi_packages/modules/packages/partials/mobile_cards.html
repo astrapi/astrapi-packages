@@ -8,15 +8,13 @@
 
 {% if cfg %}
   {% for item_id, item in cfg.items() %}
-    {% call mc.m_card(item.get('name') or item_id, status=item.get('last_status'), enabled=item.get('enabled', True)) %}
+    {% set _footer %}{{ mc.m_card_run_actions(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}{% endset %}
+    {% call mc.m_card(item.get('name') or item_id, status=item.get('last_status'), enabled=item.get('enabled', True), footer=_footer) %}
       {{ mc.m_card_row('OS-Typ', item.get('os_type')) }}
       {{ mc.m_card_row('Version', item.get('last_version')) }}
       {{ mc.m_card_row('Typ', item.get('pkg_type_label')) }}
       {{ mc.m_card_row('Quelle', item.get('source_type_label')) }}
       {{ mc.m_card_row('Status', item.get('orphaned_label')) }}
-    {% endcall %}
-    {% call mc.m_card_footer() %}
-      {{ mc.m_card_run_actions(module, item_id, item, container_id, loading_id, card_actions=_card_actions) }}
     {% endcall %}
   {% endfor %}
 {% else %}
