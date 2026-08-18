@@ -92,9 +92,9 @@ def run_single(item_id: str) -> None:
             return
 
         build_dir = (Path(tmp) / subdir) if subdir else Path(tmp)
-        dockerfile = build_dir / f"{item_id}.dockerfile"
+        dockerfile = build_dir / "Dockerfile"
         if not dockerfile.exists():
-            _log("ERROR", f"Datei '{item_id}.dockerfile' nicht in '{build_dir}' gefunden.")
+            _log("ERROR", f"Datei 'Dockerfile' nicht in '{build_dir}' gefunden.")
             store.upsert(item_id, {"last_status": "error", "last_run": _now()})
             return
 
