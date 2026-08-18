@@ -1,0 +1,151 @@
+{% extends "partials/dialogs/pkg_edit_modal_base.html" %}
+{% from "partials/components/ui_macros.html" import btn, form_select, form_input %}
+
+{% block dialog_width %}540{% endblock %}
+{% block dialog_title %}{{ 'Builder-Image bearbeiten – ' ~ item_id if item_id else 'Neues Builder-Image' }}{% endblock %}
+{% block form_action %}{% if item_id %}/ui/builder/{{ item_id }}/update{% else %}/ui/builder/{% endif %}{% endblock %}
+{% block form_attrs %}onsubmit="return builderImgValidate(this)"{% endblock %}
+
+{% block dialog_body %}
+<div id="modal-error-container"></div>
+
+{% set _source_url = (item or {}).get('source_url') or '' %}
+{% set _img_id     = item_id or '' %}
+
+{# ── Image-Suche (nur im Create-Modus) ────────────────────────────── #}
+{% if not item_id %}
+<div>
+  <div id="img-selected" style="{% if not _source_url %}display:none;{% endif %}margin-bottom:8px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div style="flex:1; background:var(--bg-2); border:1px solid var(--border);
+                  border-radius:6px; padding:8px 10px; font-size:13px;">
+        <span id="img-selected-name" style="font-weight:600;">{{ _img_id }}</span>
+        <span id="img-selected-url" style="color:var(--text-3); font-size:11px; margin-left:6px;">{{ _source_url }}</span>
+      </div>
+      {{ btn('Ändern', onclick='imgClear()') }}
+    </div>
+  </div>
+
+  <div id="img-search-box" style="{% if _source_url %}display:none;{% endif %}">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <label class="form-label" style="margin:0;">
+        Image suchen <span style="color:var(--error)">*</span>
+      </label>
+      <button type="button" class="btn-icon" title="Image-Liste jetzt neu laden (statt bis zu 5 Min. zu warten)"
+              aria-label="Image-Liste jetzt neu laden"
+              hx-post="/ui/builder/image-cache/refresh"
+              hx-include="#img-search-input"
+              hx-target="#img-search-results">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><use href="#icon-refresh"></use></svg>
+      </button>
+    </div>
+    {%- set _search_attrs -%}
+    id="img-search-input" autocomplete="off"
+    hx-get="/ui/builder/search"
+    hx-trigger="input changed delay:350ms"
+    hx-target="#img-search-results"
+    hx-include="this"
+    {%- endset -%}
+    {{ form_input('q', placeholder='Image-ID …', attrs=_search_attrs) }}
+    <div id="img-search-results" style="margin-top:4px;">
+      {% if no_source %}
+      <p class="form-hint" style="margin-top:6px; color:var(--r);">
+        Keine Image-Quelle konfiguriert – unter Einstellungen → Builder eine
+        Image-Repo-URL hinterlegen.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <input type="hidden" name="id"            id="field-img-id"     value="{{ _img_id }}">
+  <input type="hidden" name="source_url"    id="field-source-url" value="{{ _source_url }}">
+  <input type="hidden" name="source_subdir" id="field-subdir"     value="{{ (item or {}).get('source_subdir') or '' }}">
+  <input type="hidden" name="tag"           id="field-tag"        value="{{ (item or {}).get('tag') or 'latest' }}">
+  <input type="hidden" name="module"        id="field-module"     value="{{ (item or {}).get('module') or '' }}">
+  <span class="form-error" id="source-url-error"></span>
+</div>
+{% endif %}
+
+{# ── Edit-Modus: Felder direkt bearbeitbar ────────────────────────── #}
+{% if item_id %}
+<div>
+  <label class="form-label">Image-ID</label>
+  {{ form_input('id', item_id, attrs='readonly style="opacity:.6; cursor:not-allowed;"') }}
+</div>
+<div>
+  <label class="form-label">Git-URL</label>
+  {{ form_input('source_url', _source_url, placeholder='https://github.com/example/my-builders.git') }}
+</div>
+<div>
+  <label class="form-label">Unterordner (optional)</label>
+  {{ form_input('source_subdir', (item or {}).get('source_subdir') or '',
+               placeholder='leer = Repo-Wurzel') }}
+</div>
+<div>
+  <label class="form-label">Tag</label>
+  {{ form_input('tag', (item or {}).get('tag') or 'latest', placeholder='latest') }}
+</div>
+<div>
+  <label class="form-label">Fach-Modul</label>
+  {{ form_select('module',
+                 [{'value':'','label':'(keins)'},{'value':'debian','label':'Debian'},{'value':'archlinux','label':'Arch Linux'}],
+                 (item or {}).get('module') or '', placeholder='') }}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block dialog_footer %}
+<div class="ds-modal-footer ds-modal-footer--end">
+  <button type="button" class="btn btn-sm btn-ghost" onclick="closeModal(this)">Abbrechen</button>
+  <button type="submit" class="btn btn-sm btn-primary" id="create-edit-submit">
+    {{ 'Speichern' if item_id else 'Erstellen' }}
+  </button>
+</div>
+{% endblock %}
+
+{% block dialog_scripts %}
+{{ super() }}
+<script>
+function builderImgValidate(form) {
+  {% if not item_id %}
+  const id = document.getElementById('field-img-id')?.value?.trim();
+  if (!id) {
+    const err = document.getElementById('source-url-error');
+    if (err) { err.textContent = 'Bitte ein Image auswählen.'; err.classList.add('visible'); }
+    return false;
+  }
+  {% endif %}
+  return true;
+}
+
+function imgSelect(id, url, tag, mod, subdir) {
+  document.getElementById('field-img-id').value     = id;
+  document.getElementById('field-source-url').value = url;
+  document.getElementById('field-subdir').value      = subdir || '';
+  document.getElementById('field-tag').value         = tag || 'latest';
+  document.getElementById('field-module').value      = mod || '';
+  document.getElementById('img-selected-name').textContent = id;
+  document.getElementById('img-selected-url').textContent  = url;
+  document.getElementById('img-selected').style.display    = '';
+  document.getElementById('img-search-box').style.display  = 'none';
+  document.getElementById('img-search-results').innerHTML  = '';
+}
+
+function imgClear() {
+  document.getElementById('field-img-id').value        = '';
+  document.getElementById('field-source-url').value    = '';
+  document.getElementById('img-selected').style.display  = 'none';
+  document.getElementById('img-search-box').style.display = '';
+  document.getElementById('img-search-input').focus();
+}
+
+document.body.addEventListener('builderModalError', function(e) {
+  const c = document.getElementById('modal-error-container');
+  if (c) c.innerHTML =
+    `<div style="margin:8px 0;padding:8px 12px;border-radius:6px;
+                 background:var(--error-dim,#3a0000);color:var(--error,#ff6b6b);font-size:13px;">
+       ${e.detail}
+     </div>`;
+});
+</script>
+{% endblock %}

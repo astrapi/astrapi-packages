@@ -1,0 +1,27 @@
+{% if no_source %}
+<p class="form-hint" style="margin-top:6px; color:var(--r);">
+  Keine Image-Quelle konfiguriert – unter Einstellungen → Builder eine
+  Image-Repo-URL hinterlegen.
+</p>
+{% elif cache_empty %}
+<p class="form-hint" style="margin-top:6px;">
+  Cache wird geladen – bitte in einigen Sekunden erneut suchen.
+</p>
+{% endif %}
+{% if results %}
+<div class="pkg-search-results">
+  <div class="pkg-search-group">Images</div>
+  {% for img in results %}
+  <div class="pkg-search-item"
+       onclick="imgSelect('{{ img.id | e }}', '{{ img.source_url | e }}', '{{ img.tag | e }}', '{{ img.module | e }}', '{{ img.subdir | e }}')">
+    <div class="pkg-search-item-header">
+      <span class="pkg-search-name">{{ img.id }}</span>
+      {% if img.tag %}<span class="pkg-search-version">{{ img.tag }}</span>{% endif %}
+    </div>
+    {% if img.module %}<div class="pkg-search-desc">Fach-Modul: {{ img.module }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% elif term %}
+<p class="form-hint" style="margin-top:6px;">Keine Ergebnisse für „{{ term }}".</p>
+{% endif %}

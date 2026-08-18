@@ -1,0 +1,9 @@
+modal_width: 520
+
+fields:
+  - key:         image_repos
+    label:       Image-Repos
+    type:        list
+    mono:        true
+    placeholder: "https://github.com/example/my-builders"
+    description: "URLs zu Repos mit images.yaml (GitHub, GitLab, Gitea/Forgejo -- oder direkte .yaml-URL). Wird alle 5 Min. aktualisiert."
