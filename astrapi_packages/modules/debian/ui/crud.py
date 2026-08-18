@@ -27,6 +27,12 @@ def _running_fn() -> dict:
     }
 
 
+def _delete_preview(item_id: str) -> list[str]:
+    from ..utils.dep_graph import find_orphan_deps
+
+    return find_orphan_deps(item_id, store)
+
+
 _crud = make_crud_router(
     store,
     KEY,
@@ -36,6 +42,7 @@ _crud = make_crud_router(
     has_run_buttons=True,
     has_toggle=False,
     running_fn=_running_fn,
+    delete_preview_fn=_delete_preview,
 )
 
 router = APIRouter()
@@ -117,8 +124,13 @@ async def create_apply(request: Request):
     data = {
         "source_url": form.get("source_url", "").strip(),
         "source_subdir": form.get("source_subdir", "").strip(),
+        "aur_deps": form.get("aur_deps", "").strip(),
         "image": form.get("image", "").strip(),
-        "pkg_type": form.get("pkg_type", "package").strip() or "package",
+        # Nicht aus dem Formular uebernehmen: pkg_type ist keine Nutzereingabe
+        # mehr, sondern rein vom System verwaltet (manuell angelegt = immer
+        # "package"; "dependency" setzt ausschliesslich autocreate_deps()
+        # weiter unten, fuer automatisch nachgezogene Abhaengigkeiten).
+        "pkg_type": "package",
         "enabled": "enabled" in form,
         # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
         # dort noch '' (T-134), SQLite aendert den Default nicht nachtraeglich.
@@ -128,6 +140,11 @@ async def create_apply(request: Request):
     if upstream_version:
         data["upstream_version"] = upstream_version
     store.create(item_id, data)
+
+    from ..utils.dep_graph import autocreate_deps
+
+    autocreate_deps(item_id, data, store)
+
     return render(request, "content.html", _ctx())
 
 
@@ -150,11 +167,16 @@ async def edit_apply(item_id: str, request: Request):
         data = {
             "source_url": form.get("source_url", "").strip(),
             "source_subdir": form.get("source_subdir", "").strip(),
+            "aur_deps": form.get("aur_deps", "").strip(),
             "image": form.get("image", "").strip(),
-            "pkg_type": form.get("pkg_type", "package").strip() or "package",
+            # pkg_type bewusst nicht aus dem Formular -- bleibt unveraendert
+            # (siehe create_apply weiter oben).
             "enabled": "enabled" in form,
         }
         store.update(item_id, data)
+        from ..utils.dep_graph import autocreate_deps
+
+        autocreate_deps(item_id, data, store)
     return render(request, "content.html", _ctx())
 
 
@@ -206,6 +228,24 @@ async def refresh_pkg_cache(request: Request):
 # ── PKGBUILD-Info (Version + Distribution) ───────────────────────────────────
 
 
+def _parse_pkgbuild_deps(text: str) -> list[str]:
+    """1:1 aus archlinux/ui/crud.py -- gleiches PKGBUILD-Format."""
+    import re
+
+    deps: list[str] = []
+    for key in ("depends", "makedepends"):
+        m = re.search(rf"^{key}\s*=\s*\((.*?)\)", text, re.MULTILINE | re.DOTALL)
+        if not m:
+            continue
+        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", m.group(1)):
+            name = (token[0] or token[1] or token[2]).strip()
+            name = re.sub(r"[><=!].*", "", name).strip()
+            if name:
+                deps.append(name)
+    seen: set[str] = set()
+    return [d for d in deps if not (d in seen or seen.add(d))]  # type: ignore[func-returns-value]
+
+
 def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
     from urllib.parse import urlparse
 
@@ -240,6 +280,31 @@ def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
         except Exception:
             continue
     return {"version": ""}
+
+
+def _version_and_deps_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
+    """Wie _pkgbuild_info(), liefert zusaetzlich depends/makedepends -- fuer
+    _sync_pkgbuild_deps() in jobs.py (Muster: archlinux/ui/crud.py)."""
+    import re
+    import urllib.request
+
+    base = source_url.rstrip("/").removesuffix(".git")
+    for branch in ("main", "master"):
+        url = _pkgbuild_raw_url(base, branch, source_subdir)
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                text = r.read().decode("utf-8", errors="replace")
+            m_ver = re.search(r"^pkgver\s*=\s*(.+)", text, re.MULTILINE)
+            m_rel = re.search(r"^pkgrel\s*=\s*(.+)", text, re.MULTILINE)
+            version = ""
+            if m_ver:
+                ver = m_ver.group(1).strip().strip("'\"")
+                rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
+                version = f"{ver}-{rel}" if rel else ver
+            return version, _parse_pkgbuild_deps(text)
+        except Exception:
+            continue
+    return "", []
 
 
 @router.get(f"/ui/{KEY}/pkgbuild-info")

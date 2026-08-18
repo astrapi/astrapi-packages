@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     name             TEXT PRIMARY KEY,
     source_url       TEXT NOT NULL DEFAULT '',
     source_subdir    TEXT NOT NULL DEFAULT '',
+    aur_deps         TEXT NOT NULL DEFAULT '',
     image            TEXT NOT NULL DEFAULT '',
     pkg_type         TEXT NOT NULL DEFAULT 'package',
     enabled          INTEGER NOT NULL DEFAULT 1,
@@ -22,13 +23,15 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     last_run         TEXT NOT NULL DEFAULT '',
     last_log         TEXT NOT NULL DEFAULT '',
     last_version     TEXT NOT NULL DEFAULT '',
-    upstream_version TEXT NOT NULL DEFAULT ''
+    upstream_version TEXT NOT NULL DEFAULT '',
+    orphaned         INTEGER NOT NULL DEFAULT 0
 )"""
 
 _COLS = (
     "name",
     "source_url",
     "source_subdir",
+    "aur_deps",
     "image",
     "pkg_type",
     "enabled",
@@ -37,8 +40,9 @@ _COLS = (
     "last_log",
     "last_version",
     "upstream_version",
+    "orphaned",
 )
-_BOOL_COLS = frozenset({"enabled"})
+_BOOL_COLS = frozenset({"enabled", "orphaned"})
 
 _log = __import__("logging").getLogger(__name__)
 
@@ -92,6 +96,14 @@ class DebianPackageStore:
                 db.execute("ALTER TABLE debian_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
             except Exception:
                 pass
+            try:
+                db.execute("ALTER TABLE debian_packages ADD COLUMN aur_deps TEXT NOT NULL DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                db.execute("ALTER TABLE debian_packages ADD COLUMN orphaned INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass
             db.commit()
             self._table_ready = True
             return True
@@ -137,6 +149,7 @@ class DebianPackageStore:
             item["browse_url"] = _browse_url(url, item_id)
             item["source_type_label"] = "Repo" if url else ""
             item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
+            item["orphaned_label"] = "verwaist" if item.get("orphaned") else ""
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
         if offset:

@@ -476,12 +476,215 @@ def _extract_version(repo_path: Path, item_id: str) -> str | None:
 # ── Zentraler Run-Router: run_single ─────────────────────────────────────────
 
 
+# ── PKGBUILD-Dep-Sync ──────────────────────────────────────────────────────────
+
+
+def _sync_pkgbuild_deps(item_id: str, store) -> None:
+    """Liest depends/makedepends aus dem GitLab-PKGBUILD und legt fehlende AUR-Deps an.
+
+    Nur für Pakete mit source_subdir (GitLab-Monorepo). Deps die nicht auf AUR
+    existieren (z.B. offizielle Repo-Pakete) werden übersprungen.
+    Aktualisiert außerdem upstream_version damit der Update-Badge nach einem
+    manuellen Build korrekt verschwindet.
+
+    1:1 nach archlinux/jobs.py::_sync_pkgbuild_deps -- gleiches PKGBUILD-
+    basiertes Abhängigkeitsmodell (Bridge-Ansatz).
+    """
+    import json
+    import urllib.request
+
+    from .ui.crud import _version_and_deps_from_pkgbuild_url
+    from .utils.dep_graph import autocreate_deps
+
+    item = store.get(item_id) or {}
+    source_url = item.get("source_url", "")
+    source_sub = item.get("source_subdir", "")
+    if not ("gitlab" in source_url and source_sub):
+        return
+
+    upstream_ver, pkgbuild_deps = _version_and_deps_from_pkgbuild_url(source_url, source_sub)
+    if upstream_ver:
+        store.update(item_id, {"upstream_version": upstream_ver})
+    if not pkgbuild_deps:
+        return
+
+    current_deps = set(d.strip() for d in (item.get("aur_deps") or "").split(",") if d.strip())
+    pkgbuild_set = set(pkgbuild_deps)
+    new_deps = [d for d in pkgbuild_deps if d not in current_deps]
+    removed_deps = current_deps - pkgbuild_set  # in aur_deps aber nicht mehr im PKGBUILD
+
+    # Neue Deps: nur anlegen wenn sie auf AUR existieren
+    aur_new: list[str] = []
+    if new_deps:
+        aur_qs = "&".join(f"arg[]={d}" for d in new_deps)
+        try:
+            with urllib.request.urlopen(
+                f"https://aur.archlinux.org/rpc/v5/info?{aur_qs}", timeout=8
+            ) as r:
+                aur_data = json.loads(r.read())
+            aur_new = [res["Name"] for res in aur_data.get("results", [])]
+        except Exception as e:
+            log.warning("_sync_pkgbuild_deps(debian): AUR-Check für '%s' fehlgeschlagen: %s", item_id, e)
+
+    if aur_new or removed_deps:
+        updated_deps = (current_deps | set(aur_new)) - removed_deps
+        store.update(item_id, {"aur_deps": ", ".join(sorted(updated_deps))})
+        if aur_new:
+            autocreate_deps(item_id, {"aur_deps": ", ".join(sorted(updated_deps))}, store)
+            log.info("_sync_pkgbuild_deps(debian): '%s' – neue Deps: %s", item_id, ", ".join(aur_new))
+        if removed_deps:
+            log.info(
+                "_sync_pkgbuild_deps(debian): '%s' – Deps entfernt: %s", item_id, ", ".join(removed_deps)
+            )
+
+
+# ── Build mit Dep-Graph ────────────────────────────────────────────────────────
+
+
+def build_package_with_deps(item_id: str, notify: bool = True) -> None:
+    """Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem
+    Hauptpaket. 1:1 nach archlinux/jobs.py::build_package_with_deps."""
+    from astrapi_packages.modules.debian import store
+
+    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
+
+    _sync_pkgbuild_deps(item_id, store)
+
+    repo_path = _repo_path()
+
+    try:
+        build_order = resolve_build_order([item_id], store)
+    except CyclicDependencyError as e:
+        store.update(
+            item_id,
+            {"last_status": _status.ERROR, "last_run": _now(), "last_log": str(e)},
+        )
+        return
+
+    # Pending-Status für alle noch zu bauenden Einträge setzen
+    for pending_id in build_order:
+        if not is_up_to_date(pending_id, repo_path):
+            store.update(pending_id, {"last_status": _status.PENDING})
+
+    # Deps zuerst bauen (alles außer dem Hauptpaket)
+    for dep_id in build_order:
+        if dep_id == item_id:
+            continue
+        if is_up_to_date(dep_id, repo_path):
+            log.info("debian.build_with_deps: Dep '%s' bereits aktuell, übersprungen", dep_id)
+            continue
+        log.info("debian.build_with_deps: baue Dep '%s'", dep_id)
+        build_package(dep_id, notify=notify)
+        dep_item = store.get(dep_id)
+        if dep_item and dep_item.get("last_status") == _status.ERROR:
+            store.update(
+                item_id,
+                {
+                    "last_status": _status.ERROR,
+                    "last_run": _now(),
+                    "last_log": f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.\n\n"
+                    f"{dep_item.get('last_log', '')}",
+                },
+            )
+            return
+
+    build_package(item_id, notify=notify)
+
+
+# ── Orphan-Markierung ──────────────────────────────────────────────────────────
+
+
+def mark_orphan_deps() -> None:
+    """Markiert verwaiste Dep-Einträge und hebt veraltete Markierungen auf.
+
+    1:1 nach archlinux/jobs.py::mark_orphan_deps.
+    """
+    from astrapi_packages.modules.debian import store
+
+    from .utils.dep_graph import find_all_orphan_deps
+
+    all_items = store.list()
+    orphan_ids = set(find_all_orphan_deps(store))
+
+    newly_orphaned: list[str] = []
+    newly_adopted: list[str] = []
+
+    for item_id, item_data in all_items.items():
+        if item_data.get("pkg_type") != "dependency":
+            continue
+        was_orphan = bool(item_data.get("orphaned"))
+        is_orphan = item_id in orphan_ids
+        if is_orphan and not was_orphan:
+            store.update(item_id, {"orphaned": True})
+            newly_orphaned.append(item_id)
+            log.info("mark_orphan_deps(debian): '%s' als verwaist markiert", item_id)
+        elif not is_orphan and was_orphan:
+            store.update(item_id, {"orphaned": False})
+            newly_adopted.append(item_id)
+            log.info("mark_orphan_deps(debian): '%s' ist nicht mehr verwaist", item_id)
+
+    log.info(
+        "mark_orphan_deps(debian): %d neu verwaist, %d wieder referenziert",
+        len(newly_orphaned),
+        len(newly_adopted),
+    )
+
+
+# ── Zentraler Run-Router: run_single ─────────────────────────────────────────
+
+
 def run_single(item_id: str) -> None:
     """Einstiegspunkt für den zentralen Run-Router (der bereits einen eigenen
-    activity_log-Kontext gesetzt hat, siehe api/run.py). build_package()
-    schreibt dabei direkt in den vom Router vorgegebenen Kontext
-    (own_log_entry=False) statt einen eigenen zu öffnen."""
-    build_package(item_id, own_log_entry=False)
+    activity_log-Kontext gesetzt hat, siehe api/run.py).
+
+    Löst den Dependency-Graph auf und baut alle fehlenden Deps vor dem
+    Hauptpaket. build_package() schreibt dabei direkt in den vom Router
+    vorgegebenen Kontext (own_log_entry=False) statt einen eigenen zu öffnen.
+    """
+    from astrapi_core.system.logger import log as _log
+
+    from astrapi_packages.modules.debian import store as _store
+
+    from .utils.dep_graph import CyclicDependencyError, is_up_to_date, resolve_build_order
+
+    item = _store.get(item_id)
+    if not item:
+        _log("ERROR", f"Paket '{item_id}' nicht gefunden")
+        return
+
+    _sync_pkgbuild_deps(item_id, _store)
+
+    try:
+        build_order = resolve_build_order([item_id], _store)
+    except CyclicDependencyError as e:
+        _store.update(item_id, {"last_status": _status.ERROR, "last_run": _now()})
+        _log("ERROR", str(e))
+        return
+
+    repo_path = _repo_path()
+
+    # Pending-Status für alle noch zu bauenden Einträge setzen
+    for pid in build_order:
+        if not is_up_to_date(pid, repo_path):
+            _store.update(pid, {"last_status": _status.PENDING})
+
+    # Deps zuerst bauen
+    for dep_id in build_order:
+        if dep_id == item_id:
+            continue
+        if is_up_to_date(dep_id, repo_path):
+            _log("INFO", f"Dep '{dep_id}' bereits aktuell, übersprungen")
+            continue
+        _log("INFO", f"Baue Abhängigkeit: {dep_id}")
+        build_package(dep_id, notify=True, own_log_entry=False)
+        dep_item = _store.get(dep_id)
+        if dep_item and dep_item.get("last_status") == _status.ERROR:
+            _store.update(item_id, {"last_status": _status.ERROR, "last_run": _now()})
+            _log("ERROR", f"Abhängigkeit '{dep_id}' konnte nicht gebaut werden.")
+            return
+
+    _log("INFO", f"Baue: {item_id}")
+    build_package(item_id, notify=True, own_log_entry=False)
 
 
 def update_all_packages() -> None:
@@ -598,12 +801,13 @@ def update_all_packages() -> None:
     for item_id in to_build:
         store.update(item_id, {"last_status": _status.PENDING})
 
-    # Phase 3: nacheinander bauen.
+    # Phase 3: nacheinander bauen. build_package_with_deps() loest dabei den
+    # Dependency-Graph auf und baut fehlende/veraltete Deps zuerst.
     built_count = 0
     errors: list[str] = []
     for item_id in to_build:
         try:
-            build_package(item_id, notify=False)
+            build_package_with_deps(item_id, notify=False)
             if (store.get(item_id) or {}).get("last_status") == _status.OK:
                 built_count += 1
             else:
@@ -639,7 +843,18 @@ def update_all_packages() -> None:
 
 
 def delete_package(item_id: str, item: dict) -> None:
-    """Entfernt .deb-Dateien aus dem Repository-Verzeichnis und aktualisiert den Index."""
+    """Entfernt .deb-Dateien aus dem Repository-Verzeichnis und aktualisiert den Index.
+
+    Löscht außerdem verwaiste Dependency-Einträge die nur von diesem Paket
+    benötigt wurden (1:1 nach archlinux/jobs.py::delete_package).
+    """
+    from astrapi_packages.modules.debian import store
+
+    from .utils.dep_graph import find_orphan_deps
+
+    # Verwaiste Deps ermitteln BEVOR der Eintrag geloescht wird
+    orphans = find_orphan_deps(item_id, store)
+
     try:
         repo_path = _repo_path()
         removed = 0
@@ -654,6 +869,14 @@ def delete_package(item_id: str, item: dict) -> None:
             _update_packages_index(repo_path)
     except Exception as e:
         log.warning("debian.delete: %s", e)
+
+    for orphan_id in orphans:
+        orphan_item = store.get(orphan_id)
+        if orphan_item is None:
+            continue
+        log.info("debian.delete: verwaiste Dep '%s' wird mitgelöscht", orphan_id)
+        delete_package(orphan_id, orphan_item)
+        store.delete(orphan_id)
 
 
 def _trigger_mirror_sync(item_id: str) -> None:

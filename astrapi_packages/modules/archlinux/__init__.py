@@ -69,6 +69,8 @@ module = load_modul(
                 "Neu",
                 hx_get=f"/ui/{_KEY}/create",
                 hx_target="body",
+                style="primary",
+                icon="plus",
             ),
         ]
     ),

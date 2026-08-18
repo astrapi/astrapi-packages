@@ -110,6 +110,12 @@ def _running_fn() -> dict:
     }
 
 
+def _delete_preview(item_id: str) -> list[str]:
+    from ..utils.dep_graph import find_orphan_deps
+
+    return find_orphan_deps(item_id, store)
+
+
 _crud = make_crud_router(
     store,
     KEY,
@@ -119,6 +125,7 @@ _crud = make_crud_router(
     has_run_buttons=True,
     has_toggle=False,
     running_fn=_running_fn,
+    delete_preview_fn=_delete_preview,
 )
 
 # Eigene Routen werden ZUERST auf diesem Router registriert,
@@ -205,7 +212,11 @@ async def create_apply(request: Request):
         "source_subdir": form.get("source_subdir", "").strip(),
         "aur_deps": form.get("aur_deps", "").strip(),
         "image": form.get("image", "").strip(),
-        "pkg_type": form.get("pkg_type", "package").strip() or "package",
+        # Nicht aus dem Formular uebernehmen: pkg_type ist keine Nutzereingabe
+        # mehr, sondern rein vom System verwaltet (manuell angelegt = immer
+        # "package"; "dependency" setzt ausschliesslich autocreate_deps()
+        # weiter unten, fuer automatisch nachgezogene Abhaengigkeiten).
+        "pkg_type": "package",
         "enabled": "enabled" in form,
         # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
         # dort noch '' (T-134), SQLite aendert den Default nicht nachtraeglich.
@@ -249,7 +260,8 @@ async def edit_apply(item_id: str, request: Request):
             "source_subdir": form.get("source_subdir", "").strip(),
             "aur_deps": form.get("aur_deps", "").strip(),
             "image": form.get("image", "").strip(),
-            "pkg_type": form.get("pkg_type", "package").strip() or "package",
+            # pkg_type bewusst nicht aus dem Formular -- bleibt unveraendert
+            # (siehe create_apply weiter oben).
             "enabled": "enabled" in form,
         }
         store.update(item_id, data)

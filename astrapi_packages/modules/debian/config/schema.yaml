@@ -11,6 +11,12 @@ fields:
     placeholder: "https://github.com/example/mypackage.git"
     max:         500
 
+  - name:        aur_deps
+    label:       Abhängigkeiten
+    type:        text
+    placeholder: "pkg-a, pkg-b"
+    max:         1000
+
   - name:        pkg_type
     label:       Typ
     type:        select

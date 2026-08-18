@@ -8,7 +8,8 @@ Zustaende
 ---------
 NEU       Eintrag angelegt, noch nie gebaut.
 BUILDING  Bau laeuft.
-PENDING   Fuer einen Bau eingeplant (nur archlinux, als Abhaengigkeit).
+PENDING   Fuer einen Bau eingeplant (Abhaengigkeits-Warteschlange, archlinux
+          und debian).
 OK        Bau erfolgreich abgeschlossen.
 ERROR     Bau ausgefuehrt und fehlgeschlagen -- oder ein Lauf, der beim
           App-Neustart mitten in BUILDING/PENDING unterbrochen wurde

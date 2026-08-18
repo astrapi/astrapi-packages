@@ -33,6 +33,7 @@
         Paket suchen <span style="color:var(--error)">*</span>
       </label>
       <button type="button" class="btn-icon" title="Paketliste jetzt neu laden (statt bis zu 5 Min. zu warten)"
+              aria-label="Paketliste jetzt neu laden"
               hx-post="/ui/debian/pkg-cache/refresh"
               hx-include="#pkg-search-input"
               hx-target="#pkg-search-results">
@@ -83,13 +84,19 @@
 </div>
 {% endif %}
 
-{# ── Typ ────────────────────────────────────────────────────────────── #}
+{# ── Abhängigkeiten: kommt aus dem PKGBUILD (depends/makedepends), nicht
+   manuell editierbar -- readonly (nicht disabled: der Wert muss beim
+   Anlegen/Bearbeiten trotzdem mit abgeschickt werden, damit er erhalten
+   bleibt; aktualisiert wird er separat bei jedem Bau via
+   _sync_pkgbuild_deps() in jobs.py). ── #}
 <div>
-  <label class="form-label">Typ</label>
-  {{ form_select('pkg_type',
-                 [{'value':'package','label':'Paket'},{'value':'dependency','label':'Abhängigkeit'}],
-                 (item or {}).get('pkg_type') or 'package',
-                 placeholder='') }}
+  <label class="form-label" for="field-aur-deps">Abhängigkeiten</label>
+  {{ form_input('aur_deps', (item or {}).get('aur_deps', ''), placeholder='(wird aus dem PKGBUILD übernommen)',
+               attrs='id="field-aur-deps" readonly style="opacity:.6; cursor:not-allowed;"') }}
+  <span class="form-hint" style="font-size:11px;margin-top:3px;display:block;">
+    Kommt aus depends/makedepends des PKGBUILD, wird bei jedem Bau aktualisiert
+    und die zugehörigen Einträge werden automatisch angelegt.
+  </span>
 </div>
 
 {# ── Build-Image ───────────────────────────────────────────────────── #}
