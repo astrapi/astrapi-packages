@@ -98,7 +98,25 @@ def run_single(item_id: str) -> None:
             store.upsert(item_id, {"last_status": "error", "last_run": _now()})
             return
 
-        cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(build_dir)]
+        # --network=host: urspruenglich als Verdacht gegen TLS-Abbrueche
+        # waehrend eines Builds ergaenzt (Docker-Bridge-MTU) -- die
+        # tatsaechliche Ursache war stattdessen AUR selbst, das zum
+        # Testzeitpunkt nicht erreichbar war (siehe packages_builders,
+        # arch-builder/Dockerfile). Bleibt trotzdem drin: die echte
+        # Netzwerkkonfiguration des Hosts statt der virtuellen Bridge zu
+        # nutzen ist unabhaengig davon sinnvoll fuer Builds mit
+        # Netzwerkzugriff.
+        cmd = [
+            "docker",
+            "build",
+            "--no-cache",
+            "--network=host",
+            "-t",
+            f"{image}:{tag}",
+            "-f",
+            str(dockerfile),
+            str(build_dir),
+        ]
         _log("INFO", f"$ {' '.join(cmd)}")
 
         rc, _out = _run(cmd, _TIMEOUT_BUILD)
