@@ -30,6 +30,44 @@ _log = logging.getLogger(__name__)
 
 _TABELLEN = ("archlinux_packages", "debian_packages")
 
+_BUILDER_IMAGE_DEFAULTS = (
+    {
+        "id": "arch-builder",
+        "source_url": "https://github.com/astrapi/packages_builders",
+        "source_subdir": "arch-builder",
+        "tag": "latest",
+        "module": "archlinux",
+    },
+    {
+        "id": "debian-builder",
+        "source_url": "https://github.com/astrapi/packages_builders",
+        "source_subdir": "debian-builder",
+        "tag": "latest",
+        "module": "debian",
+    },
+    {
+        "id": "debian-builder-rust",
+        "source_url": "https://github.com/astrapi/packages_builders",
+        "source_subdir": "debian-builder-rust",
+        "tag": "latest",
+        "module": "debian",
+    },
+    {
+        "id": "debian-builder-python",
+        "source_url": "https://github.com/astrapi/packages_builders",
+        "source_subdir": "debian-builder-python",
+        "tag": "latest",
+        "module": "debian",
+    },
+    {
+        "id": "debian-builder-php",
+        "source_url": "https://github.com/astrapi/packages_builders",
+        "source_subdir": "debian-builder-php",
+        "tag": "latest",
+        "module": "debian",
+    },
+)
+
 
 def _spalte_vorhanden(con, tabelle: str, spalte: str) -> bool:
     """False auch dann, wenn es die Tabelle noch gar nicht gibt.
@@ -122,6 +160,30 @@ def _normalisiere_leeren_status() -> None:
         _log.info("normalisiere_leeren_status: %d Eintraege von '' auf 'neu' gesetzt", gesamt)
 
 
+def _seed_builder_images() -> None:
+    """Traegt die bekannten Builder-Images nach, falls sie fehlen.
+
+    `feature/builder-git-based` hat die statische `images.yaml` durch die
+    DB-Tabelle `builder_images` ersetzt, ohne die frueheren Eintraege zu
+    migrieren. Auf einem frischen Produktiv-Update stuende die Tabelle sonst
+    leer da -- bestehende Pakete sind davon unabhaengig (ihr `image`-Feld ist
+    ein reiner Text-Snapshot), aber die Image-Verwaltung selbst haette keine
+    Eintraege mehr zum Bauen/Aktualisieren.
+
+    Idempotent -- fuellt nur fehlende IDs auf, ueberschreibt keine bereits
+    (ggf. abweichend) angelegten Zeilen.
+    """
+    from astrapi_packages.modules.builder import store as builder_store
+
+    for defaults in _BUILDER_IMAGE_DEFAULTS:
+        item_id = defaults["id"]
+        try:
+            if builder_store.get(item_id) is None:
+                builder_store.create(item_id, {k: v for k, v in defaults.items() if k != "id"})
+        except Exception as e:
+            _log.warning("seed_builder_images: %s: %s", item_id, e)
+
+
 def _db_check() -> tuple[bool, dict]:
     from astrapi_core.system.db import _conn
 
@@ -146,6 +208,7 @@ def create_app() -> FastAPI:
     settings_init(work_dir())
 
     modules, _ = load_modules(_pkg)
+    _seed_builder_images()
     _reset_stale_status()
     _normalisiere_leeren_status()
     api = create_api(modules=modules)
