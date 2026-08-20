@@ -261,6 +261,7 @@ def build_package(item_id: str, notify: bool = True, own_log_entry: bool = True)
     output = f"{cmd_repr}\n\n{raw_output}"
 
     if rc == 0:
+        _cleanup_old_debs(repo_path, item_id)
         _update_packages_index(repo_path)
         _trigger_mirror_sync(item_id)
 
@@ -457,6 +458,25 @@ def _update_packages_index(repo_path: Path) -> None:
         log.warning("debian: Index-Aktualisierung fehlgeschlagen: %s", e)
         _write_release_file(repo_path)
         _sign_release(repo_path)
+
+
+def _cleanup_old_debs(repo_path: Path, item_id: str) -> None:
+    """Entfernt aeltere .deb-Dateien desselben Pakets, behaelt nur die zuletzt gebaute.
+
+    Anders als beim Archlinux-Modul (repo-add --remove raeumt Alt-Dateien
+    automatisch mit auf) baut der Debian-Build-Schritt jede Version unter
+    eigenem Dateinamen (<pkgname>_<pkgver>-<pkgrel>_<arch>.deb) -- ohne
+    dieses Aufraeumen blieben aeltere Versionen dauerhaft im Repo liegen.
+    Sortierung nach mtime statt Versionsvergleich, weil die zuletzt gebaute
+    Datei garantiert die juengste ist, unabhaengig vom Versionsschema.
+    """
+    debs = sorted(repo_path.glob(f"{item_id}_*.deb"), key=lambda p: p.stat().st_mtime)
+    for old in debs[:-1]:
+        try:
+            old.unlink()
+            log.info("debian.build: alte Paketdatei entfernt: %s", old.name)
+        except Exception as e:
+            log.warning("debian.build: konnte %s nicht entfernen: %s", old.name, e)
 
 
 def _extract_version(repo_path: Path, item_id: str) -> str | None:
