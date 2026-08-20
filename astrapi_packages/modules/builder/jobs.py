@@ -1,6 +1,7 @@
 """app/modules/docker/jobs.py – Build- und Update-Logik für Docker-Images."""
 
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -9,7 +10,7 @@ from astrapi_core.system.format import fmt_now as _now
 from astrapi_core.system.logger import log as _log
 
 _TIMEOUT_BUILD = 3600  # 1 Stunde max. für docker build
-_BUILDER_DIR = Path(__file__).parent
+_TIMEOUT_CLONE = 60
 
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
@@ -58,25 +59,67 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
 
 
 def run_single(item_id: str) -> None:
-    """Baut ein Docker-Image. Ausgabe via log() → Activity-Log (SSE-fähig)."""
-    from astrapi_packages.modules.builder import IMAGES, store
+    """Baut ein Docker-Image: klont source_url frisch und baut daraus.
 
-    if item_id not in IMAGES:
-        _log("ERROR", f"Image '{item_id}' nicht in IMAGES definiert")
+    Kein lokaler Dockerfile-Bestand mehr -- analog zum Git-basierten
+    Build-Ablauf bei debian/archlinux-Paketen (jobs.py::_build_cmd).
+    """
+    from astrapi_packages.modules.builder import store
+
+    item = store.get(item_id)
+    if item is None:
+        _log("ERROR", f"Image '{item_id}' nicht gefunden")
+        return
+
+    source_url = item.get("source_url", "")
+    if not source_url:
+        _log("ERROR", f"Keine Git-URL fuer '{item_id}' hinterlegt.")
+        store.upsert(item_id, {"last_status": "error", "last_run": _now()})
         return
 
     image = f"ctl/{item_id}"
-    tag = IMAGES[item_id].get("tag", "latest")
-    _dd = IMAGES[item_id].get("dockerfile_dir", "dockerfiles")
-    dockerfile_dir = Path(_dd) if Path(_dd).is_absolute() else (_BUILDER_DIR / _dd).resolve()
-    dockerfile = dockerfile_dir / f"{item_id}.dockerfile"
+    tag = item.get("tag") or "latest"
+    subdir = item.get("source_subdir", "")
 
     store.upsert(item_id, {"last_status": "building", "last_run": _now()})
 
-    cmd = ["docker", "build", "--no-cache", "-t", f"{image}:{tag}", "-f", str(dockerfile), str(dockerfile_dir)]
-    _log("INFO", f"$ {' '.join(cmd)}")
+    with tempfile.TemporaryDirectory(prefix="astrapi-builder-") as tmp:
+        clone_cmd = ["git", "clone", "--depth=1", source_url, tmp]
+        _log("INFO", f"$ {' '.join(clone_cmd)}")
+        rc, _out = _run(clone_cmd, _TIMEOUT_CLONE)
+        if rc != 0:
+            store.upsert(item_id, {"last_status": "error", "last_run": _now()})
+            return
 
-    rc, _ = _run(cmd, _TIMEOUT_BUILD)
+        build_dir = (Path(tmp) / subdir) if subdir else Path(tmp)
+        dockerfile = build_dir / "Dockerfile"
+        if not dockerfile.exists():
+            _log("ERROR", f"Datei 'Dockerfile' nicht in '{build_dir}' gefunden.")
+            store.upsert(item_id, {"last_status": "error", "last_run": _now()})
+            return
+
+        # --network=host: urspruenglich als Verdacht gegen TLS-Abbrueche
+        # waehrend eines Builds ergaenzt (Docker-Bridge-MTU) -- die
+        # tatsaechliche Ursache war stattdessen AUR selbst, das zum
+        # Testzeitpunkt nicht erreichbar war (siehe packages_builders,
+        # arch-builder/Dockerfile). Bleibt trotzdem drin: die echte
+        # Netzwerkkonfiguration des Hosts statt der virtuellen Bridge zu
+        # nutzen ist unabhaengig davon sinnvoll fuer Builds mit
+        # Netzwerkzugriff.
+        cmd = [
+            "docker",
+            "build",
+            "--no-cache",
+            "--network=host",
+            "-t",
+            f"{image}:{tag}",
+            "-f",
+            str(dockerfile),
+            str(build_dir),
+        ]
+        _log("INFO", f"$ {' '.join(cmd)}")
+
+        rc, _out = _run(cmd, _TIMEOUT_BUILD)
 
     if rc == 0:
         _run(["docker", "image", "prune", "-f"], timeout=60)

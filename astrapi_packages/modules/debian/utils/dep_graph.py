@@ -1,7 +1,13 @@
-"""app/modules/archlinux/dep_graph.py – Dependency-Graph-Logik für AUR-Pakete.
+"""app/modules/debian/dep_graph.py – Dependency-Graph-Logik für Debian-Pakete.
+
+1:1 nach dem Vorbild von archlinux/utils/dep_graph.py (gleiches PKGBUILD-
+basiertes Abhängigkeitsmodell, siehe "Bridge-Ansatz" in beschreibung.md).
+Auto-angelegte Abhängigkeiten werden weiterhin über AUR aufgelöst (dort
+liegt die Quelle, auch wenn daraus ein .deb statt eines Arch-Pakets gebaut
+wird).
 
 ACHTUNG (G-019, siehe projects/packages/grundsaetze.md): diese Datei ist
-bewusst eine eigenstaendige 1:1-Vorlage fuer debian/utils/dep_graph.py,
+bewusst eine eigenstaendige 1:1-Kopie von archlinux/utils/dep_graph.py,
 keine gemeinsame Utility. Bei Aenderungen hier IMMER auch das Schwester-
 modul pruefen und die Aenderung dort nachziehen, falls sinnvoll -- gleiches
 gilt fuer die zugehoerige Logik in jobs.py (_sync_pkgbuild_deps,
@@ -32,12 +38,12 @@ def parse_aur_deps(item: dict) -> list[str]:
     return [d.strip() for d in raw.split(",") if d.strip()]
 
 
-def is_up_to_date(item_id: str, repo_path: str) -> bool:
+def is_up_to_date(item_id: str, repo_path) -> bool:
     """Prüft ob ein gebautes Paket bereits im Repo-Verzeichnis liegt."""
     import glob
     import os
 
-    pattern = os.path.join(repo_path, f"{item_id}-*.pkg.tar.*")
+    pattern = os.path.join(str(repo_path), f"{item_id}_*.deb")
     return bool(glob.glob(pattern))
 
 
@@ -47,8 +53,7 @@ def is_up_to_date(item_id: str, repo_path: str) -> bool:
 def resolve_build_order(start_ids: list[str], store) -> list[str]:
     """Gibt die Build-Reihenfolge zurück (Blätter zuerst, Hauptpaket zuletzt).
 
-    Ignoriert Deps die nicht im Store vorhanden sind – diese werden von
-    Pacman/yay direkt aufgelöst.
+    Ignoriert Deps die nicht im Store vorhanden sind.
 
     Raises:
         CyclicDependencyError: wenn ein Zyklus erkannt wird.
@@ -56,7 +61,7 @@ def resolve_build_order(start_ids: list[str], store) -> list[str]:
     all_items = store.list()
 
     # Phase 1: Graph aufbauen (BFS, nur Store-bekannte Knoten)
-    graph: dict[str, set[str]] = {}  # node → {deps die auch im Store sind}
+    graph: dict[str, set[str]] = {}
     visited: set[str] = set()
     queue: deque[str] = deque(start_ids)
 
@@ -75,7 +80,6 @@ def resolve_build_order(start_ids: list[str], store) -> list[str]:
                 queue.append(dep)
 
     # Phase 2: Topologische Sortierung via Kahn
-    # in_degree: wie viele Deps muss ein Knoten noch warten?
     in_degree: dict[str, int] = {n: len(graph.get(n, set())) for n in visited}
     reverse: dict[str, set[str]] = {n: set() for n in visited}
     for node, deps in graph.items():
@@ -94,7 +98,6 @@ def resolve_build_order(start_ids: list[str], store) -> list[str]:
             if in_degree[dependent] == 0:
                 kahn_queue.append(dependent)
 
-    # Zykluserkennung: nicht alle Knoten sortiert → Zyklus
     if len(order) < len(visited):
         cycle_nodes = [n for n in visited if n not in set(order)]
         raise CyclicDependencyError(
@@ -137,7 +140,7 @@ def autocreate_deps(item_id: str, item: dict, store) -> list[str]:
                 },
             )
             created.append(dep_name)
-            log.info("dep_graph: Dep-Eintrag '%s' automatisch angelegt", dep_name)
+            log.info("dep_graph(debian): Dep-Eintrag '%s' automatisch angelegt", dep_name)
         except KeyError:
             pass  # Race condition: zwischenzeitlich angelegt
 
@@ -180,7 +183,6 @@ def find_orphan_deps(deleted_id: str, store) -> list[str]:
     if not deps_of_deleted:
         return []
 
-    # Welche Deps werden noch von anderen Paketen benötigt?
     still_needed: set[str] = set()
     for pkg_id, pkg_data in all_items.items():
         if pkg_id == deleted_id:
@@ -189,5 +191,4 @@ def find_orphan_deps(deleted_id: str, store) -> list[str]:
             still_needed.add(d)
 
     orphans = deps_of_deleted - still_needed
-    # Nur auto-angelegte Dependencies löschen, keine manuellen Pakete
     return [o for o in orphans if all_items.get(o, {}).get("pkg_type") == "dependency"]

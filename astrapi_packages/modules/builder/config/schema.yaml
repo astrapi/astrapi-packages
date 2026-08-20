@@ -1,0 +1,40 @@
+id_field:
+  name:        id
+  label:       Image-ID
+  placeholder: "z.B. arch-builder"
+  max:         100
+
+fields:
+  - name:        source_url
+    label:       Git-URL
+    type:        text
+    placeholder: "https://github.com/example/my-builders.git"
+    max:         500
+    row:         1
+
+  - name:        source_subdir
+    label:       Unterordner (optional)
+    type:        text
+    placeholder: "z.B. arch-builder -- leer = Repo-Wurzel"
+    max:         200
+    row:         2
+
+  - name:    tag
+    label:   Tag
+    type:    text
+    default: latest
+    max:     50
+    row:     2
+
+  - name:    module
+    label:   Fach-Modul
+    type:    select
+    options:
+      - value: ""
+        label: (keins)
+      - value: debian
+        label: Debian
+      - value: archlinux
+        label: Arch Linux
+    default: ""
+    row:     2

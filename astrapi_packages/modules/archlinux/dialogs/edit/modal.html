@@ -32,6 +32,7 @@
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="form-hint" id="pkg-search-hint" style="font-size:11px;"></span>
         <button type="button" class="btn-icon" title="Paketliste jetzt neu laden (statt bis zu 5 Min. zu warten)"
+                aria-label="Paketliste jetzt neu laden"
                 hx-post="/ui/archlinux/pkg-cache/refresh"
                 hx-include="#pkg-search-input"
                 hx-target="#pkg-search-results">
@@ -61,21 +62,23 @@
   <input type="hidden" name="source_url"       id="field-source-url"       value="{{ _source_url }}">
   <input type="hidden" name="pkg_name"         id="field-pkg-name-aur"     value="{{ _pkg_name }}">
   <input type="hidden" name="source_subdir"    id="field-source-subdir"    value="{{ (item or {}).get('source_subdir', '') }}">
-  <input type="hidden" name="pkg_type"         value="{{ (item or {}).get('pkg_type', 'package') }}">
   <input type="hidden" name="upstream_version" id="field-upstream-version" value="">
   <span class="form-error" id="source-url-error"></span>
 </div>
 
-{# ── AUR-Abhängigkeiten ───────────────────────────────────────────── #}
+{# ── AUR-Abhängigkeiten: kommt aus dem PKGBUILD (depends/makedepends) bzw.
+   der AUR-Suche, nicht manuell editierbar -- readonly (nicht disabled: der
+   Wert wird beim Auswaehlen eines Suchtreffers per JS befuellt und muss
+   beim Anlegen mit abgeschickt werden; aktualisiert wird er zusaetzlich bei
+   jedem Bau via _sync_pkgbuild_deps() in jobs.py). ── #}
 <div>
-  <label class="form-label" for="field-aur-deps">
-    AUR-Abhängigkeiten
-    <span class="form-hint" style="font-weight:normal;margin-left:4px;">kommagetrennte Paketnamen</span>
-  </label>
-  {{ form_input('aur_deps', (item or {}).get('aur_deps', ''), placeholder='pkg-a, pkg-b',
-               attrs='id="field-aur-deps"') }}
+  <label class="form-label" for="field-aur-deps">AUR-Abhängigkeiten</label>
+  {{ form_input('aur_deps', (item or {}).get('aur_deps', ''), placeholder='(wird aus dem PKGBUILD übernommen)',
+               attrs='id="field-aur-deps" readonly style="opacity:.6; cursor:not-allowed;"') }}
   <span class="form-hint" style="font-size:11px;margin-top:3px;display:block;">
-    Abhängigkeiten die nicht in den offiziellen Repos sind. Werden automatisch als Einträge angelegt und vor diesem Paket gebaut.
+    Abhängigkeiten die nicht in den offiziellen Repos sind. Kommt aus
+    depends/makedepends des PKGBUILD bzw. der AUR-Suche, wird bei jedem Bau
+    aktualisiert und die zugehörigen Einträge werden automatisch angelegt.
   </span>
 </div>
 

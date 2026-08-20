@@ -22,6 +22,7 @@ store = DebianPackageStore()
 class ItemIn(BaseModel):
     name: Optional[str] = ""
     source_url: Optional[str] = ""
+    aur_deps: Optional[str] = ""
     pkg_type: Optional[str] = "package"
     enabled: bool = True
 
@@ -41,6 +42,12 @@ _ui_content = ContentTable(
         Col.version_badge("last_version", "Version"),
         Col.text("pkg_type_label", "Typ", css="col-type"),
         Col.text("source_type_label", "Quelle", css="col-type"),
+        Col.badge_enum(
+            "orphaned_label",
+            "",
+            {"verwaist": {"label": "verwaist", "cls": "badge-status-warn"}},
+            css="col-type",
+        ),
     ],
     last_run_label="Letzter Build",
 )
@@ -64,6 +71,8 @@ module = load_modul(
                 "Neu",
                 hx_get=f"/ui/{_KEY}/create",
                 hx_target="body",
+                style="primary",
+                icon="plus",
             ),
         ]
     ),
@@ -74,12 +83,19 @@ module = load_modul(
 try:
     from astrapi_core.modules.scheduler.engine import register_action
 
-    from .jobs import update_all_packages
+    from .jobs import mark_orphan_deps, update_all_packages
 
     register_action(
         f"{KEY}.update_all",
         "Debian: Aktualisieren",
         update_all_packages,
+        source=KEY,
+        source_label="Debian",
+    )
+    register_action(
+        f"{KEY}.mark_orphans",
+        "Debian: Verwaiste markieren",
+        mark_orphan_deps,
         source=KEY,
         source_label="Debian",
     )

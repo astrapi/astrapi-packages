@@ -1,5 +1,6 @@
-label:     Builder
-nav_group: Build
+label:          Builder
+nav_group:      Build
+settings_order: -1
 
 card_actions:
   - type: run

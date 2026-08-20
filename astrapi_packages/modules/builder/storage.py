@@ -1,66 +1,39 @@
-"""astrapi_packages.modules.debian.storage – DebianPackageStore.
+"""astrapi_packages.modules.builder.storage – BuilderImageStore.
 
-Eigene SQLite-Tabelle `debian_packages`.
-Primary Key ist der Paketname (TEXT).
+Eigene SQLite-Tabelle `builder_images`, Muster identisch zu
+astrapi_packages.modules.debian.storage.DebianPackageStore.
+Primary Key ist die Image-ID (TEXT).
 """
 
 from __future__ import annotations
 
 import threading
 
-_TABLE = "debian_packages"
+_TABLE = "builder_images"
 
 _DDL = """
-CREATE TABLE IF NOT EXISTS debian_packages (
-    name             TEXT PRIMARY KEY,
-    source_url       TEXT NOT NULL DEFAULT '',
-    source_subdir    TEXT NOT NULL DEFAULT '',
-    aur_deps         TEXT NOT NULL DEFAULT '',
-    image            TEXT NOT NULL DEFAULT '',
-    pkg_type         TEXT NOT NULL DEFAULT 'package',
-    enabled          INTEGER NOT NULL DEFAULT 1,
-    last_status      TEXT NOT NULL DEFAULT 'neu',
-    last_run         TEXT NOT NULL DEFAULT '',
-    last_log         TEXT NOT NULL DEFAULT '',
-    last_version     TEXT NOT NULL DEFAULT '',
-    upstream_version TEXT NOT NULL DEFAULT '',
-    orphaned         INTEGER NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS builder_images (
+    id            TEXT PRIMARY KEY,
+    source_url    TEXT NOT NULL DEFAULT '',
+    source_subdir TEXT NOT NULL DEFAULT '',
+    tag           TEXT NOT NULL DEFAULT 'latest',
+    module        TEXT NOT NULL DEFAULT '',
+    enabled       INTEGER NOT NULL DEFAULT 1,
+    last_status   TEXT NOT NULL DEFAULT 'neu',
+    last_run      TEXT NOT NULL DEFAULT ''
 )"""
 
 _COLS = (
-    "name",
+    "id",
     "source_url",
     "source_subdir",
-    "aur_deps",
-    "image",
-    "pkg_type",
+    "tag",
+    "module",
     "enabled",
     "last_status",
     "last_run",
-    "last_log",
-    "last_version",
-    "upstream_version",
-    "orphaned",
 )
-_BOOL_COLS = frozenset({"enabled", "orphaned"})
-
-_log = __import__("logging").getLogger(__name__)
-
-
-def _browse_url(source_url: str, name: str) -> str:
-    from urllib.parse import urlparse
-
-    if not source_url:
-        return ""
-    p = urlparse(source_url)
-    if not p.scheme:
-        return ""
-    path = p.path.strip("/").removesuffix(".git")
-    if p.netloc == "github.com":
-        return f"https://github.com/{path}/tree/main/{name}"
-    if "gitlab" in p.netloc:
-        return f"{p.scheme}://{p.netloc}/{path}/-/tree/main/{name}"
-    return f"{p.scheme}://{p.netloc}/{path}/src/branch/main/{name}"
+_BOOL_COLS = frozenset({"enabled"})
 
 
 def _db():
@@ -69,11 +42,11 @@ def _db():
     return _conn()
 
 
-class DebianPackageStore:
-    """SQLite-backed Store mit eigener Tabelle `debian_packages`.
+class BuilderImageStore:
+    """SQLite-backed Store mit eigener Tabelle `builder_images`.
 
     Interface kompatibel mit SqliteStorage für CRUD-Router und Jobs.
-    Primary Key ist der Paketname (TEXT).
+    Primary Key ist die Image-ID (TEXT).
     """
 
     def __init__(self):
@@ -88,22 +61,18 @@ class DebianPackageStore:
         try:
             db = _db()
             db.execute(_DDL)
-            try:
-                db.execute("ALTER TABLE debian_packages ADD COLUMN source_subdir TEXT NOT NULL DEFAULT ''")
-            except Exception:
-                pass
-            try:
-                db.execute("ALTER TABLE debian_packages ADD COLUMN image TEXT NOT NULL DEFAULT ''")
-            except Exception:
-                pass
-            try:
-                db.execute("ALTER TABLE debian_packages ADD COLUMN aur_deps TEXT NOT NULL DEFAULT ''")
-            except Exception:
-                pass
-            try:
-                db.execute("ALTER TABLE debian_packages ADD COLUMN orphaned INTEGER NOT NULL DEFAULT 0")
-            except Exception:
-                pass
+            # Frueherer Tabellenstand (Datei-Editor-Plan-Entwurf, verworfen)
+            # hatte kein source_url/source_subdir -- fuer bereits existierende
+            # DBs (CREATE TABLE IF NOT EXISTS greift dann nicht) nachziehen.
+            for col, ddl_type in (
+                ("source_url", "TEXT NOT NULL DEFAULT ''"),
+                ("source_subdir", "TEXT NOT NULL DEFAULT ''"),
+                ("enabled", "INTEGER NOT NULL DEFAULT 1"),
+            ):
+                try:
+                    db.execute(f"ALTER TABLE {_TABLE} ADD COLUMN {col} {ddl_type}")
+                except Exception:
+                    pass
             db.commit()
             self._table_ready = True
             return True
@@ -113,7 +82,7 @@ class DebianPackageStore:
     def _get_row(self, item_id: str):
         """Direkte DB-Abfrage ohne Lock – nur innerhalb von Lock-Blöcken verwenden."""
         return _db().execute(
-            f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE name=?", (item_id,)
+            f"SELECT {','.join(_COLS)} FROM {_TABLE} WHERE id=?", (item_id,)
         ).fetchone()
 
     def _row_to_dict(self, row) -> dict:
@@ -126,7 +95,7 @@ class DebianPackageStore:
         """Wandelt Python-Dict in DB-Spaltenwerte um (nur bekannte Spalten)."""
         row: dict = {}
         for col in _COLS:
-            if col == "name" and not include_pk:
+            if col == "id" and not include_pk:
                 continue
             if col not in data:
                 continue
@@ -140,16 +109,8 @@ class DebianPackageStore:
         if not self._ensure_table():
             return {}
         with self._lock:
-            rows = _db().execute(
-                f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY name"
-            ).fetchall()
+            rows = _db().execute(f"SELECT {','.join(_COLS)} FROM {_TABLE} ORDER BY id").fetchall()
         result = {r[0]: self._row_to_dict(r) for r in rows}
-        for item_id, item in result.items():
-            url = item.get("source_url", "")
-            item["browse_url"] = _browse_url(url, item_id)
-            item["source_type_label"] = "Repo" if url else ""
-            item["pkg_type_label"] = {"package": "Paket", "dependency": "Abhängigkeit"}.get(item.get("pkg_type", ""), "")
-            item["orphaned_label"] = "verwaist" if item.get("orphaned") else ""
         if filter_fn:
             result = {k: v for k, v in result.items() if filter_fn(k, v)}
         if offset:
@@ -177,7 +138,7 @@ class DebianPackageStore:
             if self._get_row(item_id) is not None:
                 raise KeyError(f"'{item_id}' existiert bereits")
             row = self._to_db(data, include_pk=True)
-            row["name"] = item_id
+            row["id"] = item_id
             cols = list(row.keys())
             db = _db()
             db.execute(
@@ -199,7 +160,7 @@ class DebianPackageStore:
             db = _db()
             sets = ", ".join(f"{k}=?" for k in row)
             db.execute(
-                f"UPDATE {_TABLE} SET {sets} WHERE name=?",
+                f"UPDATE {_TABLE} SET {sets} WHERE id=?",
                 [*row.values(), item_id],
             )
             db.commit()
@@ -215,11 +176,11 @@ class DebianPackageStore:
             if self._get_row(item_id) is not None:
                 sets = ", ".join(f"{k}=?" for k in row)
                 db.execute(
-                    f"UPDATE {_TABLE} SET {sets} WHERE name=?",
+                    f"UPDATE {_TABLE} SET {sets} WHERE id=?",
                     [*row.values(), item_id],
                 )
             else:
-                row["name"] = item_id
+                row["id"] = item_id
                 cols = list(row.keys())
                 db.execute(
                     f"INSERT INTO {_TABLE} ({','.join(cols)}) VALUES ({','.join(['?'] * len(cols))})",
@@ -235,7 +196,7 @@ class DebianPackageStore:
             if self._get_row(item_id) is None:
                 raise KeyError(f"'{item_id}' nicht gefunden")
             db = _db()
-            db.execute(f"DELETE FROM {_TABLE} WHERE name=?", (item_id,))
+            db.execute(f"DELETE FROM {_TABLE} WHERE id=?", (item_id,))
             db.commit()
         return True
 
@@ -243,17 +204,13 @@ class DebianPackageStore:
         if not self._ensure_table():
             raise RuntimeError("DB nicht verfügbar")
         with self._lock:
-            row = _db().execute(
-                f"SELECT {field} FROM {_TABLE} WHERE name=?", (item_id,)
-            ).fetchone()
+            row = _db().execute(f"SELECT {field} FROM {_TABLE} WHERE id=?", (item_id,)).fetchone()
             if row is None:
                 raise KeyError(f"'{item_id}' nicht gefunden")
             new_val = 0 if row[0] else 1
-            _db().execute(
-                f"UPDATE {_TABLE} SET {field}=? WHERE name=?", (new_val, item_id)
-            )
+            _db().execute(f"UPDATE {_TABLE} SET {field}=? WHERE id=?", (new_val, item_id))
             _db().commit()
         return bool(new_val)
 
     def __repr__(self) -> str:
-        return f"DebianPackageStore(table={_TABLE!r})"
+        return f"BuilderImageStore(table={_TABLE!r})"
