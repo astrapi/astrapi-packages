@@ -507,7 +507,7 @@ def _extract_version(repo_path: Path, item_id: str) -> str | None:
 
 
 def _sync_pkgbuild_deps(item_id: str, store) -> None:
-    """Liest depends/makedepends aus der PKGBUILD und legt fehlende AUR-Deps an.
+    """Liest depends/makedepends aus der PKGBUILD und hält `aur_deps` aktuell.
 
     Anders als bei archlinux (AUR liefert Metadaten separat via RPC-API) gibt
     es bei debian keine Alternative zur PKGBUILD als Datenquelle -- daher hier
@@ -520,16 +520,15 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
     manuellen Build korrekt verschwindet, sowie -- falls die PKGBUILD ein
     `_builder_image` vorgibt -- das Build-Image.
 
-    1:1 nach archlinux/jobs.py::_sync_pkgbuild_deps -- gleiches PKGBUILD-
-    basiertes Abhängigkeitsmodell (Bridge-Ansatz).
+    `aur_deps` wird direkt aus depends/makedepends übernommen (T-179-PACKAGES:
+    anders als bei archlinux gibt es bei debian keine AUR-äquivalente Quelle,
+    um "muss selbst gebaut werden" von "kommt fertig aus dem apt-Repo" zu
+    unterscheiden -- deshalb kein Autocreate-Schritt wie beim archlinux-
+    Vorbild, nur eine reine Anzeige-Synchronisierung).
     """
-    import json
-    import urllib.request
-
     from astrapi_packages.modules.builder import sync_builder_image_from_pkgbuild
 
     from .ui.crud import _version_and_deps_from_pkgbuild_url
-    from .utils.dep_graph import autocreate_deps
 
     item = store.get(item_id) or {}
     source_url = item.get("source_url", "")
@@ -548,32 +547,13 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
 
     current_deps = set(d.strip() for d in (item.get("aur_deps") or "").split(",") if d.strip())
     pkgbuild_set = set(pkgbuild_deps)
-    new_deps = [d for d in pkgbuild_deps if d not in current_deps]
-    removed_deps = current_deps - pkgbuild_set  # in aur_deps aber nicht mehr im PKGBUILD
-
-    # Neue Deps: nur anlegen wenn sie auf AUR existieren
-    aur_new: list[str] = []
-    if new_deps:
-        aur_qs = "&".join(f"arg[]={d}" for d in new_deps)
-        try:
-            with urllib.request.urlopen(
-                f"https://aur.archlinux.org/rpc/v5/info?{aur_qs}", timeout=8
-            ) as r:
-                aur_data = json.loads(r.read())
-            aur_new = [res["Name"] for res in aur_data.get("results", [])]
-        except Exception as e:
-            log.warning("_sync_pkgbuild_deps(debian): AUR-Check für '%s' fehlgeschlagen: %s", item_id, e)
-
-    if aur_new or removed_deps:
-        updated_deps = (current_deps | set(aur_new)) - removed_deps
-        store.update(item_id, {"aur_deps": ", ".join(sorted(updated_deps))})
-        if aur_new:
-            autocreate_deps(item_id, {"aur_deps": ", ".join(sorted(updated_deps))}, store)
-            log.info("_sync_pkgbuild_deps(debian): '%s' – neue Deps: %s", item_id, ", ".join(aur_new))
-        if removed_deps:
-            log.info(
-                "_sync_pkgbuild_deps(debian): '%s' – Deps entfernt: %s", item_id, ", ".join(removed_deps)
-            )
+    if pkgbuild_set != current_deps:
+        store.update(item_id, {"aur_deps": ", ".join(sorted(pkgbuild_set))})
+        log.info(
+            "_sync_pkgbuild_deps(debian): '%s' – aur_deps aus PKGBUILD übernommen: %s",
+            item_id,
+            ", ".join(sorted(pkgbuild_set)),
+        )
 
 
 # ── Build mit Dep-Graph ────────────────────────────────────────────────────────

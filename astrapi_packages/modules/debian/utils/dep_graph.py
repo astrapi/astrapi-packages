@@ -111,40 +111,22 @@ def resolve_build_order(start_ids: list[str], store) -> list[str]:
 
 
 def autocreate_deps(item_id: str, item: dict, store) -> list[str]:
-    """Legt fehlende Dep-Einträge automatisch im Store an.
+    """Bewusstes No-Op (T-179-PACKAGES).
 
-    Bestehende Einträge werden nicht überschrieben.
-    Gibt Liste der neu angelegten IDs zurück.
+    1:1-Übernahme von archlinux/utils/dep_graph.py hätte hier fehlende
+    `aur_deps`-Einträge automatisch als eigene, buildbare Paket-Einträge
+    angelegt -- mit `source_url = f"https://aur.archlinux.org/{dep_name}.git"`.
+    Bei archlinux korrekt (AUR-Pakete müssen selbst gebaut werden), bei
+    debian schlicht falsch: `depends`/`makedepends` sind dort praktisch immer
+    fertige apt-Pakete, kein AUR-Äquivalent für "existiert das, muss es aber
+    trotzdem selbst gebaut werden" vorhanden. Ohne dieses No-Op würden neue
+    PKGBUILD-Deps als kaputte Paket-Einträge mit AUR-Git-URLs angelegt.
+    `aur_deps` selbst bleibt als reine Anzeige/Snapshot erhalten (siehe
+    debian/jobs.py::_sync_pkgbuild_deps) -- fehlt eine selbstgebaute
+    Abhängigkeit zwischen eigenen Debian-Paketen, wird sie weiterhin von
+    Hand angelegt.
     """
-    created: list[str] = []
-    all_items = store.list()
-
-    for dep_name in parse_aur_deps(item):
-        if dep_name == item_id:
-            continue  # Selbstreferenz ignorieren
-        if dep_name in all_items:
-            continue  # Bereits vorhanden, nicht überschreiben
-        aur_url = f"https://aur.archlinux.org/{dep_name}.git"
-        try:
-            from astrapi_packages.api import status as _status
-
-            store.create(
-                dep_name,
-                {
-                    "source_url": aur_url,
-                    "pkg_type": "dependency",
-                    "enabled": True,
-                    # G-017 gilt auch fuer automatisch angelegte Abhaengigkeiten:
-                    # angelegt, aber nicht gebaut.
-                    "last_status": _status.NEU,
-                },
-            )
-            created.append(dep_name)
-            log.info("dep_graph(debian): Dep-Eintrag '%s' automatisch angelegt", dep_name)
-        except KeyError:
-            pass  # Race condition: zwischenzeitlich angelegt
-
-    return created
+    return []
 
 
 # ── Orphan-Cleanup ─────────────────────────────────────────────────────────────
