@@ -171,6 +171,13 @@ echo "---"
 DEB_FILE="/repo/${{pkgname}}_${{pkgver}}-${{pkgrel}}_${{DEB_ARCH}}.deb"
 fakeroot dpkg-deb --build "$STAGING" "$DEB_FILE"
 echo "Gebaut: $DEB_FILE"
+
+# Integritaetspruefung: liest das Archiv erneut ein. dpkg-deb --build kann bei
+# vollem Datentraeger trotzdem mit Exit 0 zurueckkehren, obwohl $DEB_FILE
+# dabei abgeschnitten wurde -- ohne diesen Schritt waere das Paket als "ok"
+# markiert worden, obwohl es unvollstaendig ist.
+dpkg-deb --info "$DEB_FILE" > /dev/null
+echo "Integritaet verifiziert: $DEB_FILE"
 """.format(source_url=source_url, item_id=item_id, subdir=subdir)
 
     return [

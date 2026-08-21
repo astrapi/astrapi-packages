@@ -192,11 +192,13 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
     output = f"{cmd_repr}\n\n{raw_output}"
 
     version = None
+    repo_add_ok = True
     if rc == 0:
-        version = _repo_add(repo_path, repo_name, item_id)
-        _trigger_mirror_sync(item_id)
+        version, repo_add_ok = _repo_add(repo_path, repo_name, item_id)
+        if repo_add_ok:
+            _trigger_mirror_sync(item_id)
 
-    status = _status.OK if rc == 0 else _status.ERROR
+    status = _status.OK if (rc == 0 and repo_add_ok) else _status.ERROR
     log.info("archlinux.build: %s → %s (rc=%d)", item_id, status, rc)
 
     update: dict = {
@@ -251,10 +253,18 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
             pass
 
 
-def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
+def _repo_add(repo_path: str, repo_name: str, item_id: str) -> tuple[str | None, bool]:
     """Fügt fertige Pakete zur Pacman-Repo-Datenbank hinzu.
 
-    Gibt die erkannte Version (pkgver-pkgrel) zurück, oder None falls kein Paket gefunden.
+    Gibt (erkannte Version "pkgver-pkgrel" oder None, ok) zurück. `ok=False`
+    wenn kein Paket gefunden wurde oder `repo-add` es nicht lesen konnte --
+    Letzteres passiert u.a. bei einer durch volle Festplatte abgeschnittenen
+    Paketdatei: der Docker-Build selbst kann dabei trotzdem mit rc=0 enden,
+    weil das Schreiben der (dann unvollstaendigen) Datei fuer den Container
+    "erfolgreich" war. `repo-add` liest das Archiv zum Extrahieren der
+    Metadaten tatsaechlich erneut ein und deckt eine solche Beschaedigung
+    auf -- das ist deshalb hier die eigentliche Integritaetspruefung, nicht
+    nur Datenbankpflege.
     """
     import glob as _glob
 
@@ -264,11 +274,16 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
     ]
     if not pkgs:
         log.warning("archlinux.repo-add: keine Pakete gefunden für %s", item_id)
-        return None
+        return None, False
     db = os.path.join(repo_path, f"{repo_name}.db.tar.gz")
     rc, out = _run(["repo-add", db] + pkgs, timeout=60)
     if rc != 0:
-        log.warning("archlinux.repo-add fehlgeschlagen:\n%s", out)
+        log.warning(
+            "archlinux.repo-add fehlgeschlagen (Paketdatei evtl. unvollständig/beschädigt, "
+            "z.B. durch volle Festplatte):\n%s",
+            out,
+        )
+        return None, False
     # Symlink sicherstellen: pacman braucht <name>.db → <name>.db.tar.gz
     symlink = os.path.join(repo_path, f"{repo_name}.db")
     if not os.path.exists(symlink):
@@ -285,9 +300,9 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> str | None:
         stem = _re.sub(r"\.pkg\.tar\.\w+$", "", filename)
         parts = stem.rsplit("-", 3)  # maximal 3 Splits von rechts: pkgname, pkgver, pkgrel, arch
         # parts[-1]=arch, parts[-2]=pkgrel, parts[-3]=pkgver
-        return f"{parts[-3]}-{parts[-2]}"
+        return f"{parts[-3]}-{parts[-2]}", True
     except Exception:
-        return None
+        return None, True
 
 
 # ── Cleanup beim Löschen ───────────────────────────────────────────────────────
