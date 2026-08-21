@@ -61,10 +61,15 @@
   <input type="hidden" name="name"             id="field-pkg-name"         value="{{ _pkg_name }}">
   <input type="hidden" name="source_url"       id="field-source-url"       value="{{ _source_url }}">
   <input type="hidden" name="upstream_version" id="field-upstream-version" value="">
-  <input type="hidden" name="source_subdir"    value="">
   <span class="form-error" id="source-url-error"></span>
 </div>
 {% endif %}
+
+{# source_subdir wird nirgends manuell gepflegt -- Fallback auf den
+   Paketnamen (siehe jobs.py) deckt jedes Repo-Layout ab, bei dem der
+   Ordnername der Paket-ID entspricht (Konvention in packages_debian).
+   Kein sichtbares Feld, nur als Hidden erhalten falls doch mal gesetzt. #}
+<input type="hidden" name="source_subdir" value="{{ (item or {}).get('source_subdir') or '' }}">
 
 {# ── Edit-Modus: Felder direkt bearbeitbar ────────────────────────── #}
 {% if item_id %}
@@ -76,11 +81,6 @@
   <label class="form-label">Git-URL</label>
   {{ form_input('source_url', (item or {}).get('source_url') or '',
                placeholder='https://github.com/example/mypackage.git') }}
-</div>
-<div>
-  <label class="form-label">Unterverzeichnis im Repo</label>
-  {{ form_input('source_subdir', (item or {}).get('source_subdir') or '',
-               placeholder='Standard: Paketname') }}
 </div>
 {% endif %}
 
