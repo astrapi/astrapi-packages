@@ -507,12 +507,18 @@ def _extract_version(repo_path: Path, item_id: str) -> str | None:
 
 
 def _sync_pkgbuild_deps(item_id: str, store) -> None:
-    """Liest depends/makedepends aus dem GitLab-PKGBUILD und legt fehlende AUR-Deps an.
+    """Liest depends/makedepends aus der PKGBUILD und legt fehlende AUR-Deps an.
 
-    Nur für Pakete mit source_subdir (GitLab-Monorepo). Deps die nicht auf AUR
-    existieren (z.B. offizielle Repo-Pakete) werden übersprungen.
+    Anders als bei archlinux (AUR liefert Metadaten separat via RPC-API) gibt
+    es bei debian keine Alternative zur PKGBUILD als Datenquelle -- daher hier
+    (im Unterschied zum archlinux-Vorbild) ohne Gitlab-/Unterverzeichnis-Zwang:
+    jede gesetzte source_url reicht, `source_subdir or item_id` deckt die
+    übliche Ein-Ordner-pro-Paket-Konvention ab (T-177-PACKAGES). Vorher lief
+    diese Funktion für kein einziges über GitHub gehostetes Paket.
+
     Aktualisiert außerdem upstream_version damit der Update-Badge nach einem
-    manuellen Build korrekt verschwindet.
+    manuellen Build korrekt verschwindet, sowie -- falls die PKGBUILD ein
+    `_builder_image` vorgibt -- das Build-Image.
 
     1:1 nach archlinux/jobs.py::_sync_pkgbuild_deps -- gleiches PKGBUILD-
     basiertes Abhängigkeitsmodell (Bridge-Ansatz).
@@ -520,18 +526,23 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
     import json
     import urllib.request
 
+    from astrapi_packages.modules.builder import sync_builder_image_from_pkgbuild
+
     from .ui.crud import _version_and_deps_from_pkgbuild_url
     from .utils.dep_graph import autocreate_deps
 
     item = store.get(item_id) or {}
     source_url = item.get("source_url", "")
     source_sub = item.get("source_subdir", "")
-    if not ("gitlab" in source_url and source_sub):
+    if not source_url:
         return
 
-    upstream_ver, pkgbuild_deps = _version_and_deps_from_pkgbuild_url(source_url, source_sub)
+    upstream_ver, pkgbuild_deps, builder_image = _version_and_deps_from_pkgbuild_url(
+        source_url, source_sub, item_id
+    )
     if upstream_ver:
         store.update(item_id, {"upstream_version": upstream_ver})
+    sync_builder_image_from_pkgbuild(item_id, item, store, builder_image, module="debian")
     if not pkgbuild_deps:
         return
 

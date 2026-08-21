@@ -282,13 +282,30 @@ def _parse_pkgbuild_deps(text: str) -> list[str]:
         m = re.search(rf"^{key}\s*=\s*\((.*?)\)", text, re.MULTILINE | re.DOTALL)
         if not m:
             continue
-        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", m.group(1)):
+        # Kommentarzeilen innerhalb des Arrays entfernen, bevor tokenisiert wird --
+        # mehrzeilige Arrays koennen erklaerende #-Kommentare enthalten (z.B.
+        # "warum diese Dependency"), die sonst als Deps mitgelesen werden.
+        block = re.sub(r"^\s*#.*$", "", m.group(1), flags=re.MULTILINE)
+        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", block):
             name = (token[0] or token[1] or token[2]).strip()
             name = re.sub(r"[><=!].*", "", name).strip()
             if name:
                 deps.append(name)
     seen: set[str] = set()
     return [d for d in deps if not (d in seen or seen.add(d))]  # type: ignore[func-returns-value]
+
+
+def _parse_builder_image(text: str) -> str:
+    """Liest die optionale Custom-Variable `_builder_image` aus einer PKGBUILD.
+
+    Erlaubt Paketen, ihr Build-Image selbst vorzugeben (z.B.
+    `_builder_image=arch-builder-big`) statt es manuell im Dropdown zu
+    pflegen -- wird von _sync_pkgbuild_deps() bei jedem Bau übernommen.
+    """
+    import re
+
+    m = re.search(r"^_builder_image\s*=\s*(.+)", text, re.MULTILINE)
+    return m.group(1).strip().strip("'\"") if m else ""
 
 
 def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
@@ -303,13 +320,22 @@ def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
     return f"{p.scheme}://{p.netloc}/{path}/raw/branch/{branch}/{subdir}/PKGBUILD"
 
 
-def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
+def _version_from_pkgbuild_url(
+    source_url: str, source_subdir: str, item_id: str = ""
+) -> tuple[str, list[str], str]:
+    """Gibt (version, deps, builder_image) zurück.
+
+    `source_subdir or item_id` als Ordner-Fallback -- deckt die übliche
+    Ein-Ordner-pro-Paket-Konvention ab (Ordnername == Paket-ID), ohne dass
+    `source_subdir` manuell gepflegt werden muss.
+    """
     import re
     import urllib.request
 
+    subdir = source_subdir or item_id
     base = source_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
-        url = _pkgbuild_raw_url(base, branch, source_subdir)
+        url = _pkgbuild_raw_url(base, branch, subdir)
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
                 text = r.read().decode("utf-8", errors="replace")
@@ -320,10 +346,10 @@ def _version_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str
                 ver = m_ver.group(1).strip().strip("'\"")
                 rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
                 version = f"{ver}-{rel}" if rel else ver
-            return version, _parse_pkgbuild_deps(text)
+            return version, _parse_pkgbuild_deps(text), _parse_builder_image(text)
         except Exception:
             continue
-    return "", []
+    return "", [], ""
 
 
 def _search_aur(term: str) -> list[dict]:
@@ -460,7 +486,7 @@ def pkgbuild_info(request: Request):
     subdir = request.query_params.get("subdir", "").strip()
     if not url:
         return JSONResponse({"version": ""})
-    version, _ = _version_from_pkgbuild_url(url, subdir)
+    version, _, _ = _version_from_pkgbuild_url(url, subdir)
     return JSONResponse({"version": version})
 
 
@@ -509,7 +535,7 @@ def check_updates(request: Request):
             source_sub = item.get("source_subdir", "")
             upstream = ""
             if source_url and source_sub:
-                upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
+                upstream, _, _ = _version_from_pkgbuild_url(source_url, source_sub)
             if not upstream and item_id in pkg_entries:
                 entry = pkg_entries[item_id]
                 ver = entry.get("pkgver") or entry.get("version") or ""

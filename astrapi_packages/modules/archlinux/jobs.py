@@ -368,10 +368,13 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
     Nur für Pakete mit source_subdir (GitLab-Monorepo). Deps die nicht auf AUR
     existieren (z.B. offizielle Repo-Pakete) werden übersprungen.
     Aktualisiert außerdem upstream_version damit der Update-Badge nach einem
-    manuellen Build korrekt verschwindet.
+    manuellen Build korrekt verschwindet, sowie -- falls die PKGBUILD ein
+    `_builder_image` vorgibt -- das Build-Image.
     """
     import json
     import urllib.request
+
+    from astrapi_packages.modules.builder import sync_builder_image_from_pkgbuild
 
     from .ui.crud import _version_from_pkgbuild_url
     from .utils.dep_graph import autocreate_deps
@@ -382,9 +385,12 @@ def _sync_pkgbuild_deps(item_id: str, store) -> None:
     if not ("gitlab" in source_url and source_sub):
         return
 
-    upstream_ver, pkgbuild_deps = _version_from_pkgbuild_url(source_url, source_sub)
+    upstream_ver, pkgbuild_deps, builder_image = _version_from_pkgbuild_url(
+        source_url, source_sub, item_id
+    )
     if upstream_ver:
         store.update(item_id, {"upstream_version": upstream_ver})
+    sync_builder_image_from_pkgbuild(item_id, item, store, builder_image, module="archlinux")
     if not pkgbuild_deps:
         return
 
@@ -615,7 +621,7 @@ def update_all_packages() -> None:
             source_url = item.get("source_url", "")
             source_sub = item.get("source_subdir", "")
             if source_url and source_sub:
-                upstream, _ = _version_from_pkgbuild_url(source_url, source_sub)
+                upstream, _, _ = _version_from_pkgbuild_url(source_url, source_sub)
                 _sync_pkgbuild_deps(item_id, store)
 
         if not upstream and item_id in pkg_entries:

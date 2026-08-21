@@ -30,6 +30,46 @@ def images_for_module(module: str) -> list[dict]:
     ]
 
 
+def sync_builder_image_from_pkgbuild(
+    item_id: str, item: dict, item_store, builder_image_raw: str, module: str
+) -> None:
+    """Übernimmt ein von der PKGBUILD via `_builder_image` vorgegebenes Build-Image.
+
+    Aufgerufen aus archlinux/debian `_sync_pkgbuild_deps()`. Ignoriert leere/
+    unbekannte Werte (nur Log-Warnung) -- eine PKGBUILD mit Tippfehler darf
+    das bestehende, funktionierende `image`-Feld nicht kaputt machen. Bei
+    einem bekannten, abweichenden Wert wird das Feld überschrieben -- die
+    PKGBUILD gewinnt gegenüber einer frueheren manuellen Dropdown-Auswahl.
+    """
+    import logging
+
+    log = logging.getLogger("astrapi_packages.modules.builder")
+
+    if not builder_image_raw:
+        return
+    resolved = next(
+        (opt["value"] for opt in images_for_module(module) if opt["label"] == builder_image_raw),
+        None,
+    )
+    if resolved is None:
+        log.warning(
+            "sync_builder_image_from_pkgbuild(%s): '%s' – PKGBUILD verlangt unbekanntes "
+            "Build-Image '%s', ignoriert",
+            module,
+            item_id,
+            builder_image_raw,
+        )
+        return
+    if item.get("image") != resolved:
+        item_store.update(item_id, {"image": resolved})
+        log.info(
+            "sync_builder_image_from_pkgbuild(%s): '%s' – Build-Image aus PKGBUILD übernommen: %s",
+            module,
+            item_id,
+            resolved,
+        )
+
+
 # ── Dynamische Dropdown-Optionen für options_endpoint (settings.yaml) ────────
 
 from astrapi_core.ui.field_resolver import register_options_fetcher as _register_options_fetcher

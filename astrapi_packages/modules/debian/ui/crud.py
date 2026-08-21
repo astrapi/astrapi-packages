@@ -237,13 +237,30 @@ def _parse_pkgbuild_deps(text: str) -> list[str]:
         m = re.search(rf"^{key}\s*=\s*\((.*?)\)", text, re.MULTILINE | re.DOTALL)
         if not m:
             continue
-        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", m.group(1)):
+        # Kommentarzeilen innerhalb des Arrays entfernen, bevor tokenisiert wird --
+        # mehrzeilige Arrays koennen erklaerende #-Kommentare enthalten (z.B.
+        # "warum diese Dependency"), die sonst als Deps mitgelesen werden.
+        block = re.sub(r"^\s*#.*$", "", m.group(1), flags=re.MULTILINE)
+        for token in re.findall(r"'([^']+)'|\"([^\"]+)\"|(\S+)", block):
             name = (token[0] or token[1] or token[2]).strip()
             name = re.sub(r"[><=!].*", "", name).strip()
             if name:
                 deps.append(name)
     seen: set[str] = set()
     return [d for d in deps if not (d in seen or seen.add(d))]  # type: ignore[func-returns-value]
+
+
+def _parse_builder_image(text: str) -> str:
+    """Liest die optionale Custom-Variable `_builder_image` aus einer PKGBUILD.
+
+    Erlaubt Paketen, ihr Build-Image selbst vorzugeben (z.B.
+    `_builder_image=debian-builder-python`) statt es manuell im Dropdown zu
+    pflegen -- wird von _sync_pkgbuild_deps() bei jedem Bau übernommen.
+    """
+    import re
+
+    m = re.search(r"^_builder_image\s*=\s*(.+)", text, re.MULTILINE)
+    return m.group(1).strip().strip("'\"") if m else ""
 
 
 def _pkgbuild_raw_url(base_url: str, branch: str, subdir: str) -> str:
@@ -282,15 +299,23 @@ def _pkgbuild_info(source_url: str, pkg_name: str) -> dict:
     return {"version": ""}
 
 
-def _version_and_deps_from_pkgbuild_url(source_url: str, source_subdir: str) -> tuple[str, list[str]]:
-    """Wie _pkgbuild_info(), liefert zusaetzlich depends/makedepends -- fuer
-    _sync_pkgbuild_deps() in jobs.py (Muster: archlinux/ui/crud.py)."""
+def _version_and_deps_from_pkgbuild_url(
+    source_url: str, source_subdir: str, item_id: str = ""
+) -> tuple[str, list[str], str]:
+    """Wie _pkgbuild_info(), liefert zusaetzlich (deps, builder_image) -- fuer
+    _sync_pkgbuild_deps() in jobs.py (Muster: archlinux/ui/crud.py).
+
+    `source_subdir or item_id` als Ordner-Fallback -- deckt die übliche
+    Ein-Ordner-pro-Paket-Konvention ab (Ordnername == Paket-ID), ohne dass
+    `source_subdir` manuell gepflegt werden muss (T-177-PACKAGES).
+    """
     import re
     import urllib.request
 
+    subdir = source_subdir or item_id
     base = source_url.rstrip("/").removesuffix(".git")
     for branch in ("main", "master"):
-        url = _pkgbuild_raw_url(base, branch, source_subdir)
+        url = _pkgbuild_raw_url(base, branch, subdir)
         try:
             with urllib.request.urlopen(url, timeout=5) as r:
                 text = r.read().decode("utf-8", errors="replace")
@@ -301,10 +326,10 @@ def _version_and_deps_from_pkgbuild_url(source_url: str, source_subdir: str) -> 
                 ver = m_ver.group(1).strip().strip("'\"")
                 rel = m_rel.group(1).strip().strip("'\"") if m_rel else ""
                 version = f"{ver}-{rel}" if rel else ver
-            return version, _parse_pkgbuild_deps(text)
+            return version, _parse_pkgbuild_deps(text), _parse_builder_image(text)
         except Exception:
             continue
-    return "", []
+    return "", [], ""
 
 
 @router.get(f"/ui/{KEY}/pkgbuild-info")
