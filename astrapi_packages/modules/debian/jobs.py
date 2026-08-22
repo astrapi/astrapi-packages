@@ -147,7 +147,11 @@ if declare -f check &>/dev/null; then
 fi
 
 echo "=== Starte package() ==="
-fakeroot -- bash -c "$(declare -p $_pkgbuild_vars pkgdir srcdir startdir 2>/dev/null || true); $(declare -f package); package"
+# set -e explizit in der inneren Subshell noetig (T-175-PACKAGES): sie erbt
+# das set -e des aeusseren Skripts nicht automatisch -- ein Fehler mitten in
+# package() (z.B. cp bei voller Platte) liess die Subshell bisher trotzdem
+# "erfolgreich" durchlaufen, das aeussere Skript sah den Fehler nie.
+fakeroot -- bash -c "set -e; $(declare -p $_pkgbuild_vars pkgdir srcdir startdir 2>/dev/null || true); $(declare -f package); package"
 echo "=== package() abgeschlossen ==="
 
 # DEBIAN/control erzeugen
