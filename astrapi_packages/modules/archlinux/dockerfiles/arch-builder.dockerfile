@@ -1,10 +1,23 @@
 FROM archlinux:latest
 
 # Simpsons-Mirror: core/extra/multilib via $repo-Variable, SSL für interne CA deaktiviert
+#
+# DatabaseNever statt des Standard-DatabaseOptional: astrapi-mirror synct
+# .db.sig bewusst nur best-effort (viele Upstream-Mirrors bieten sie gar
+# nicht an, siehe astrapi-mirror/.../downloader.py::_check_completeness()) --
+# core.db.sig/extra.db.sig fehlen auf mirror.simpsons.lan deshalb, und
+# simpsons.db.sig gibt es nie (unser eigenes lokales Repo signiert nie).
+# Jeder Build brach das (folgenlos, aber als 404 sichtbare) Sync-Rauschen vor
+# dem eigentlichen Bauen. "Optional" heißt für pacman weiterhin "versuchen,
+# Fehlen tolerieren" -- erst "Never" verzichtet ganz auf den Versuch.
+# Paket-Signaturen (Required) für core/extra bleiben davon unberührt; das
+# eigene [simpsons]-Repo bekommt komplett SigLevel=Never (wie bisher
+# TrustAll schon faktisch keine Paketsignaturen verlangte).
 RUN echo 'Server = https://mirror.simpsons.lan/files/archlinux/$repo/os/$arch' \
         > /etc/pacman.d/mirrorlist && \
     sed -i '/^\[options\]/a XferCommand = /usr/bin/curl -k -L -C - -f --no-progress-meter -o %o %u' /etc/pacman.conf && \
-    printf '\n[simpsons]\nSigLevel = Optional TrustAll\nServer = https://mirror.simpsons.lan/files/archlinux/simpsons/os/$arch\n' \
+    sed -i 's/^SigLevel[[:space:]]*=.*/SigLevel = Required DatabaseNever/' /etc/pacman.conf && \
+    printf '\n[simpsons]\nSigLevel = Never\nServer = https://mirror.simpsons.lan/files/archlinux/simpsons/os/$arch\n' \
         >> /etc/pacman.conf
 
 RUN pacman -Syu --noconfirm && \
