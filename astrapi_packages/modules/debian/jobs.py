@@ -337,6 +337,8 @@ def _write_release_file(repo_path: Path) -> None:
     import datetime
     import hashlib
 
+    s = _settings()
+    repo_name = s("repo_name", "Simpsons").strip() or "Simpsons"
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%a, %d %b %Y %H:%M:%S UTC")
     candidates = ["Packages", "Packages.gz"]
 
@@ -356,8 +358,8 @@ def _write_release_file(repo_path: Path) -> None:
     sums = {f: s for f in candidates if (s := _sums(f)) is not None}
 
     lines = [
-        "Origin: Simpsons",
-        "Label: Simpsons",
+        f"Origin: {repo_name}",
+        f"Label: {repo_name}",
         "Suite: ./",
         f"Date: {now}",
         "Acquire-By-Hash: no",

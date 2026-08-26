@@ -16,6 +16,13 @@ fields:
     label: APT-Repository
     cols:  1
 
+  - key:         repo_name
+    label:       Repository-Name
+    type:        text
+    placeholder: "Simpsons"
+    default:     "Simpsons"
+    description: "Name des Repositorys, erscheint als Origin/Label in der Release-Datei (z.B. in 'apt-cache policy'). Rein informativ -- Clients muessen dafuer nichts anpassen (anders als der Repository-Name bei Arch Linux)."
+
   - type:  section
     label: GPG-Signierung
     cols:  1
