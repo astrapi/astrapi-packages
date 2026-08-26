@@ -75,18 +75,15 @@ def _safe_child(base: Path, *parts: str) -> Path:
 
 
 def _arch_dir() -> Path:
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import arch_repo_dir
 
-    disk = _extra_disk()
-    base = Path(disk).resolve() / "arch" if disk else _repo_dir().resolve() / "arch"
-    return base / "x86_64"
+    return arch_repo_dir() / "x86_64"
 
 
 def _debian_dir() -> Path:
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import debian_repo_dir
 
-    disk = _extra_disk()
-    return (Path(disk).resolve() / "debian") if disk else (_repo_dir() / "debian").resolve()
+    return debian_repo_dir()
 
 
 # ---------------------------------------------------------------------------

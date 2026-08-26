@@ -69,10 +69,9 @@ def _settings():
 
 
 def _repo_path() -> Path:
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import debian_repo_dir
 
-    disk = _extra_disk()
-    base = (Path(disk).resolve() / "debian") if disk else (_repo_dir() / "debian").resolve()
+    base = debian_repo_dir()
     base.mkdir(parents=True, exist_ok=True)
     base.chmod(0o777)
     return base

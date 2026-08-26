@@ -9,18 +9,18 @@ def package_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def repo_dir() -> Path:
-    """Lokales Repository-Basisverzeichnis (= work_dir/repo)."""
-    return work_dir().resolve() / "repo"
+def debian_repo_dir() -> Path:
+    """Wurzelverzeichnis des lokalen Debian-Repos. Zusatzspeicher ist
+    Pflicht (kein stiller Rückfall aufs Arbeitsverzeichnis) -- ein
+    Paket-Repo ist um Größenordnungen zu groß für die Root-Partition."""
+    from astrapi_core.system.paths import require_extra_disk
+
+    return Path(require_extra_disk()).resolve() / "debian"
 
 
-def _extra_disk() -> str:
-    """Gibt den ersten konfigurierten Zusatzspeicher zurück, oder ''."""
-    from astrapi_core.ui.settings_registry import get_module
+def arch_repo_dir() -> Path:
+    """Wurzelverzeichnis des lokalen Arch-Repos. Zusatzspeicher ist
+    Pflicht, siehe debian_repo_dir()."""
+    from astrapi_core.system.paths import require_extra_disk
 
-    raw = get_module("system", "extra_disks", default="") or ""
-    for part in raw.split(","):
-        path = part.strip()
-        if path:
-            return path
-    return ""
+    return Path(require_extra_disk()).resolve() / "arch"

@@ -112,11 +112,9 @@ def _settings():
 
 def _arch_repo_path() -> str:
     """Gibt <repo_base>/arch/x86_64/ zurück und legt das Verzeichnis an."""
-    from astrapi_packages._paths import _extra_disk, repo_dir as _repo_dir
+    from astrapi_packages._paths import arch_repo_dir
 
-    disk = _extra_disk()
-    base = (Path(disk).resolve() / "arch") if disk else (_repo_dir().resolve() / "arch")
-    path = base / "x86_64"
+    path = arch_repo_dir() / "x86_64"
     path.mkdir(parents=True, exist_ok=True)
     path.chmod(0o777)
     return str(path)
