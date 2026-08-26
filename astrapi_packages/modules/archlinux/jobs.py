@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,23 @@ _TIMEOUT = 3600
 
 
 _ERR_KEYWORDS = ("error", "fehler", "not found", "failed", "command not found", "exception")
+
+# Zeilen, die trotz eines Treffers in _ERR_KEYWORDS NICHT als ERROR getaggt
+# werden -- harmlose Nebenwirkung von pacmans eigenem Mirror-Fallback beim
+# Datenbank-Sync (pacman -Sy fürs lokale Repo): schlägt curl bei einem
+# konfigurierten Mirror mit 404 fehl, weicht pacman selbst klaglos auf den
+# nächsten aus (curls eigene Fehlermeldung enthält "error", ist aber kein
+# Bau-Fehler). Der tatsächliche Bau-Erfolg hängt ohnehin am echten
+# Exit-Code (siehe status = ... unten), nicht an dieser Zeilenfärbung --
+# das hier betrifft nur, ob die Zeile in der Live-Log-Ansicht rot markiert
+# wird (T-231-PACKAGES).
+_HARMLESS_ERROR_PATTERNS = (
+    re.compile(r"curl:\s*\(22\).*\b404\b"),
+)
+
+
+def _is_harmless_error_line(lower_line: str) -> bool:
+    return any(p.search(lower_line) for p in _HARMLESS_ERROR_PATTERNS)
 
 
 def _run(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
@@ -60,7 +78,8 @@ def _run_streamed(cmd: list[str], timeout: int = _TIMEOUT) -> tuple[int, str]:
             stripped = line.rstrip()
             lines.append(stripped)
             lower = stripped.strip().lower()
-            lvl = "ERROR" if lower and any(k in lower for k in _ERR_KEYWORDS) else "INFO"
+            is_err = lower and any(k in lower for k in _ERR_KEYWORDS) and not _is_harmless_error_line(lower)
+            lvl = "ERROR" if is_err else "INFO"
             _log(lvl, stripped)
         proc.wait(timeout=timeout)
         rc = proc.returncode
