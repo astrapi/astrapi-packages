@@ -211,7 +211,7 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
     version = None
     repo_add_ok = True
     if rc == 0:
-        version, repo_add_ok = _repo_add(repo_path, repo_name, item_id)
+        version, repo_add_ok = _repo_add(repo_path, repo_name, item_id, image)
         if repo_add_ok:
             _trigger_mirror_sync(item_id)
 
@@ -270,7 +270,7 @@ def build_package(item_id: str, notify: bool = False, own_log_entry: bool = True
             pass
 
 
-def _repo_add(repo_path: str, repo_name: str, item_id: str) -> tuple[str | None, bool]:
+def _repo_add(repo_path: str, repo_name: str, item_id: str, image: str) -> tuple[str | None, bool]:
     """Fügt fertige Pakete zur Pacman-Repo-Datenbank hinzu.
 
     Gibt (erkannte Version "pkgver-pkgrel" oder None, ok) zurück. `ok=False`
@@ -282,6 +282,12 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> tuple[str | None,
     Metadaten tatsaechlich erneut ein und deckt eine solche Beschaedigung
     auf -- das ist deshalb hier die eigentliche Integritaetspruefung, nicht
     nur Datenbankpflege.
+
+    `repo-add` läuft dabei in einem Container, nicht auf dem Host -- der
+    astrapi-packages-Dienst läuft auf Debian, `repo-add` (pacman-contrib)
+    gibt es dort nicht und lässt sich dort auch nicht sinnvoll installieren
+    (falscher Distro-Ökosystem). Derselbe Build-Container hat `repo-add`
+    bereits an Bord (siehe arch-build.sh, letzter Schritt dort).
     """
     import glob as _glob
 
@@ -292,8 +298,21 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> tuple[str | None,
     if not pkgs:
         log.warning("archlinux.repo-add: keine Pakete gefunden für %s", item_id)
         return None, False
-    db = os.path.join(repo_path, f"{repo_name}.db.tar.gz")
-    rc, out = _run(["repo-add", db] + pkgs, timeout=60)
+    db_name = f"{repo_name}.db.tar.gz"
+    pkg_names = [os.path.basename(p) for p in pkgs]
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{repo_path}:/repo",
+        "--entrypoint",
+        "repo-add",
+        image,
+        f"/repo/{db_name}",
+        *[f"/repo/{n}" for n in pkg_names],
+    ]
+    rc, out = _run(cmd, timeout=60)
     if rc != 0:
         log.warning(
             "archlinux.repo-add fehlgeschlagen (Paketdatei evtl. unvollständig/beschädigt, "
@@ -301,6 +320,7 @@ def _repo_add(repo_path: str, repo_name: str, item_id: str) -> tuple[str | None,
             out,
         )
         return None, False
+    db = os.path.join(repo_path, db_name)
     # Symlink sicherstellen: pacman braucht <name>.db → <name>.db.tar.gz
     symlink = os.path.join(repo_path, f"{repo_name}.db")
     if not os.path.exists(symlink):
