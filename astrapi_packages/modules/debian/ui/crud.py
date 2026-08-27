@@ -131,7 +131,7 @@ async def create_apply(request: Request):
         # "package"; "dependency" setzt ausschliesslich autocreate_deps()
         # weiter unten, fuer automatisch nachgezogene Abhaengigkeiten).
         "pkg_type": "package",
-        "enabled": "enabled" in form,
+        "enabled": form.get("enabled") in ("1", "on", "true", True),
         # Explizit statt ueber den DDL-Default: auf bestehenden Tabellen steht
         # dort noch '' (T-134), SQLite aendert den Default nicht nachtraeglich.
         "last_status": _status.NEU,
@@ -171,7 +171,7 @@ async def edit_apply(item_id: str, request: Request):
             "image": form.get("image", "").strip(),
             # pkg_type bewusst nicht aus dem Formular -- bleibt unveraendert
             # (siehe create_apply weiter oben).
-            "enabled": "enabled" in form,
+            "enabled": form.get("enabled") in ("1", "on", "true", True),
         }
         store.update(item_id, data)
         from ..utils.dep_graph import autocreate_deps
