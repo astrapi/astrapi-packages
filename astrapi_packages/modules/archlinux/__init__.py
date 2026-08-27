@@ -89,6 +89,13 @@ try:
         source_label="Arch Linux",
     )
     register_action(
+        f"{_KEY}.rebuild_all",
+        "Arch Linux: Alle neu bauen (erzwungen)",
+        lambda: update_all_packages(force=True),
+        source=_KEY,
+        source_label="Arch Linux",
+    )
+    register_action(
         f"{_KEY}.mark_orphans",
         "Arch Linux: Verwaiste markieren",
         mark_orphan_deps,

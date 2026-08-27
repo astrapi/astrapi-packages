@@ -560,8 +560,13 @@ def mark_orphan_deps() -> None:
 # ── Update-Job ─────────────────────────────────────────────────────────────────
 
 
-def update_all_packages() -> None:
-    """Prüft auf neue Versionen und baut veraltete Pakete."""
+def update_all_packages(force: bool = False) -> None:
+    """Prüft auf neue Versionen und baut veraltete Pakete.
+
+    force=True: Versionsvergleich ignorieren, alle Kandidaten (siehe built_ids
+    unten -- schliesst wie gehabt "nie gebaut"/"fehlerhaft" aus, G-017/T-132)
+    werden neu gebaut, unabhaengig davon ob eine neue Version vorliegt.
+    """
     import json
     import time as _time
     import urllib.request
@@ -671,10 +676,13 @@ def update_all_packages() -> None:
             store.update(item_id, {"upstream_version": upstream})
 
         current = (store.get(item_id) or {}).get("last_version", "")
-        if upstream and upstream != current:
+        veraltet = bool(upstream) and upstream != current
+        if veraltet or force:
             log.info(
-                "update_all_packages: %s ist veraltet (%s → %s), zum Bau vorgemerkt",
-                item_id, current, upstream,
+                "update_all_packages: %s %s (%s → %s), zum Bau vorgemerkt",
+                item_id,
+                "ist veraltet" if veraltet else "wird erzwungen neu gebaut (force)",
+                current, upstream or "?",
             )
             to_build.append(item_id)
 

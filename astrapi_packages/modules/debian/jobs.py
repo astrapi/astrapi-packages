@@ -710,8 +710,13 @@ def run_single(item_id: str) -> None:
     build_package(item_id, notify=True, own_log_entry=False)
 
 
-def update_all_packages() -> None:
-    """Prüft auf neue Versionen und baut veraltete Debian-Pakete neu."""
+def update_all_packages(force: bool = False) -> None:
+    """Prüft auf neue Versionen und baut veraltete Debian-Pakete neu.
+
+    force=True: Versionsvergleich ignorieren, alle Kandidaten (siehe built_ids
+    unten -- schliesst wie gehabt "nie gebaut"/"fehlerhaft" aus, G-017/T-132)
+    werden neu gebaut, unabhaengig davon ob eine neue Version vorliegt.
+    """
     import time as _time
 
     from astrapi_packages.modules.debian import store
@@ -795,25 +800,29 @@ def update_all_packages() -> None:
             store.update(item_id, {"upstream_version": upstream})
 
         current = (store.get(item_id) or {}).get("last_version", "")
-        if not upstream:
-            # Weder pkg_cache noch PKGBUILD liefern eine Version. Ein Neubau
-            # kann daran nichts aendern -- beim naechsten Lauf ist die Lage
-            # identisch. Frueher fiel der Code hier durch und baute jedes Mal
-            # neu. Das Paket ist wegen last_status == "ok" nachweislich schon
-            # einmal gebaut worden; von Hand bauen bleibt moeglich.
-            log.warning(
-                "debian.update_all: %s uebersprungen - keine Versionsinfo "
-                "(weder pkg_cache noch PKGBUILD)",
-                item_id,
-            )
-            continue
-        if upstream == current:
-            log.info("debian.update_all: %s ist aktuell (%s)", item_id, current)
-            continue
+        if not force:
+            if not upstream:
+                # Weder pkg_cache noch PKGBUILD liefern eine Version. Ein Neubau
+                # kann daran nichts aendern -- beim naechsten Lauf ist die Lage
+                # identisch. Frueher fiel der Code hier durch und baute jedes Mal
+                # neu. Das Paket ist wegen last_status == "ok" nachweislich schon
+                # einmal gebaut worden; von Hand bauen bleibt moeglich.
+                log.warning(
+                    "debian.update_all: %s uebersprungen - keine Versionsinfo "
+                    "(weder pkg_cache noch PKGBUILD)",
+                    item_id,
+                )
+                continue
+            if upstream == current:
+                log.info("debian.update_all: %s ist aktuell (%s)", item_id, current)
+                continue
 
+        veraltet = bool(upstream) and upstream != current
         log.info(
-            "debian.update_all: %s veraltet (%s → %s), zum Bau vorgemerkt",
-            item_id, current, upstream,
+            "debian.update_all: %s %s (%s → %s), zum Bau vorgemerkt",
+            item_id,
+            "veraltet" if veraltet else "wird erzwungen neu gebaut (force)",
+            current, upstream or "?",
         )
         to_build.append(item_id)
 

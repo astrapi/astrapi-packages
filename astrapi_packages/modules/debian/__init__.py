@@ -93,6 +93,13 @@ try:
         source_label="Debian",
     )
     register_action(
+        f"{KEY}.rebuild_all",
+        "Debian: Alle neu bauen (erzwungen)",
+        lambda: update_all_packages(force=True),
+        source=KEY,
+        source_label="Debian",
+    )
+    register_action(
         f"{KEY}.mark_orphans",
         "Debian: Verwaiste markieren",
         mark_orphan_deps,
