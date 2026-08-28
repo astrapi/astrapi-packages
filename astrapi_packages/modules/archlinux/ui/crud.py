@@ -365,7 +365,12 @@ def _search_aur(term: str) -> list[dict]:
                 "name": p["Name"],
                 "pkgver": p.get("Version", ""),
                 "pkgdesc": p.get("Description", "") or "",
-                "git_url": f"https://aur.archlinux.org/{p['Name']}.git",
+                # AUR hostet Git-Repos unter dem PackageBase, nicht dem
+                # einzelnen Paketnamen -- bei Split-Paketen (z.B.
+                # adwaita-qt5/adwaita-qt6, beide PackageBase "adwaita-qt")
+                # weichen die voneinander ab. Mit Name statt PackageBase
+                # geklont ergibt ein leeres Repo (kein PKGBUILD).
+                "git_url": f"https://aur.archlinux.org/{p.get('PackageBase') or p['Name']}.git",
                 "source": "aur",
             }
             for p in data.get("results", [])[:12]

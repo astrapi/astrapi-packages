@@ -110,18 +110,45 @@ def resolve_build_order(start_ids: list[str], store) -> list[str]:
 def autocreate_deps(item_id: str, item: dict, store) -> list[str]:
     """Legt fehlende Dep-Einträge automatisch im Store an.
 
-    Bestehende Einträge werden nicht überschrieben.
+    Bestehende Einträge werden nicht überschrieben. Prüft per einem
+    einzigen gebündelten AUR-RPC-Aufruf sowohl Existenz als auch
+    PackageBase -- AUR hostet Git-Repos unter dem PackageBase, nicht dem
+    einzelnen Paketnamen. Bei Split-Paketen (z.B. adwaita-qt5/adwaita-qt6,
+    beide PackageBase "adwaita-qt") weichen die voneinander ab; mit dem
+    Namen statt PackageBase geklont ergibt ein leeres Repo ohne PKGBUILD.
+    Kandidaten, die der Lookup nicht bestätigt (nicht auf AUR gefunden,
+    oder der Aufruf selbst schlägt fehl), werden bewusst NICHT angelegt --
+    lieber beim nächsten PKGBUILD-Sync erneut versuchen als einen
+    kaputten Paket-Eintrag hinterlassen.
     Gibt Liste der neu angelegten IDs zurück.
     """
+    import json
+    import urllib.parse
+    import urllib.request
+
     created: list[str] = []
     all_items = store.list()
 
-    for dep_name in parse_aur_deps(item):
-        if dep_name == item_id:
-            continue  # Selbstreferenz ignorieren
-        if dep_name in all_items:
-            continue  # Bereits vorhanden, nicht überschreiben
-        aur_url = f"https://aur.archlinux.org/{dep_name}.git"
+    candidates = [d for d in parse_aur_deps(item) if d != item_id and d not in all_items]
+    if not candidates:
+        return created
+
+    package_bases: dict[str, str] = {}
+    try:
+        qs = "&".join(f"arg[]={urllib.parse.quote(d)}" for d in candidates)
+        with urllib.request.urlopen(f"https://aur.archlinux.org/rpc/v5/info?{qs}", timeout=8) as r:
+            data = json.loads(r.read())
+        package_bases = {
+            res["Name"]: res.get("PackageBase") or res["Name"] for res in data.get("results", [])
+        }
+    except Exception as e:
+        log.warning("autocreate_deps: AUR-Lookup für '%s' fehlgeschlagen: %s", item_id, e)
+
+    for dep_name in candidates:
+        package_base = package_bases.get(dep_name)
+        if package_base is None:
+            continue  # Nicht auf AUR bestätigt -- keinen Eintrag anlegen
+        aur_url = f"https://aur.archlinux.org/{package_base}.git"
         try:
             from astrapi_packages.api import status as _status
 
