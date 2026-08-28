@@ -51,5 +51,5 @@ fields:
   - key:         mirror_trigger_url
     label:       Mirror-Sync-URL
     type:        text
-    placeholder: "https://mirror.simpsons.lan/debian/my-repo/sync"
+    placeholder: "https://mirror.simpsons.lan/api/debian/my-repo/sync"
     description: "URL des Mirror-Endpunkts der nach erfolgreichem Paketbau per POST aufgerufen wird. Leer lassen = kein automatischer Sync."
