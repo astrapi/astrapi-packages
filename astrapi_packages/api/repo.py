@@ -6,9 +6,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
-router = APIRouter()
+from astrapi_core.ui.file_listing import (
+    list_dir_entries,
+    render_page as _page,
+    render_row,
+    safe_child as _safe_child,
+)
 
-_UNITS = [("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)]
+router = APIRouter()
 
 # Distros und Architektur-Unterordner (leere Liste = flaches Layout)
 _DISTROS: dict[str, list[str]] = {
@@ -16,62 +21,6 @@ _DISTROS: dict[str, list[str]] = {
     "debian": [],
 }
 _FLAT_DISTROS = {"debian"}
-
-_CSS = """
-    @font-face { font-family:'JetBrains Mono'; src:url('/static/fonts/mono.woff2') format('woff2'); }
-    :root { --mono:'JetBrains Mono',ui-monospace,monospace; }
-    body { font-family:var(--mono); font-size:.85rem; padding:2rem; background:#0d1117; color:#c9d1d9; }
-    h1 { color:#58a6ff; margin-bottom:.25rem; }
-    p.back { margin-bottom:1rem; font-size:.85rem; }
-    table { border-collapse:collapse; width:100%; table-layout:fixed; }
-    col.c-name { width:70%; }
-    col.c-size { width:30%; }
-    col.c-name1 { width:100%; }
-    thead th { text-align:left; padding:.4rem 1rem; border-bottom:2px solid #30363d;
-               color:#8b949e; font-size:.8rem; font-weight:600; letter-spacing:.04em; }
-    thead th.r { text-align:right; }
-    td { padding:.35rem 1rem; border-bottom:1px solid #21262d; vertical-align:middle; overflow:hidden; }
-    td.num { text-align:right; color:#8b949e; white-space:nowrap; }
-    a { text-decoration:none; color:#58a6ff; }
-    a:hover { text-decoration:underline; }
-"""
-
-
-def _page(title: str, body_html: str, back: str | None = None) -> str:
-    back_html = f'<p class="back"><a href="{back}">← Zurück</a></p>' if back else ""
-    return (
-        f'<!DOCTYPE html><html lang="de">'
-        f'<head><meta charset="utf-8"><title>{_html.escape(title)}</title>'
-        f'<style>{_CSS}</style></head>'
-        f'<body>{back_html}<h1>{_html.escape(title)}</h1>{body_html}</body></html>'
-    )
-
-
-def _table(rows_html: str, headers: tuple[str, ...], colgroup: str = "") -> str:
-    ths = "".join(
-        f'<th class="r">{h}</th>' if h in ("Größe",) else f'<th>{h}</th>'
-        for h in headers
-    )
-    return (
-        f"<table>{colgroup}"
-        f"<thead><tr>{ths}</tr></thead>"
-        f"<tbody>{rows_html}</tbody>"
-        f"</table>"
-    )
-
-
-def _fmt_size(n: int) -> str:
-    for unit, div in _UNITS:
-        if n >= div:
-            return f"{n / div:.1f} {unit}"
-    return f"{n} B"
-
-
-def _safe_child(base: Path, *parts: str) -> Path:
-    resolved = (base / Path(*parts)).resolve()
-    if not str(resolved).startswith(str(base.resolve())):
-        raise HTTPException(400, "Ungültiger Pfad")
-    return resolved
 
 
 def _arch_dir() -> Path:
@@ -104,8 +53,15 @@ def files_index():
         for d in _DISTROS
     )
     cg = '<colgroup><col class="c-name1"></colgroup>'
-    body = _table(rows or "<tr><td>Keine Distributionen konfiguriert.</td></tr>", ("Name",), cg)
-    return HTMLResponse(_page("Packages", body))
+    return HTMLResponse(
+        _page(
+            "Packages",
+            "",
+            rows or "<tr><td>Keine Distributionen konfiguriert.</td></tr>",
+            col_headers=("Name",),
+            colgroup=cg,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,17 +82,14 @@ def debian_listing():
     d = _debian_dir()
 
     if not d.exists():
-        rows = '<tr><td colspan="2">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
+        rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
     else:
-        files = sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
-        rows = "\n".join(
-            f'<tr><td><a href="/files/debian/{_html.escape(f.name)}">{_html.escape(f.name)}</a></td>'
-            f'<td class="num">{_fmt_size(f.stat().st_size)}</td></tr>'
-            for f in files
-        ) or '<tr><td colspan="2">Keine Dateien vorhanden.</td></tr>'
+        entries = [e for e in list_dir_entries(d, lambda name, _: f"/files/debian/{name}") if not e.is_dir]
+        rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
 
-    cg = '<colgroup><col class="c-name"><col class="c-size"></colgroup>'
-    return HTMLResponse(_page("debian Packages", _table(rows, ("Name", "Größe"), cg), back="/files/"))
+    return HTMLResponse(
+        _page("debian Packages", "", rows, back="/files/", col_headers=("Name", "Geändert", "Größe"))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +120,9 @@ def distro_index(distro: str):
         for arch in arches
     )
     cg = '<colgroup><col class="c-name1"></colgroup>'
-    body = _table(rows, ("Name",), cg)
-    return HTMLResponse(_page(f"{distro} Packages", body, back="/files/"))
+    return HTMLResponse(
+        _page(f"{distro} Packages", "", rows, back="/files/", col_headers=("Name",), colgroup=cg)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -192,18 +146,23 @@ def arch_listing(distro: str, arch: str):
     d = _arch_dir()
 
     if not d.exists():
-        rows = '<tr><td colspan="2">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
+        rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
     else:
-        files = sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
-        rows = "\n".join(
-            f'<tr><td><a href="/files/{distro}/{arch}/{_html.escape(f.name)}">{_html.escape(f.name)}</a></td>'
-            f'<td class="num">{_fmt_size(f.stat().st_size)}</td></tr>'
-            for f in files
-        ) or '<tr><td colspan="2">Keine Dateien vorhanden.</td></tr>'
+        entries = [
+            e for e in list_dir_entries(d, lambda name, _: f"/files/{distro}/{arch}/{name}")
+            if not e.is_dir
+        ]
+        rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
 
-    cg = '<colgroup><col class="c-name"><col class="c-size"></colgroup>'
-    body = _table(rows, ("Name", "Größe"), cg)
-    return HTMLResponse(_page(f"{distro} Packages", body, back=f"/files/{distro}/"))
+    return HTMLResponse(
+        _page(
+            f"{distro} Packages",
+            "",
+            rows,
+            back=f"/files/{distro}/",
+            col_headers=("Name", "Geändert", "Größe"),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
