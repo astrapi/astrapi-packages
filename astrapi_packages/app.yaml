@@ -5,3 +5,21 @@ display_name: Packages
 # archive (mdiArchive) -- fertige Pakete landen im Repo-Archiv, fuer
 # Favicon + PWA-Manifest (astrapi-core >= 26.9.3).
 icon_svg: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a3a3a3'><path d='M3,3H21V7H3V3M4,8H20V21H4V8M9.5,11A0.5,0.5 0 0,0 9,11.5V13H15V11.5A0.5,0.5 0 0,0 14.5,11H9.5Z'/></svg>"
+
+# Login-Pflicht fuer die UI (bisher offen im LAN) + Mehrbenutzer-Login,
+# Nutzerentscheidung 2026-09-13 -- geteilte Daten fuer alle eingeloggten
+# Nutzer, keine Mandantentrennung. Erster Besucher landet auf
+# /auth/register, wird automatisch Admin. exempt_prefixes zwingend
+# noetig: /archlinux und /debian bedienen echte Paket-Downloads fuer
+# pacman/apt auf Client-Maschinen im Fleet (api/repo.py::_DISTROS),
+# keine Browser-Session -- ohne Ausnahme wuerde jeder Client-Zugriff auf
+# /auth/login umgeleitet und das Paketmanagement im ganzen Fleet brechen.
+auth:
+  enabled: true
+  multi_user: true
+  rp_id: packages.simpsons.lan
+  rp_name: astrapi-packages
+  password_fallback: true
+  exempt_prefixes:
+    - /archlinux
+    - /debian
