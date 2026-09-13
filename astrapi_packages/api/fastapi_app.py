@@ -29,9 +29,10 @@ def create(modules: list | None = None) -> FastAPI:
         modules, _ = load_modules(APP_ROOT)
     register_fastapi_modules(app, modules)
 
-    from astrapi_packages.api.repo import router as repo_router
-
-    app.include_router(repo_router)
+    # repo_router (Datei-Ausgabe auf der Wurzel, /{distro}/...) wird
+    # bewusst NICHT hier eingehaengt, sondern erst ganz am Ende von
+    # _app.py::create_app() -- Starlette matcht Routen in
+    # Registrierungsreihenfolge, nicht nach Spezifitaet, siehe dort.
 
     from astrapi_packages.api.run import make_run_router
 

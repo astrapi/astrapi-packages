@@ -1,12 +1,12 @@
-"""astrapi_packages.api.repo – Pacman/APT-Repository HTTP-Server unter /files/."""
+"""astrapi_packages.api.repo – Pacman/APT-Repository HTTP-Server unter /."""
 
-import html as _html
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from astrapi_core.ui.file_listing import (
+    dir_link as _dir_link,
     list_dir_entries,
     render_page as _page,
     render_row,
@@ -36,20 +36,12 @@ def _debian_dir() -> Path:
 
 
 # ---------------------------------------------------------------------------
-# /files  →  /files/
+# /  –  Distro-Übersicht
 # ---------------------------------------------------------------------------
-@router.get("/files", include_in_schema=False)
-def files_redirect():
-    return RedirectResponse("/files/", status_code=301)
-
-
-# ---------------------------------------------------------------------------
-# /files/  –  Distro-Übersicht
-# ---------------------------------------------------------------------------
-@router.get("/files/", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def files_index():
     rows = "\n".join(
-        f'<tr><td><a href="/files/{d}/">{_html.escape(d)}/</a></td></tr>'
+        f'<tr><td>{_dir_link(d + "/", f"/{d}/")}</td></tr>'
         for d in _DISTROS
     )
     cg = '<colgroup><col class="c-name1"></colgroup>'
@@ -65,37 +57,37 @@ def files_index():
 
 
 # ---------------------------------------------------------------------------
-# /files/{distro}  →  /files/{distro}/
+# /{distro}  →  /{distro}/
 # ---------------------------------------------------------------------------
-@router.get("/files/{distro}", include_in_schema=False)
+@router.get("/{distro}", include_in_schema=False)
 def distro_redirect(distro: str):
     if distro not in _DISTROS:
         raise HTTPException(404, "Unbekannte Distribution")
-    return RedirectResponse(f"/files/{distro}/", status_code=301)
+    return RedirectResponse(f"/{distro}/", status_code=301)
 
 
 # ---------------------------------------------------------------------------
-# /files/debian/  –  APT-Repository-Listing
+# /debian/  –  APT-Repository-Listing
 # ---------------------------------------------------------------------------
-@router.get("/files/debian/", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/debian/", response_class=HTMLResponse, include_in_schema=False)
 def debian_listing():
     d = _debian_dir()
 
     if not d.exists():
         rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
     else:
-        entries = [e for e in list_dir_entries(d, lambda name, _: f"/files/debian/{name}") if not e.is_dir]
+        entries = [e for e in list_dir_entries(d, lambda name, _: f"/debian/{name}") if not e.is_dir]
         rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
 
     return HTMLResponse(
-        _page("debian Packages", "", rows, back="/files/", col_headers=("Name", "Geändert", "Größe"))
+        _page("debian Packages", "", rows, back="/", col_headers=("Name", "Geändert", "Größe"))
     )
 
 
 # ---------------------------------------------------------------------------
-# /files/debian/{path:path}  –  Datei-Download (APT normalisiert ./ → Dateiname)
+# /debian/{path:path}  –  Datei-Download (APT normalisiert ./ → Dateiname)
 # ---------------------------------------------------------------------------
-@router.get("/files/debian/{path:path}", include_in_schema=False)
+@router.get("/debian/{path:path}", include_in_schema=False)
 def debian_file(path: str):
     clean = path.removeprefix("./").lstrip("/")
     if not clean or "/" in clean:
@@ -107,38 +99,38 @@ def debian_file(path: str):
 
 
 # ---------------------------------------------------------------------------
-# /files/{distro}/  –  Architektur-Übersicht (nicht-flache Distros)
+# /{distro}/  –  Architektur-Übersicht (nicht-flache Distros)
 # ---------------------------------------------------------------------------
-@router.get("/files/{distro}/", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/{distro}/", response_class=HTMLResponse, include_in_schema=False)
 def distro_index(distro: str):
     if distro not in _DISTROS or distro in _FLAT_DISTROS:
         raise HTTPException(404, "Unbekannte Distribution")
 
     arches = _DISTROS[distro]
     rows = "\n".join(
-        f'<tr><td><a href="/files/{distro}/{arch}/">{arch}/</a></td></tr>'
+        f'<tr><td>{_dir_link(arch + "/", f"/{distro}/{arch}/")}</td></tr>'
         for arch in arches
     )
     cg = '<colgroup><col class="c-name1"></colgroup>'
     return HTMLResponse(
-        _page(f"{distro} Packages", "", rows, back="/files/", col_headers=("Name",), colgroup=cg)
+        _page(f"{distro} Packages", "", rows, back="/", col_headers=("Name",), colgroup=cg)
     )
 
 
 # ---------------------------------------------------------------------------
-# /files/{distro}/{arch}  →  /files/{distro}/{arch}/
+# /{distro}/{arch}  →  /{distro}/{arch}/
 # ---------------------------------------------------------------------------
-@router.get("/files/{distro}/{arch}", include_in_schema=False)
+@router.get("/{distro}/{arch}", include_in_schema=False)
 def arch_redirect(distro: str, arch: str):
     if distro not in _DISTROS or arch not in _DISTROS.get(distro, []):
         raise HTTPException(404)
-    return RedirectResponse(f"/files/{distro}/{arch}/", status_code=301)
+    return RedirectResponse(f"/{distro}/{arch}/", status_code=301)
 
 
 # ---------------------------------------------------------------------------
-# /files/{distro}/{arch}/  –  Datei-Listing
+# /{distro}/{arch}/  –  Datei-Listing
 # ---------------------------------------------------------------------------
-@router.get("/files/{distro}/{arch}/", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/{distro}/{arch}/", response_class=HTMLResponse, include_in_schema=False)
 def arch_listing(distro: str, arch: str):
     if distro not in _DISTROS or arch not in _DISTROS.get(distro, []):
         raise HTTPException(404)
@@ -149,7 +141,7 @@ def arch_listing(distro: str, arch: str):
         rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
     else:
         entries = [
-            e for e in list_dir_entries(d, lambda name, _: f"/files/{distro}/{arch}/{name}")
+            e for e in list_dir_entries(d, lambda name, _: f"/{distro}/{arch}/{name}")
             if not e.is_dir
         ]
         rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
@@ -159,16 +151,16 @@ def arch_listing(distro: str, arch: str):
             f"{distro} Packages",
             "",
             rows,
-            back=f"/files/{distro}/",
+            back=f"/{distro}/",
             col_headers=("Name", "Geändert", "Größe"),
         )
     )
 
 
 # ---------------------------------------------------------------------------
-# /files/{distro}/{arch}/{filename}  –  Datei-Download
+# /{distro}/{arch}/{filename}  –  Datei-Download
 # ---------------------------------------------------------------------------
-@router.get("/files/{distro}/{arch}/{filename}", include_in_schema=False)
+@router.get("/{distro}/{arch}/{filename}", include_in_schema=False)
 def arch_file(distro: str, arch: str, filename: str):
     if distro not in _DISTROS or arch not in _DISTROS.get(distro, []):
         raise HTTPException(404)
