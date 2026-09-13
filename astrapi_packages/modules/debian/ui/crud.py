@@ -33,6 +33,24 @@ def _delete_preview(item_id: str) -> list[str]:
     return find_orphan_deps(item_id, store)
 
 
+def category_options() -> list[dict]:
+    """Fuer Header.filter_select() (Dropdown-Anzeige), filters= (die
+    eigentliche Filterlogik in resolve_filters_for_request()) UND das
+    handgebaute create/edit-Modal dieses Moduls (siehe unten)."""
+    from astrapi_core.modules.categories.ui.crud import categories_for_select
+
+    return categories_for_select()
+
+
+def _resolve_category(item_id: str, item: dict) -> dict:
+    from astrapi_core.modules.categories.ui.crud import store as categories_store
+
+    category = categories_store.get(str(item.get("category_id") or "")) or {}
+    item["category_name"] = category.get("name") or ""
+    item["category_color"] = category.get("color") or ""
+    return item
+
+
 _crud = make_crud_router(
     store,
     KEY,
@@ -43,6 +61,15 @@ _crud = make_crud_router(
     has_toggle=False,
     running_fn=_running_fn,
     delete_preview_fn=_delete_preview,
+    list_item_transform=_resolve_category,
+    filters=[
+        {
+            "param": "category_id",
+            "label": "Kategorie",
+            "all_label": "Alle Kategorien",
+            "options_fn": category_options,
+        },
+    ],
 )
 
 router = APIRouter()
@@ -90,6 +117,7 @@ def create_modal(request: Request):
             item=None,
             error=None,
             image_options=_image_options(),
+            category_options=category_options(),
             no_source=not pkg_cache.has_source(),
         ),
     )
@@ -126,6 +154,7 @@ async def create_apply(request: Request):
         "source_subdir": form.get("source_subdir", "").strip(),
         "aur_deps": form.get("aur_deps", "").strip(),
         "image": form.get("image", "").strip(),
+        "category_id": form.get("category_id", "").strip(),
         # Nicht aus dem Formular uebernehmen: pkg_type ist keine Nutzereingabe
         # mehr, sondern rein vom System verwaltet (manuell angelegt = immer
         # "package"; "dependency" setzt ausschliesslich autocreate_deps()
@@ -156,7 +185,13 @@ def edit_modal(item_id: str, request: Request):
     return render(
         request,
         f"{KEY}/dialogs/edit/modal.html",
-        dict(item_id=item_id, item=item, error=None, image_options=_image_options()),
+        dict(
+            item_id=item_id,
+            item=item,
+            error=None,
+            image_options=_image_options(),
+            category_options=category_options(),
+        ),
     )
 
 
@@ -169,6 +204,7 @@ async def edit_apply(item_id: str, request: Request):
             "source_subdir": form.get("source_subdir", "").strip(),
             "aur_deps": form.get("aur_deps", "").strip(),
             "image": form.get("image", "").strip(),
+            "category_id": form.get("category_id", "").strip(),
             # pkg_type bewusst nicht aus dem Formular -- bleibt unveraendert
             # (siehe create_apply weiter oben).
             "enabled": form.get("enabled") in ("1", "on", "true", True),

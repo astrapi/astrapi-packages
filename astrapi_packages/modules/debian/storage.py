@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS debian_packages (
     last_log         TEXT NOT NULL DEFAULT '',
     last_version     TEXT NOT NULL DEFAULT '',
     upstream_version TEXT NOT NULL DEFAULT '',
-    orphaned         INTEGER NOT NULL DEFAULT 0
+    orphaned         INTEGER NOT NULL DEFAULT 0,
+    category_id      INTEGER NOT NULL DEFAULT 0
 )"""
 
 _COLS = (
@@ -41,6 +42,7 @@ _COLS = (
     "last_version",
     "upstream_version",
     "orphaned",
+    "category_id",
 )
 _BOOL_COLS = frozenset({"enabled", "orphaned"})
 
@@ -102,6 +104,12 @@ class DebianPackageStore:
                 pass
             try:
                 db.execute("ALTER TABLE debian_packages ADD COLUMN orphaned INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                db.execute(
+                    "ALTER TABLE debian_packages ADD COLUMN category_id INTEGER NOT NULL DEFAULT 0"
+                )
             except Exception:
                 pass
             db.commit()

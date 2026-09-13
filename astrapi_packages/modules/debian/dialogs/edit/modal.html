@@ -104,6 +104,12 @@
   <label class="form-label">Build-Image</label>
   {{ form_select('image', image_options, (item or {}).get('image') or '', placeholder='') }}
 </div>
+
+{# ── Kategorie (T-329-PACKAGES) ───────────────────────────────────────── #}
+<div>
+  <label class="form-label">Kategorie</label>
+  {{ form_select('category_id', category_options, (item or {}).get('category_id') or '') }}
+</div>
 {% endblock %}
 
 {% block dialog_footer %}

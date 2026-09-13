@@ -36,9 +36,11 @@ router = make_crud_router(store, KEY, ItemIn, on_delete=delete_package)
 from astrapi_core.ui.controls import Col, ContentTable, Header  # noqa: E402
 
 from .ui import router as ui_router  # noqa: E402
+from .ui.crud import category_options  # noqa: E402
 
 _ui_content = ContentTable(
     columns=[
+        Col.category("category_name", "Kategorie", color_key="category_color", sortable=True),
         Col.version_badge("last_version", "Version"),
         Col.text("pkg_type_label", "Typ", css="col-type"),
         Col.text("source_type_label", "Quelle", css="col-type"),
@@ -60,6 +62,9 @@ module = load_modul(
     ui_content=_ui_content,
     ui_header=Header(
         [
+            Header.filter_select(
+                "category_id", options_fn=category_options, all_label="Alle Kategorien"
+            ),
             Header.action_button(
                 "Auf Updates prüfen",
                 hx_post=f"/ui/{_KEY}/check-updates",

@@ -31,3 +31,8 @@ fields:
     label:            Build-Image
     type:             select
     options_endpoint:  /api/builder/images/for-select?module=archlinux
+
+  - name:             category_id
+    label:            Kategorie
+    type:             select
+    options_endpoint:  /api/categories/for-select
