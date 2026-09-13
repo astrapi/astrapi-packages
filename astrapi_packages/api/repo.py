@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from astrapi_core.ui.file_listing import (
-    dir_link as _dir_link,
     list_dir_entries,
+    render_link_row,
     render_page as _page,
     render_row,
     safe_child as _safe_child,
@@ -40,18 +40,16 @@ def _debian_dir() -> Path:
 # ---------------------------------------------------------------------------
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def files_index():
-    rows = "\n".join(
-        f'<tr><td>{_dir_link(d + "/", f"/{d}/")}</td></tr>'
-        for d in _DISTROS
-    )
+    rows = [render_link_row(d + "/", f"/{d}/") for d in _DISTROS]
     cg = '<colgroup><col class="c-name1"></colgroup>'
     return HTMLResponse(
         _page(
             "Packages",
             '<a href="/admin">Zum Dashboard →</a>',
-            rows or "<tr><td>Keine Distributionen konfiguriert.</td></tr>",
+            rows,
             col_headers=("Name",),
             colgroup=cg,
+            empty_message="Keine Distributionen konfiguriert.",
         )
     )
 
@@ -74,13 +72,18 @@ def debian_listing():
     d = _debian_dir()
 
     if not d.exists():
-        rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
+        rows = []
+        empty_message = "Repository-Verzeichnis noch nicht vorhanden."
     else:
         entries = [e for e in list_dir_entries(d, lambda name, _: f"/debian/{name}") if not e.is_dir]
-        rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
+        rows = [render_row(e) for e in entries]
+        empty_message = "Keine Dateien vorhanden."
 
     return HTMLResponse(
-        _page("debian Packages", "", rows, back="/", col_headers=("Name", "Geändert", "Größe"))
+        _page(
+            "debian Packages", "", rows, back="/",
+            col_headers=("Name", "Geändert", "Größe"), empty_message=empty_message,
+        )
     )
 
 
@@ -107,10 +110,7 @@ def distro_index(distro: str):
         raise HTTPException(404, "Unbekannte Distribution")
 
     arches = _DISTROS[distro]
-    rows = "\n".join(
-        f'<tr><td>{_dir_link(arch + "/", f"/{distro}/{arch}/")}</td></tr>'
-        for arch in arches
-    )
+    rows = [render_link_row(arch + "/", f"/{distro}/{arch}/") for arch in arches]
     cg = '<colgroup><col class="c-name1"></colgroup>'
     return HTMLResponse(
         _page(f"{distro} Packages", "", rows, back="/", col_headers=("Name",), colgroup=cg)
@@ -138,13 +138,15 @@ def arch_listing(distro: str, arch: str):
     d = _arch_dir()
 
     if not d.exists():
-        rows = '<tr><td colspan="3">Repository-Verzeichnis noch nicht vorhanden.</td></tr>'
+        rows = []
+        empty_message = "Repository-Verzeichnis noch nicht vorhanden."
     else:
         entries = [
             e for e in list_dir_entries(d, lambda name, _: f"/{distro}/{arch}/{name}")
             if not e.is_dir
         ]
-        rows = "\n".join(render_row(e) for e in entries) or '<tr><td colspan="3">Keine Dateien vorhanden.</td></tr>'
+        rows = [render_row(e) for e in entries]
+        empty_message = "Keine Dateien vorhanden."
 
     return HTMLResponse(
         _page(
@@ -153,6 +155,7 @@ def arch_listing(distro: str, arch: str):
             rows,
             back=f"/{distro}/",
             col_headers=("Name", "Geändert", "Größe"),
+            empty_message=empty_message,
         )
     )
 
