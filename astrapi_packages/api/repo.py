@@ -45,7 +45,7 @@ def files_index():
     return HTMLResponse(
         _page(
             "Packages",
-            '<a href="/admin">Zum Dashboard →</a>',
+            "",
             rows,
             col_headers=("Name",),
             colgroup=cg,
