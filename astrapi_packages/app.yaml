@@ -23,6 +23,17 @@ auth:
   exempt_prefixes:
     - /archlinux
     - /debian
+  # Die Wurzel-Dateiliste (api/repo.py::files_index(), nur "archlinux/"/
+  # "debian/" als Links) zeigt nichts, was unter /archlinux bzw. /debian
+  # nicht ohnehin schon oeffentlich waere -- das echte Dashboard bleibt
+  # unter /admin weiterhin login-pflichtig, nur diese reine
+  # Uebersichtsseite nicht (T-333-MIRROR, analog fuer packages). "/" wuerde
+  # als exempt_prefixes-Eintrag wegen des rstrip("/")+"/"-Musters dort
+  # ALLES freigeben (jeder Pfad beginnt mit "/") -- exempt_get_paths'
+  # exakter Pfadvergleich (GET-only) betrifft dagegen wirklich nur die
+  # Wurzel selbst.
+  exempt_get_paths:
+    - /
 
 # Geteilte Daten (s.o.) -- eine gemeinsame Kategorienliste statt einer
 # privaten pro Nutzer, siehe astrapi_core/system/categories_scope.py.
